@@ -123,11 +123,11 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `agencies` | Shipping lines / agencies | name (unique, case-insensitive), active, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_file\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
-| `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), bank\_account\_id (BANK only), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
+| `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
 | `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
-| `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, bank\_account\_id, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
+| `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_at, reply\_type\_id, replied\_at, attempt\_no, send\_status |
 | `emails` | Sent messages and in-thread replies | direction, message\_id, in\_reply\_to, thread\_key, from, to, cc, subject, body as sent, sent\_at, raw\_file\_id, processed\_at |
@@ -167,7 +167,7 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval); daily unprocessed-reply email on/off, time and recipients; weekly summary email on/off, its weekday, time and recipients |
 | Email server | SMTP/IMAP host, port, encryption, user, encrypted app password; sent-folder name; IMAP poll interval; sender display name; default CC/BCC; signature; max attachment size; send-test button |
 | Templates (Turkish) | Refund request, follow-up, deduction statement request, daily unprocessed-reply email, weekly summary; batched template sections; placeholders; live preview |
-| Lists | Deduction types, reply types, active currencies, bank accounts per currency, status display labels and colours |
+| Lists | Deduction types, reply types, active currencies, our bank accounts (used only to fill `{bank_name}` / `{iban}` in agency forms), status display labels and colours |
 | Reconciliation | Number of alternative suggestions shown |
 | Rules | Block sending without an uploaded form; standing documents attached to every request; duplicate-record warning; draft lock timeout; undo window; allowed file types |
 | Users | Users and their roles (one or more); failed-login lockout attempts; minimum password length |
@@ -307,7 +307,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **B/L creation.** Operations creates B/Ls one at a time from a payment, or in bulk from a table of payments without a B/L: each row is prefilled (agency, amount, currency, B/L number candidate) and B/L numbers and container lists can be typed or pasted from Excel. Rows are saved together after validation; invalid rows stay in the table with their errors. B/L numbers are stored upper-case without spaces (3–40 characters: letters, digits, `-`, `/`) and are unique among active B/Ls across all agencies; a number that does not match the agency's patterns only shows a warning. Container numbers must have the ISO 6346 form (4 letters, 7 digits); a wrong check digit only shows a warning. The B/L number can be edited until the first request is sent; containers can always be edited.
 
-**Incoming refunds.** The accountant enters agency (searchable by bank sender aliases), amount, currency, value date, bank account and the mandatory receipt, with the same duplicate warning. Offsets are entered the same way with kind `OFFSET` and the invoice as evidence. Refunds arrive in full; there is no bank-fee tolerance.
+**Incoming refunds.** The accountant enters agency (searchable by bank sender aliases), amount, currency, value date and the mandatory receipt, with the same duplicate warning. Offsets are entered the same way with kind `OFFSET` and the invoice as evidence. Refunds arrive in full; there is no bank-fee tolerance.
 
 **Receipt reading.** All payments and refunds pass through one bank, so its PDF receipt has one known layout. For a text-based PDF receipt the app extracts sender or beneficiary name, amount, currency, date and (outgoing) B/L number candidates, matches the name to an agency through its bank sender aliases, and prefills the form. Every field stays editable and manual entry is always possible. Extraction runs on the host PC. Scanned or photographed receipts are entered manually in v1.
 
@@ -324,7 +324,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **Corrections and voiding.** Mistakes are fixed without deleting anything:
 
-- The accountant corrects the amount, currency, date, agency or bank account of an own money record with a reason while it has no confirmed allocation. An active B/L follows the correction (agency, currency, deposit, paid date), and its ledger entry is compensated and re-entered.
+- The accountant corrects the amount, currency, date or agency of an own money record with a reason while it has no confirmed allocation. An active B/L follows the correction (agency, currency, deposit, paid date), and its ledger entry is compensated and re-entered.
 - Operations voids a B/L created with wrong data while it has no confirmed allocation; its payment returns to "awaiting B/L" so a correct B/L can be created.
 - The accountant voids a duplicate or mistaken payment or refund with a reason, once its B/L (if any) is voided and it has no confirmed allocation.
 - Records with confirmed allocations need an admin reversal first.
@@ -430,6 +430,12 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 22, 2026 — bank accounts only for forms**
+
+- Payments and refunds no longer record which of our bank accounts was used; accounting entries do not ask for one.
+- The bank account list stays (admin, Lists) only to fill `{bank_name}` / `{iban}` in agency refund forms.
+- Migrations switch foreign keys off around the migration transaction and run `foreign_key_check` afterwards, so table rebuilds work on databases that already hold referencing rows.
 
 **Oct 22, 2026 — build step 3 (payments, B/Ls, corrections)**
 

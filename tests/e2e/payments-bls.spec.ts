@@ -87,7 +87,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   await expect(page.getByText("3.000,50 USD")).toBeVisible();
   await page.getByLabel(tr.payments.blNoHint).fill("245678901");
   await page.getByRole("button", { name: tr.payments.save }).click();
-  await expect(page.getByText(tr.payments.saved)).toBeVisible();
+  await expect(page.getByText(tr.payments.saved).last()).toBeVisible();
 
   // Continuous flow: the B/L form is prefilled with the hint.
   await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
@@ -105,7 +105,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   await expect(duplicate.getByText(tr.payments.duplicateText)).toBeVisible();
   await expect(duplicate.getByText(/3\.000,50 USD/)).toBeVisible();
   await duplicate.getByRole("button", { name: tr.payments.duplicateConfirm }).click();
-  await expect(page.getByText(tr.payments.saved)).toBeVisible();
+  await expect(page.getByText(tr.payments.saved).last()).toBeVisible();
   await page.getByRole("button", { name: tr.payments.newTitle }).click();
 
   // Bulk upload into the review queue: save one, discard the other.
@@ -116,7 +116,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   await pickAgency(page);
   await page.getByLabel(tr.payments.amount).fill("1.500");
   await page.getByRole("button", { name: tr.payments.save }).click();
-  await expect(page.getByText(tr.payments.saved)).toBeVisible();
+  await expect(page.getByText(tr.payments.saved).last()).toBeVisible();
   await page.getByRole("button", { name: tr.payments.newTitle }).click();
   await page.getByRole("link", { name: new RegExp(tr.payments.queueTitle) }).click();
   await page.getByRole("button", { name: tr.payments.discard }).click();

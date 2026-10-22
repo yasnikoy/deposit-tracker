@@ -18,7 +18,6 @@ const paymentFields = {
     .refine(Number.isSafeInteger, msg("payments.errors.amount")),
   currency: z.string().regex(/^[A-Z]{3}$/, msg("payments.errors.currency")),
   paidAt: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
-  bankAccountId: id.nullable(),
 };
 
 const blNoHint = z
@@ -28,23 +27,18 @@ const blNoHint = z
   .transform((value) => normalizeBlNumber(value) || null)
   .refine((value) => value === null || isValidBlNumber(value), msg("bls.errors.blNo"));
 
-const bankAccountMatchesKind = <T extends { kind: (typeof PAYMENT_KINDS)[number]; bankAccountId: number | null }>(v: T) =>
-  (v.kind === "BANK") === (v.bankAccountId !== null);
-
-export const createPaymentSchema = z
-  .object({
-    ...paymentFields,
-    kind: z.enum(PAYMENT_KINDS),
-    blNoHint,
-    evidenceDocumentId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.evidence")).transform((v) => v as number),
-    queueItemId: id.nullable().default(null),
-    confirmDuplicate: z.boolean().default(false),
-  })
-  .refine(bankAccountMatchesKind, { path: ["bankAccountId"], message: msg("payments.errors.bankAccount") });
+export const createPaymentSchema = z.object({
+  ...paymentFields,
+  kind: z.enum(PAYMENT_KINDS),
+  blNoHint,
+  evidenceDocumentId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.evidence")).transform((v) => v as number),
+  queueItemId: id.nullable().default(null),
+  confirmDuplicate: z.boolean().default(false),
+});
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
-/** Corrections cover amount, currency, date, agency and bank account; the kind is fixed. */
+/** Corrections cover amount, currency, date and agency; the kind is fixed. */
 export const correctPaymentSchema = z.object({
   id,
   ...paymentFields,

@@ -10,7 +10,6 @@ import { auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/s
 import { ForbiddenError } from "@/server/errors";
 import { documentPath, storeUpload } from "@/server/files";
 import { addLedgerEntry, ledgerDeposit } from "@/server/ledger";
-import { saveBankAccount } from "@/server/lists";
 import {
   correctPayment,
   createPayment,
@@ -33,8 +32,6 @@ let acc: AuthUser;
 let acc2: AuthUser;
 let ops: AuthUser;
 let agencyId: number;
-let usdAccount: number;
-let eurAccount: number;
 
 beforeEach(async () => {
   db = createTestDb();
@@ -58,8 +55,6 @@ beforeEach(async () => {
       notes: "",
     }),
   );
-  usdAccount = saveBankAccount(db, admin, { name: "USD hesabı", bankName: "Banka", iban: "TR330006100519786457841326", currency: "USD", active: true, reason: null });
-  eurAccount = saveBankAccount(db, admin, { name: "EUR hesabı", bankName: "Banka", iban: "DE89370400440532013000", currency: "EUR", active: true, reason: null });
 });
 
 const upload = (user: AuthUser, kind: "RECEIPT" | "INVOICE" = "RECEIPT", name = "dekont.pdf") =>
@@ -75,7 +70,6 @@ const pay = (overrides: Record<string, unknown> = {}, user = acc) =>
       currency: "USD",
       paidAt: "2026-10-20",
       kind: "BANK",
-      bankAccountId: usdAccount,
       blNoHint: null,
       evidenceDocumentId: (overrides.evidenceDocumentId as number | undefined) ?? upload(user).id,
       queueItemId: null,
@@ -114,7 +108,8 @@ describe("deposit payments", () => {
   it("is created by an accountant with the uploaded receipt attached", () => {
     const id = created(pay());
     const [row] = listOwnPayments(db, acc);
-    expect(row).toMatchObject({ id, amountMinor: 300000, blId: null, bankAccountName: "USD hesabı" });
+    expect(row).toMatchObject({ id, amountMinor: 300000, blId: null });
+    expect(row).not.toHaveProperty("bankAccountId");
     expect(db.select().from(documents).where(eq(documents.id, row.evidenceDocumentId)).get()).toMatchObject({
       ownerType: "deposit_payment",
       ownerId: id,
@@ -128,12 +123,12 @@ describe("deposit payments", () => {
     );
     // Someone else's upload cannot be claimed.
     expect(() => pay({ evidenceDocumentId: upload(acc2).id })).toThrow(expect.objectContaining({ messageKey: "files.errors.evidence" }));
-    // An offset has no bank account and needs an invoice.
-    expect(created(pay({ kind: "OFFSET", bankAccountId: null, evidenceDocumentId: upload(acc, "INVOICE").id }))).toBeGreaterThan(0);
+    // An offset needs an invoice.
+    expect(created(pay({ kind: "OFFSET", evidenceDocumentId: upload(acc, "INVOICE").id }))).toBeGreaterThan(0);
   });
 
-  it("checks the bank account currency and rejects future dates", () => {
-    expect(() => pay({ bankAccountId: eurAccount })).toThrow(expect.objectContaining({ messageKey: "payments.errors.bankAccountCurrency" }));
+  it("rejects future dates and inactive currencies", () => {
+    expect(() => pay({ currency: "GBP" })).toThrow(expect.objectContaining({ messageKey: "payments.errors.currency" }));
     expect(() => pay({ paidAt: "2026-10-23" })).toThrow(expect.objectContaining({ messageKey: "payments.errors.futureDate" }));
   });
 
@@ -211,7 +206,7 @@ describe("corrections and voiding", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
     const [bl] = listBls(db, ops);
-    const correction = { id: p1, agencyId, amountMinor: 250000, currency: "USD", paidAt: "2026-10-19", bankAccountId: usdAccount, reason: "Dekont tutarı hatalı girildi" };
+    const correction = { id: p1, agencyId, amountMinor: 250000, currency: "USD", paidAt: "2026-10-19", reason: "Dekont tutarı hatalı girildi" };
 
     expect(() => correctPayment(db, acc2, correction)).toThrow(ForbiddenError);
     expect(() => correctPayment(db, ops, correction)).toThrow(ForbiddenError);
@@ -230,7 +225,7 @@ describe("corrections and voiding", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
     const [bl] = listBls(db, ops);
-    correctPayment(db, acc, { id: p1, agencyId, amountMinor: 280000, currency: "EUR", paidAt: "2026-10-20", bankAccountId: eurAccount, reason: "Para birimi EUR" }, NOW);
+    correctPayment(db, acc, { id: p1, agencyId, amountMinor: 280000, currency: "EUR", paidAt: "2026-10-20", reason: "Para birimi EUR" }, NOW);
     expect(listBls(db, ops)[0]).toMatchObject({ currency: "EUR", depositAmountMinor: 280000 });
     expect(ledgerDeposit(db, bl.id)).toBe(280000);
   });
@@ -247,7 +242,7 @@ describe("corrections and voiding", () => {
     addLedgerEntry(db, { blId: bl.id, type: "REFUND_ALLOCATION", amountMinor: -300000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
     expect(() => voidBl(db, ops, { id: bl.id, reason: "x" })).toThrow(expect.objectContaining({ messageKey: "bls.errors.allocated" }));
     expect(() =>
-      correctPayment(db, acc, { id: p1, agencyId, amountMinor: 1, currency: "USD", paidAt: "2026-10-20", bankAccountId: usdAccount, reason: "x" }),
+      correctPayment(db, acc, { id: p1, agencyId, amountMinor: 1, currency: "USD", paidAt: "2026-10-20", reason: "x" }),
     ).toThrow(expect.objectContaining({ messageKey: "payments.errors.allocated" }));
   });
 

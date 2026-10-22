@@ -252,7 +252,6 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
         filterFn: "oneOf",
         cell: ({ getValue }) => t(`payments.kinds.${getValue()}`),
       }),
-      col.accessor((p) => p.bankAccountName ?? "", { id: "bankAccount", meta: { label: "payments.bankAccount" } }),
       col.accessor((p) => p.blNo ?? "", {
         id: "blNo",
         meta: { label: "payments.bl", filter: "text" },

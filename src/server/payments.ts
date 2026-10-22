@@ -11,7 +11,6 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
 import {
   agencies,
-  bankAccounts,
   billsOfLading,
   currencies,
   depositPayments,
@@ -83,28 +82,18 @@ function findDuplicates(
     .all();
 }
 
-/** Checks references shared by create and correct: agency, currency, bank account, date. */
+/** Checks references shared by create and correct: agency, currency, date. */
 function validateReferences(
   tx: DbOrTx,
-  input: { agencyId: number; currency: string; paidAt: string; bankAccountId: number | null },
-  kind: PaymentKind,
+  input: { agencyId: number; currency: string; paidAt: string },
   now: Date,
-  allowInactive: { agencyId?: number; bankAccountId?: number | null } = {},
+  allowInactiveAgencyId?: number,
 ): void {
   const agency = tx.select().from(agencies).where(eq(agencies.id, input.agencyId)).get();
-  if (!agency || (!agency.active && agency.id !== allowInactive.agencyId)) throw new DomainError("payments.errors.agency");
+  if (!agency || (!agency.active && agency.id !== allowInactiveAgencyId)) throw new DomainError("payments.errors.agency");
   const currency = tx.select().from(currencies).where(eq(currencies.code, input.currency)).get();
   if (!currency?.active) throw new DomainError("payments.errors.currency");
   if (input.paidAt > istanbulToday(now)) throw new DomainError("payments.errors.futureDate");
-  if (kind === "BANK") {
-    const account = input.bankAccountId
-      ? tx.select().from(bankAccounts).where(eq(bankAccounts.id, input.bankAccountId)).get()
-      : undefined;
-    if (!account || (!account.active && account.id !== allowInactive.bankAccountId)) throw new DomainError("payments.errors.bankAccount");
-    if (account.currency !== input.currency) throw new DomainError("payments.errors.bankAccountCurrency");
-  } else if (input.bankAccountId !== null) {
-    throw new DomainError("payments.errors.bankAccount");
-  }
 }
 
 /**
@@ -115,7 +104,7 @@ function validateReferences(
 export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput, now: Date = new Date()): CreatePaymentResult {
   const roleUsed = authorize(actor, "payment.create");
   return db.transaction((tx): CreatePaymentResult => {
-    validateReferences(tx, input, input.kind, now);
+    validateReferences(tx, input, now);
     if (!input.confirmDuplicate && getSetting("rules.duplicateWarning", {}, tx)) {
       const duplicates = findDuplicates(tx, input);
       if (duplicates.length > 0) return { status: "duplicate", duplicates };
@@ -140,7 +129,6 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
         currency: input.currency,
         paidAt: input.paidAt,
         kind: input.kind,
-        bankAccountId: input.bankAccountId,
         evidenceDocumentId: input.evidenceDocumentId,
         extractedFields: queueItem?.extracted ?? null,
         extractedBlNumbers: queueItem ? prefillFromExtraction(tx, queueItem.extracted as ReceiptExtraction).blCandidates : [],
@@ -184,7 +172,6 @@ function paymentSnapshot(row: Payment) {
     currency: row.currency,
     paidAt: row.paidAt,
     kind: row.kind,
-    bankAccountId: row.bankAccountId,
     evidenceDocumentId: row.evidenceDocumentId,
     blNoHint: row.blNoHint,
   };
@@ -205,7 +192,7 @@ function activeBlOf(tx: DbOrTx, paymentId: number) {
 }
 
 /**
- * Accountant corrects an own payment (amount, currency, date, agency, bank account) with a reason,
+ * Accountant corrects an own payment (amount, currency, date, agency) with a reason,
  * only while it has no confirmed allocation (rule 13). An active B/L follows the correction;
  * its ledger entry is replaced by a compensating entry plus a new one.
  */
@@ -214,7 +201,7 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
     const before = requirePayment(tx, input.id);
     const roleUsed = authorize(actor, "payment.correct", before);
     if (before.voidedAt) throw new DomainError("payments.errors.voided");
-    validateReferences(tx, input, before.kind, now, { agencyId: before.agencyId, bankAccountId: before.bankAccountId });
+    validateReferences(tx, input, now, before.agencyId);
 
     const bl = activeBlOf(tx, before.id);
     if (bl && hasConfirmedAllocation(tx, bl.id)) throw new DomainError("payments.errors.allocated");
@@ -227,7 +214,6 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
         amountMinor: input.amountMinor,
         currency: input.currency,
         paidAt: input.paidAt,
-        bankAccountId: input.bankAccountId,
         updatedAt: at,
       })
       .where(eq(depositPayments.id, input.id))
@@ -371,8 +357,6 @@ export type PaymentListItem = {
   currency: string;
   paidAt: string;
   kind: PaymentKind;
-  bankAccountId: number | null;
-  bankAccountName: string | null;
   evidenceDocumentId: number;
   blNoHint: string | null;
   extractedBlNumbers: string[];
@@ -394,8 +378,6 @@ function paymentListQuery(db: DbOrTx) {
       currency: depositPayments.currency,
       paidAt: depositPayments.paidAt,
       kind: depositPayments.kind,
-      bankAccountId: depositPayments.bankAccountId,
-      bankAccountName: bankAccounts.name,
       evidenceDocumentId: depositPayments.evidenceDocumentId,
       blNoHint: depositPayments.blNoHint,
       extractedBlNumbers: depositPayments.extractedBlNumbers,
@@ -408,7 +390,6 @@ function paymentListQuery(db: DbOrTx) {
     })
     .from(depositPayments)
     .innerJoin(agencies, eq(agencies.id, depositPayments.agencyId))
-    .leftJoin(bankAccounts, eq(bankAccounts.id, depositPayments.bankAccountId))
     .leftJoin(billsOfLading, and(eq(billsOfLading.depositPaymentId, depositPayments.id), isNull(billsOfLading.voidedAt)));
 }
 

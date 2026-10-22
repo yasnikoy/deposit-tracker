@@ -212,6 +212,7 @@ export const currencies = sqliteTable(
   ],
 );
 
+// Our own accounts, used to fill {bank_name} / {iban} in agency refund forms.
 export const bankAccounts = sqliteTable(
   "bank_accounts",
   {
@@ -271,7 +272,6 @@ export const depositPayments = sqliteTable(
       .references(() => currencies.code),
     paidAt: text("paid_at").notNull(),
     kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
-    bankAccountId: integer("bank_account_id").references(() => bankAccounts.id),
     evidenceDocumentId: integer("evidence_document_id")
       .notNull()
       .references(() => documents.id),
@@ -288,7 +288,6 @@ export const depositPayments = sqliteTable(
   (t) => [
     check("deposit_payments_amount", sql`${t.amountMinor} > 0`),
     check("deposit_payments_kind", sql`${t.kind} IN ('BANK', 'OFFSET')`),
-    check("deposit_payments_bank_account", sql`(${t.kind} = 'BANK') = (${t.bankAccountId} IS NOT NULL)`),
     check("deposit_payments_paid_at", sql`${t.paidAt} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
     voidCheck("deposit_payments_void", t),
     uniqueIndex("deposit_payments_evidence_unique").on(t.evidenceDocumentId),

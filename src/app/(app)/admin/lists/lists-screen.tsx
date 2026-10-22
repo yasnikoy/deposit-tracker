@@ -67,6 +67,7 @@ export function ListsScreen({ currencies, bankAccounts }: { currencies: Currency
           </Button>
         </CardHeader>
         <CardContent>
+          <p className="text-muted-foreground mb-2 text-xs">{t("lists.bankAccountsHint")}</p>
           <table className="w-full">
             <thead className="text-left">
               <tr>

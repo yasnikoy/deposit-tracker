@@ -21,7 +21,7 @@ import type { PaymentListItem } from "@/server/payments";
 import { correctPaymentAction } from "./actions";
 import type { ReferenceData } from "./payment-form";
 
-type Values = { agencyId: number | null; amountText: string; currency: string; paidAt: string; bankAccountId: string; reason: string };
+type Values = { agencyId: number | null; amountText: string; currency: string; paidAt: string; reason: string };
 
 /** Accountant corrects an own payment with a reason; a linked B/L follows on the server. */
 export function CorrectPaymentDialog({
@@ -42,7 +42,6 @@ export function CorrectPaymentDialog({
     amountMinor: parseAmountInput(v.amountText) ?? Number.NaN,
     currency: v.currency,
     paidAt: v.paidAt,
-    bankAccountId: payment.kind === "BANK" && v.bankAccountId ? Number(v.bankAccountId) : null,
     reason: v.reason,
   });
   const resolver: Resolver<Values> = async (values) => {
@@ -63,7 +62,6 @@ export function CorrectPaymentDialog({
       amountText: formatAmount(payment.amountMinor),
       currency: payment.currency,
       paidAt: payment.paidAt,
-      bankAccountId: payment.bankAccountId ? String(payment.bankAccountId) : "",
       reason: "",
     },
   });
@@ -126,22 +124,6 @@ export function CorrectPaymentDialog({
               {message(errors.paidAt?.message)}
             </div>
           </div>
-          {payment.kind === "BANK" && (
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="correct-account">{t("payments.bankAccount")}</Label>
-              <select id="correct-account" className="border-input bg-background h-9 rounded-md border px-2" {...form.register("bankAccountId")}>
-                <option value="" />
-                {refs.bankAccounts
-                  .filter((a) => a.currency === currency && (a.active || a.id === payment.bankAccountId))
-                  .map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} – {a.iban}
-                    </option>
-                  ))}
-              </select>
-              {message(errors.bankAccountId?.message)}
-            </div>
-          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="correct-reason">{t("common.reasonRequired")}</Label>
             <textarea id="correct-reason" rows={2} className="border-input bg-background rounded-md border px-2 py-1" {...form.register("reason")} />

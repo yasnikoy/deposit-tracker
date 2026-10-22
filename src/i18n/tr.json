@@ -424,7 +424,8 @@
       "ibanTaken": "Bu IBAN başka bir hesapta kayıtlı.",
       "iban": "Geçersiz IBAN.",
       "code": "Kod üç büyük harf olmalı (ör. GBP)."
-    }
+    },
+    "bankAccountsHint": "Acente iade formlarındaki banka adı ve IBAN alanları buradan doldurulur. Muhasebe kayıtlarında hesap seçilmez."
   },
   "payments": {
     "kinds": {
@@ -442,7 +443,6 @@
     "currency": "Para birimi",
     "paidAt": "Ödeme tarihi",
     "kind": "Ödeme türü",
-    "bankAccount": "Banka hesabı",
     "blNoHint": "B/L numarası notu (isteğe bağlı)",
     "blNoHintHelp": "Operasyon B/L oluştururken ön doldurulur ve onaylanır.",
     "blCandidates": "Dekontta bulunan B/L numaraları: {list}",
@@ -483,8 +483,6 @@
       "currency": "Aktif bir para birimi seçin.",
       "date": "Geçerli bir tarih girin.",
       "futureDate": "Ödeme tarihi bugünden sonra olamaz.",
-      "bankAccount": "Banka havalesi için banka hesabı seçin; mahsupta hesap seçilmez.",
-      "bankAccountCurrency": "Banka hesabının para birimi ödemeninkiyle aynı olmalı.",
       "evidence": "Dekont veya fatura yükleyin.",
       "reason": "Neden yazın.",
       "voided": "Bu kayıt iptal edilmiş.",

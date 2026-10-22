@@ -14,14 +14,13 @@ import { isTranslationKey, t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
 import { formatAmount, formatMoney, parseAmountInput } from "@/lib/money";
 import { createPaymentSchema } from "@/lib/schemas/payments";
-import type { BankAccount, Currency } from "@/server/lists";
+import type { Currency } from "@/server/lists";
 import type { DuplicateCandidate, PaymentPrefill } from "@/server/payments";
 import { createPaymentAction } from "./actions";
 
 export type ReferenceData = {
   agencies: AgencyOption[];
   currencies: Currency[];
-  bankAccounts: BankAccount[];
   today: string;
 };
 
@@ -31,7 +30,6 @@ type FormValues = {
   amountText: string;
   currency: string;
   paidAt: string;
-  bankAccountId: string;
   blNoHint: string;
 };
 
@@ -65,10 +63,6 @@ export function PaymentForm({
   const [stubNotice, setStubNotice] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
 
-  const defaultAccount = (currency: string) => {
-    const accounts = refs.bankAccounts.filter((a) => a.active && a.currency === currency);
-    return accounts.length === 1 ? String(accounts[0].id) : "";
-  };
   const initialCurrency = prefill?.currency ?? activeCurrencies[0]?.code ?? "";
 
   const toInput = (values: FormValues, confirmDuplicate = false) => ({
@@ -77,7 +71,6 @@ export function PaymentForm({
     currency: values.currency,
     paidAt: values.paidAt,
     kind: values.kind,
-    bankAccountId: values.kind === "BANK" && values.bankAccountId ? Number(values.bankAccountId) : null,
     blNoHint: values.blNoHint,
     evidenceDocumentId: evidence?.id ?? null,
     queueItemId,
@@ -104,14 +97,12 @@ export function PaymentForm({
       amountText: prefill?.amountMinor ? formatAmount(prefill.amountMinor) : "",
       currency: initialCurrency,
       paidAt: prefill?.paidAt ?? refs.today,
-      bankAccountId: defaultAccount(initialCurrency),
       blNoHint: "",
     },
   });
   const errors = form.formState.errors as FieldErrors<FormValues & { evidence: string }>;
   const [kind, currency, amountText, agencyId] = useWatch({ control: form.control, name: ["kind", "currency", "amountText", "agencyId"] });
   const amount = parseAmountInput(amountText);
-  const accounts = refs.bankAccounts.filter((a) => a.currency === currency && a.active);
 
   const submit = async (values: FormValues, confirmDuplicate: boolean) => {
     const result = await createPaymentAction(toInput(values, confirmDuplicate));
@@ -220,9 +211,7 @@ export function PaymentForm({
           <select
             id="payment-currency"
             className="border-input bg-background h-9 rounded-md border px-2"
-            {...form.register("currency", {
-              onChange: (event) => form.setValue("bankAccountId", defaultAccount(event.target.value)),
-            })}
+            {...form.register("currency")}
           >
             {activeCurrencies.map((c) => (
               <option key={c.code} value={c.code}>
@@ -238,21 +227,6 @@ export function PaymentForm({
           {message(errors.paidAt?.message)}
         </div>
       </div>
-
-      {kind === "BANK" && (
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="payment-account">{t("payments.bankAccount")}</Label>
-          <select id="payment-account" className="border-input bg-background h-9 rounded-md border px-2" {...form.register("bankAccountId")}>
-            <option value="" />
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} – {a.iban}
-              </option>
-            ))}
-          </select>
-          {message(errors.bankAccountId?.message)}
-        </div>
-      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="payment-hint">{t("payments.blNoHint")}</Label>

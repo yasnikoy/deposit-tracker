@@ -5,7 +5,7 @@ import { listAgencies } from "@/server/agencies";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
-import { listBankAccounts, listCurrencies } from "@/server/lists";
+import { listCurrencies } from "@/server/lists";
 import { listOwnPayments, listReceiptQueue } from "@/server/payments";
 import { getTableLayout } from "@/server/preferences";
 import { AccountingScreen, type AccountingTab } from "./accounting-screen";
@@ -33,7 +33,6 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
             active,
           })),
           currencies: listCurrencies(db, user),
-          bankAccounts: listBankAccounts(db, user),
           today: istanbulToday(),
         }}
         payments={listOwnPayments(db, user)}

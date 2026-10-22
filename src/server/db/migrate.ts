@@ -44,6 +44,26 @@ export async function migrateWithBackup(
     backupFile = path.join(/*turbopackIgnore: true*/ options.backupDir, `pre-migration-${stamp}.sqlite`);
     await db.$client.backup(backupFile);
   }
-  migrate(db, { migrationsFolder });
+  runMigrations(db, migrationsFolder, backupFile);
   return { applied: pending, backupFile };
+}
+
+/**
+ * SQLite's procedure for schema changes that rebuild a table: foreign keys are switched off
+ * outside the transaction (the PRAGMA is a no-op inside one), and checked afterwards.
+ * Without this, rebuilding a table that other rows reference fails on its DROP TABLE.
+ */
+function runMigrations(db: Db, migrationsFolder: string, backupFile: string | null): void {
+  db.$client.pragma("foreign_keys = OFF");
+  try {
+    migrate(db, { migrationsFolder });
+  } finally {
+    db.$client.pragma("foreign_keys = ON");
+  }
+  const violations = db.$client.pragma("foreign_key_check") as unknown[];
+  if (violations.length > 0) {
+    throw new Error(
+      `Migration left ${violations.length} foreign key violation(s); restore the backup ${backupFile ?? "(none: empty database)"}`,
+    );
+  }
 }
