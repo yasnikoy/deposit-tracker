@@ -1,6 +1,31 @@
 {
   "settings": {
+    "calendar.weekendDays": [6, 7],
+    "calendar.halfDaysAreBusinessDays": false,
+
+    "durations.firstRequestDueDays": 7,
+    "durations.upcomingDays": 2,
+    "durations.followUpDays": 5,
+    "durations.statementRequestDays": 2,
+    "durations.statementFollowUpDays": 5,
+    "durations.unprocessedReplyWarningDays": 1,
+    "durations.agingBucketEdges": [20, 40, 60],
+
+    "rules.blockSendingWithoutForm": true,
+    "rules.duplicateWarning": true,
+    "rules.draftLockTimeoutMinutes": 30,
+    "rules.undoWindowMinutes": 10,
+    "rules.allowedFileTypes": ["pdf", "jpg", "jpeg", "png", "eml", "doc", "docx", "xls", "xlsx"],
+    "rules.maxFileSizeMb": 10,
+
+    "reconciliation.alternativeSuggestions": 3,
+
     "auth.loginLockoutAttempts": 5,
-    "auth.minPasswordLength": 8
+    "auth.minPasswordLength": 8,
+
+    "backups.dailyTime": "12:30",
+    "backups.keepDaily": 14,
+    "backups.keepWeekly": 8,
+    "backups.secondLocation": ""
   }
 }

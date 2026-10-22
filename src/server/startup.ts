@@ -12,7 +12,7 @@ export async function prepareDatabase(): Promise<void> {
   const { dataDir } = getEnv();
   await enableFileLogging();
   const db = getDb();
-  const result = await migrateWithBackup(db, { backupDir: path.join(dataDir, "backups") });
+  const result = await migrateWithBackup(db, { backupDir: path.join(/*turbopackIgnore: true*/ dataDir, "backups") });
   if (result.applied > 0) {
     logger.info({ applied: result.applied, backupFile: result.backupFile }, "database migrated");
   }

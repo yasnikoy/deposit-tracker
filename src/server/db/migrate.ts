@@ -41,7 +41,7 @@ export async function migrateWithBackup(
   if (!isEmptyDatabase(db)) {
     fs.mkdirSync(options.backupDir, { recursive: true });
     const stamp = (options.now ?? new Date()).toISOString().replace(/[:.]/g, "-");
-    backupFile = path.join(options.backupDir, `pre-migration-${stamp}.sqlite`);
+    backupFile = path.join(/*turbopackIgnore: true*/ options.backupDir, `pre-migration-${stamp}.sqlite`);
     await db.$client.backup(backupFile);
   }
   migrate(db, { migrationsFolder });

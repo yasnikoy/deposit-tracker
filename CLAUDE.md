@@ -180,4 +180,4 @@ if mise is not activated in the shell. Runtime data goes to `DATA_DIR`
 - `pnpm db:generate` new migration from `src/server/db/schema.ts` (one per schema change)
 - `pnpm db:prepare` apply migrations (after automatic backup) and load missing seed settings
 - `pnpm create-admin [username] [display name]` create an admin (password prompted)
-- `pnpm build` standalone build; `build:portable` comes in build step 8
+- `pnpm build` standalone build, then a check that no runtime data is in it; `build:portable` comes in build step 8

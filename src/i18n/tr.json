@@ -11,7 +11,11 @@
     "loading": "Yükleniyor…",
     "required": "Bu alan zorunludur.",
     "yes": "Evet",
-    "no": "Hayır"
+    "no": "Hayır",
+    "edit": "Düzenle",
+    "delete": "Sil",
+    "reasonOptional": "Değişiklik nedeni (isteğe bağlı)",
+    "line": "satır {line}"
   },
   "errors": {
     "forbidden": "Bu işlem için yetkiniz yok.",
@@ -24,7 +28,10 @@
     "users": "Kullanıcılar",
     "changePassword": "Şifre değiştir",
     "logout": "Çıkış yap",
-    "shortcuts": "Klavye kısayolları"
+    "shortcuts": "Klavye kısayolları",
+    "settings": "Ayarlar",
+    "holidays": "Tatiller",
+    "agencies": "Acenteler"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -127,5 +134,247 @@
     "toggleRow": "Satırı seç / bırak",
     "focusSearch": "Tabloda ara",
     "showHelp": "Bu listeyi göster"
+  },
+  "detailPanel": {
+    "close": "Paneli kapat"
+  },
+  "weekdays": {
+    "1": "Pzt",
+    "2": "Sal",
+    "3": "Çar",
+    "4": "Per",
+    "5": "Cum",
+    "6": "Cmt",
+    "7": "Paz"
+  },
+  "weekdaysLong": {
+    "1": "Pazartesi",
+    "2": "Salı",
+    "3": "Çarşamba",
+    "4": "Perşembe",
+    "5": "Cuma",
+    "6": "Cumartesi",
+    "7": "Pazar"
+  },
+  "settings": {
+    "title": "Ayarlar",
+    "groups": {
+      "calendar": "Takvim",
+      "durations": "Süreler (iş günü)",
+      "rules": "Kurallar",
+      "reconciliation": "Mutabakat",
+      "users": "Kullanıcı güvenliği",
+      "backups": "Yedekleme"
+    },
+    "units": {
+      "businessDays": "iş günü",
+      "minutes": "dakika",
+      "megabytes": "MB",
+      "count": ""
+    },
+    "keys": {
+      "calendar": {
+        "weekendDays": {
+          "label": "Hafta sonu günleri",
+          "help": "Bu günler iş günü sayılmaz."
+        },
+        "halfDaysAreBusinessDays": {
+          "label": "Yarım günler (arife) iş günü sayılsın",
+          "help": "Kapalıysa arife günleri iş günü hesabına katılmaz."
+        }
+      },
+      "durations": {
+        "firstRequestDueDays": {
+          "label": "Ödemeden sonra ilk iade talebi",
+          "help": "Ödeme tarihinden kaç iş günü sonra ilk talep gönderilmeli."
+        },
+        "upcomingDays": {
+          "label": "\"Yaklaşan\" olarak gösterme",
+          "help": "Talep tarihinden kaç iş günü önce listede yaklaşan olarak görünsün."
+        },
+        "followUpDays": {
+          "label": "\"Konteyner dönmedi\" sonrası tekrar talep",
+          "help": "Acente konteynerin dönmediğini bildirdikten sonra kaç iş günü beklensin."
+        },
+        "statementRequestDays": {
+          "label": "Açıklanmayan kesinti sonrası döküm talebi",
+          "help": "Açıklanmayan kesintiden kaç iş günü sonra kesinti dökümü istensin."
+        },
+        "statementFollowUpDays": {
+          "label": "Döküm talebi tekrar aralığı",
+          "help": "Kesinti dökümü talepleri arasında kaç iş günü olsun."
+        },
+        "unprocessedReplyWarningDays": {
+          "label": "İşlenmemiş yanıt uyarısı",
+          "help": "Bağlanan bir yanıt kaç iş günü işlenmezse uyarı verilsin."
+        },
+        "agingBucketEdges": {
+          "label": "Yaşlandırma raporu aralıkları",
+          "help": "Aralık sınırları, virgülle ayrılmış (ör. 20, 40, 60 → 0–20, 21–40, 41–60, 60+)."
+        }
+      },
+      "rules": {
+        "blockSendingWithoutForm": {
+          "label": "Yüklenmiş form olmadan gönderimi engelle",
+          "help": "Açıkken formu yüklenmemiş B/L için talep gönderilemez veya kaydedilemez."
+        },
+        "duplicateWarning": {
+          "label": "Mükerrer kayıt uyarısı",
+          "help": "Aynı acente, tutar ve tarihli kayıt girilirken onay istensin."
+        },
+        "draftLockTimeoutMinutes": {
+          "label": "Taslak kilidi süresi",
+          "help": "Bir kullanıcının düzenlediği B/L diğerlerine bu süre kilitli görünür."
+        },
+        "undoWindowMinutes": {
+          "label": "Geri alma süresi",
+          "help": "Kullanıcı kendi işlemini bu süre içinde geri alabilir."
+        },
+        "allowedFileTypes": {
+          "label": "İzin verilen dosya türleri",
+          "help": "Uzantılar, virgülle ayrılmış (ör. pdf, jpg, png)."
+        },
+        "maxFileSizeMb": {
+          "label": "En büyük dosya boyutu",
+          "help": "Yüklenen tek bir dosyanın üst sınırı."
+        }
+      },
+      "reconciliation": {
+        "alternativeSuggestions": {
+          "label": "Gösterilecek alternatif öneri sayısı",
+          "help": "İade dağıtımında kaç alternatif eşleşme önerilsin."
+        }
+      },
+      "auth": {
+        "loginLockoutAttempts": {
+          "label": "Hatalı giriş kilidi",
+          "help": "Bu kadar hatalı girişten sonra hesap kilitlenir; 0 kilidi kapatır."
+        },
+        "minPasswordLength": {
+          "label": "En kısa şifre uzunluğu",
+          "help": "Yeni ve geçici şifreler için en az karakter sayısı."
+        }
+      },
+      "backups": {
+        "dailyTime": {
+          "label": "Günlük yedek saati",
+          "help": "Mesai saatleri içinde bir saat seçin; kaçırılırsa bir sonraki açılışta alınır."
+        },
+        "keepDaily": {
+          "label": "Saklanacak günlük yedek",
+          "help": "Kaç günlük yedek tutulsun."
+        },
+        "keepWeekly": {
+          "label": "Saklanacak haftalık yedek",
+          "help": "Kaç haftalık yedek tutulsun."
+        },
+        "secondLocation": {
+          "label": "İkinci yedek konumu",
+          "help": "Yedeklerin kopyalanacağı paylaşımlı klasör veya USB disk yolu."
+        }
+      }
+    },
+    "save": "Değişiklikleri kaydet",
+    "saved": "{count} ayar kaydedildi.",
+    "noChanges": "Değişiklik yok.",
+    "lastChanged": "Son değişiklik: {who}, {at}",
+    "seedValue": "Kurulum değeri",
+    "system": "Sistem",
+    "invalid": "Geçersiz değer.",
+    "bucketsPreview": "Aralıklar: {buckets}"
+  },
+  "holidays": {
+    "title": "Resmi tatiller",
+    "year": "Yıl",
+    "date": "Tarih",
+    "weekday": "Gün",
+    "name": "Ad",
+    "kind": "Tür",
+    "kinds": {
+      "FULL": "Tam gün",
+      "HALF": "Yarım gün (arife)"
+    },
+    "add": "Tatil ekle",
+    "bulk": "Toplu giriş",
+    "bulkHint": "Her satıra bir tatil: tarih; ad; tür (Tam / Yarım). Excel'den yapıştırabilirsiniz; tür boşsa tam gün sayılır.",
+    "bulkRead": "{count} satır okundu.",
+    "saveAll": "Tümünü kaydet",
+    "deleteConfirm": "{date} – {name} silinsin mi?",
+    "empty": "Bu yıl için tatil girilmemiş.",
+    "toast": {
+      "saved": "{created} tatil eklendi, {updated} güncellendi.",
+      "deleted": "Tatil silindi.",
+      "updated": "Tatil güncellendi."
+    },
+    "calculator": {
+      "title": "İş günü hesaplayıcı",
+      "start": "Başlangıç tarihi",
+      "days": "İş günü",
+      "result": "{days} iş günü sonrası: {date} ({weekday})"
+    },
+    "errors": {
+      "date": "Geçersiz tarih.",
+      "name": "Tatil adı gerekli.",
+      "kind": "Tür 'Tam' veya 'Yarım' olmalı.",
+      "duplicate": "Bu tarih listede birden fazla kez geçiyor."
+    }
+  },
+  "agencies": {
+    "title": "Acenteler",
+    "new": "Yeni acente",
+    "name": "Acente adı",
+    "status": "Durum",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "channel": "Talep kanalı",
+    "channels": {
+      "EMAIL": "E-posta",
+      "PORTAL": "Portal"
+    },
+    "sending": "Gönderim",
+    "batchSending": "Toplu gönderim (acente başına tek e-posta)",
+    "batch": "Toplu",
+    "single": "Tekil",
+    "toRecipients": "Alıcılar (Kime)",
+    "ccRecipients": "Bilgi (CC)",
+    "recipientsHint": "Her satıra bir e-posta adresi. Tüm talep türleri için aynı liste kullanılır.",
+    "recipientCount": "Alıcı",
+    "aliases": "Banka gönderen adları",
+    "aliasesHint": "Banka dekontlarında geçen adlar, her satıra bir tane.",
+    "patterns": "B/L numarası desenleri",
+    "patternsHint": "Her satıra bir düzenli ifade, ör. MEDU\\d{7}. Büyük/küçük harf fark etmez.",
+    "patternCount": "Desen",
+    "patternTest": "Desen testi",
+    "patternTestPlaceholder": "Dekont açıklaması veya e-posta metni yapıştırın…",
+    "patternTestFound": "Bulunan B/L numaraları: {list}",
+    "patternTestNone": "Bu metinde B/L numarası bulunamadı.",
+    "portalUrl": "Portal adresi",
+    "notes": "Notlar",
+    "overrides": "Ayar istisnaları",
+    "overridesHint": "Boş bırakılan alan genel ayarı kullanır.",
+    "overridesReadOnly": "Ayar istisnalarını yalnızca yönetici değiştirebilir.",
+    "globalValue": "Genel: {value}",
+    "saveOverrides": "İstisnaları kaydet",
+    "readOnly": "Acente bilgilerini operasyon rolü düzenler.",
+    "toast": {
+      "created": "Acente oluşturuldu.",
+      "updated": "Acente güncellendi.",
+      "overrides": "Ayar istisnaları kaydedildi."
+    },
+    "errors": {
+      "nameTaken": "Bu adla bir acente zaten var.",
+      "email": "Geçersiz e-posta adresi.",
+      "tooMany": "En fazla 20 satır girilebilir.",
+      "alias": "Banka gönderen adı en fazla 100 karakter olabilir.",
+      "portalUrl": "Geçerli bir http(s) adresi girin.",
+      "portalUrlRequired": "Portal kanalı için portal adresi gerekli.",
+      "pattern": {
+        "empty": "Boş desen.",
+        "tooLong": "Desen en fazla 200 karakter olabilir.",
+        "invalid": "Geçersiz düzenli ifade.",
+        "matchesEmpty": "Desen boş metinle eşleşiyor; en az bir karakter gerektirmeli.",
+        "unsafe": "İç içe tekrar içeren desen sunucuyu kilitleyebilir; lütfen sadeleştirin."
+      }
+    }
   }
 }

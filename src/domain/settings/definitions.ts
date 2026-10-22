@@ -1,23 +1,123 @@
 import { z } from "zod";
 
 /**
- * Typed setting registry. Initial values come only from seed/settings.json;
- * this file defines keys and validation, never business values.
- * The full settings system (groups, overrides, impact preview) is build step 2.
+ * Typed setting registry: keys, groups, value kinds and validation.
+ * Initial values come only from seed/settings.json; this file never holds business values.
+ * Groups for email, templates, notifications and lists arrive with the features that use them.
  */
+
+export const SETTING_GROUPS = ["calendar", "durations", "rules", "reconciliation", "users", "backups"] as const;
+export type SettingGroup = (typeof SETTING_GROUPS)[number];
+
+/** Editor and unit of a value. Every duration declares its day type through its kind. */
+export type SettingKind =
+  | "businessDays"
+  | "minutes"
+  | "count"
+  | "megabytes"
+  | "boolean"
+  | "time"
+  | "weekdays"
+  | "bucketEdges"
+  | "fileTypes"
+  | "text";
+
+type Definition = {
+  group: SettingGroup;
+  kind: SettingKind;
+  schema: z.ZodType;
+  /** Overridable per agency and per B/L; the agency override is stored in this column. */
+  agencyColumn?: string;
+};
+
+const int = (min: number, max: number) => z.number().int().min(min).max(max);
+
+const weekdays = z
+  .array(int(1, 7))
+  .max(6)
+  .refine((days) => new Set(days).size === days.length, "duplicate weekday");
+
+const bucketEdges = z
+  .array(int(1, 3650))
+  .min(1)
+  .max(10)
+  .refine((edges) => edges.every((edge, i) => i === 0 || edge > edges[i - 1]), "edges must ascend");
+
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+const fileTypes = z
+  .array(z.string().regex(/^[a-z0-9]{1,10}$/))
+  .min(1)
+  .max(30);
+
 export const settingDefinitions = {
+  "calendar.weekendDays": { group: "calendar", kind: "weekdays", schema: weekdays },
+  "calendar.halfDaysAreBusinessDays": { group: "calendar", kind: "boolean", schema: z.boolean() },
+
+  "durations.firstRequestDueDays": {
+    group: "durations",
+    kind: "businessDays",
+    schema: int(0, 365),
+    agencyColumn: "first_request_due_days",
+  },
+  "durations.upcomingDays": { group: "durations", kind: "businessDays", schema: int(0, 60), agencyColumn: "upcoming_days" },
+  "durations.followUpDays": { group: "durations", kind: "businessDays", schema: int(1, 365), agencyColumn: "follow_up_days" },
+  "durations.statementRequestDays": {
+    group: "durations",
+    kind: "businessDays",
+    schema: int(0, 365),
+    agencyColumn: "statement_request_days",
+  },
+  "durations.statementFollowUpDays": {
+    group: "durations",
+    kind: "businessDays",
+    schema: int(1, 365),
+    agencyColumn: "statement_follow_up_days",
+  },
+  "durations.unprocessedReplyWarningDays": { group: "durations", kind: "businessDays", schema: int(0, 60) },
+  "durations.agingBucketEdges": { group: "durations", kind: "bucketEdges", schema: bucketEdges },
+
+  "rules.blockSendingWithoutForm": { group: "rules", kind: "boolean", schema: z.boolean() },
+  "rules.duplicateWarning": { group: "rules", kind: "boolean", schema: z.boolean() },
+  "rules.draftLockTimeoutMinutes": { group: "rules", kind: "minutes", schema: int(1, 1440) },
+  "rules.undoWindowMinutes": { group: "rules", kind: "minutes", schema: int(1, 1440) },
+  "rules.allowedFileTypes": { group: "rules", kind: "fileTypes", schema: fileTypes },
+  "rules.maxFileSizeMb": { group: "rules", kind: "megabytes", schema: int(1, 100) },
+
+  "reconciliation.alternativeSuggestions": { group: "reconciliation", kind: "count", schema: int(1, 10) },
+
   /** Failed logins before an account is locked; 0 disables lockout. */
-  "auth.loginLockoutAttempts": z.number().int().min(0).max(100),
-  "auth.minPasswordLength": z.number().int().min(4).max(128),
-} as const;
+  "auth.loginLockoutAttempts": { group: "users", kind: "count", schema: int(0, 100) },
+  "auth.minPasswordLength": { group: "users", kind: "count", schema: int(4, 128) },
+
+  "backups.dailyTime": { group: "backups", kind: "time", schema: time },
+  "backups.keepDaily": { group: "backups", kind: "count", schema: int(1, 365) },
+  "backups.keepWeekly": { group: "backups", kind: "count", schema: int(0, 260) },
+  /** Folder for the second backup copy; empty until IT provides one. */
+  "backups.secondLocation": { group: "backups", kind: "text", schema: z.string().trim().max(260) },
+} as const satisfies Record<string, Definition>;
 
 export type SettingKey = keyof typeof settingDefinitions;
-export type SettingValue<K extends SettingKey> = z.infer<(typeof settingDefinitions)[K]>;
+export type SettingValue<K extends SettingKey> = z.infer<(typeof settingDefinitions)[K]["schema"]>;
+
+export const SETTING_KEYS = Object.keys(settingDefinitions) as SettingKey[];
+
+export type OverridableSettingKey = {
+  [K in SettingKey]: (typeof settingDefinitions)[K] extends { agencyColumn: string } ? K : never;
+}[SettingKey];
+
+export const OVERRIDABLE_SETTING_KEYS = SETTING_KEYS.filter(
+  (key): key is OverridableSettingKey => "agencyColumn" in settingDefinitions[key],
+);
 
 export function isSettingKey(key: string): key is SettingKey {
   return Object.hasOwn(settingDefinitions, key);
 }
 
+export function isOverridableSettingKey(key: string): key is OverridableSettingKey {
+  return (OVERRIDABLE_SETTING_KEYS as string[]).includes(key);
+}
+
 export function parseSettingValue<K extends SettingKey>(key: K, value: unknown): SettingValue<K> {
-  return settingDefinitions[key].parse(value) as SettingValue<K>;
+  return settingDefinitions[key].schema.parse(value) as SettingValue<K>;
 }

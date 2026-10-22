@@ -122,7 +122,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `agencies` | Shipping lines / agencies | name, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_file\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
+| `agencies` | Shipping lines / agencies | name (unique, case-insensitive), active, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_file\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
 | `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), bank\_account\_id (BANK only), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
@@ -137,7 +137,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
-| `holidays` | Business-day calendar | date, name, full\_or\_half |
+| `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
 | `email_templates` | Turkish templates with sections for batched emails | key, subject, body with placeholders and section blocks |
 | `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order |
 | `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
@@ -153,9 +153,11 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 
 **Dates are computed, not stored.** Due dates are derived on read from events + current settings, so a settings change applies to all open B/Ls immediately. There are no manual date overrides in v1.
 
-**Business-day engine:** one module, `addBusinessDays(date, n)` / `businessDaysBetween(a, b)`, driven by the weekend-days setting and the `holidays` table. Every duration declares its day type; v1 uses business days for all app reminders. Calendar days are reserved for any future demurrage logic.
+**Business-day engine:** one module, `addBusinessDays(date, n)` / `businessDaysBetween(a, b)`, driven by the weekend-days setting and the `holidays` table. `addBusinessDays(d, n)` is the n-th business day after `d` (`n = 0` returns `d`); `businessDaysBetween(a, b)` counts business days after `a` up to and including `b` (negative when `b` is earlier), so the two are inverses. Half days (arife) count as business days only when the calendar setting says so. "Today" is the Europe/Istanbul date. Every duration declares its day type; v1 uses business days for all app reminders. Calendar days are reserved for any future demurrage logic.
 
-**Impact preview:** before saving a change, the panel shows how many B/Ls move into or out of each list (e.g. "14 B/Ls become due today").
+**Impact preview:** before saving a change, the panel shows how many B/Ls move into or out of each list (e.g. "14 B/Ls become due today"). Built in step 4 together with the due-requests list.
+
+**Overrides:** only the request-timing durations are overridable per agency and per B/L: first request due, "upcoming" window, follow-up interval, statement request delay, statement follow-up interval. All other settings are global. Agency overrides are set by an admin. A reason can be given with any settings, override or holiday change (optional) and is stored in the audit log and settings history.
 
 | Group | Settings |
 | --- | --- |
@@ -170,7 +172,11 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | Users | Users and their roles (one or more); failed-login lockout attempts; minimum password length |
 | Backups | Daily backup time; number of daily and weekly copies kept; second backup location |
 
-Agency-level configuration (not global settings): B/L number patterns, form template, recipients, sending mode, request channel, portal URL. Editable by operations on the agency card; the form template by admin.
+Agency-level configuration (not global settings): B/L number patterns, form template, recipients, sending mode, request channel, portal URL, active flag. Editable by operations on the agency card; the form template and setting overrides by admin. Agencies are deactivated, never deleted.
+
+**B/L number patterns:** up to 20 regular expressions per agency, matched case-insensitively; candidates are upper-cased and listed in order of appearance. A pattern is rejected when it is invalid, longer than 200 characters, matches empty text, or nests quantifiers (e.g. `(A+)+`), which could hang the server. The agency card has a test field.
+
+**Holidays** are calendar configuration: entered one by one or pasted in bulk per year (`date; name; Tam/Yarım`), and may be edited or removed; every change is audited.
 
 ### Seed values
 
@@ -195,7 +201,7 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 | Undo window | 10 minutes |
 | Session idle timeout / failed-login lockout | None / 5 attempts |
 | Minimum password length | 8 characters |
-| Allowed file types / max size | PDF, JPG, PNG, EML, DOC/DOCX, XLS/XLSX / 10 MB |
+| Allowed file types / max size | PDF, JPG/JPEG, PNG, EML, DOC/DOCX, XLS/XLSX / 10 MB |
 | Block sending without uploaded form | On |
 | Duplicate-record warning | On |
 | Daily backup time | 12:30 |
@@ -421,6 +427,16 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 22, 2026 — build step 2 (settings, calendar, agencies)**
+
+- Overridable settings limited to the five request-timing durations; agency overrides are admin-only.
+- Reasons are optional for settings, override and holiday changes.
+- Settings impact preview moves to step 4; email, template, notification and list settings arrive with their features (steps 4–6).
+- Business-day engine conventions documented (n-th business day after; counts after a up to and including b; Istanbul "today").
+- B/L number pattern rules documented; holidays can be edited or removed; agencies get an active flag.
+- JPEG added next to JPG in the allowed file types.
+- `pnpm build` fails if runtime data (data folders, SQLite, key or lock files) appears in the build output.
 
 **Oct 22, 2026 — implementation kickoff**
 

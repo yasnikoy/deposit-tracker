@@ -6,10 +6,14 @@ import { requireSession } from "@/server/auth/current-user";
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const { user } = await requireSession();
   // Menu visibility is cosmetic; every page and server function checks can() again.
-  const nav: NavItem[] = [
-    { href: "/", label: "nav.dashboard" },
-    ...(can(user, "user.list").allowed ? [{ href: "/admin/users", label: "nav.users" } as const] : []),
+  const items: (NavItem & { visible: boolean })[] = [
+    { href: "/", label: "nav.dashboard", visible: true },
+    { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },
+    { href: "/admin/settings", label: "nav.settings", visible: can(user, "settings.view").allowed },
+    { href: "/admin/holidays", label: "nav.holidays", visible: can(user, "holiday.manage").allowed },
+    { href: "/admin/users", label: "nav.users", visible: can(user, "user.list").allowed },
   ];
+  const nav: NavItem[] = items.filter((item) => item.visible).map(({ href, label }) => ({ href, label }));
 
   return (
     <div className="flex min-h-screen flex-col">

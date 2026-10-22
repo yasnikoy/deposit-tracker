@@ -9,6 +9,8 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from "drizzle-orm/sqlite-core";
+import { REQUEST_CHANNELS } from "../../domain/agency";
+import { HOLIDAY_KINDS } from "../../domain/business-days";
 import { ROLES } from "../../domain/roles";
 
 // Event timestamps are UTC ISO-8601 text; business dates are YYYY-MM-DD text.
@@ -115,6 +117,63 @@ export const settingsHistory = sqliteTable(
     newValue: text("new_value", { mode: "json" }).notNull(),
     changedBy: integer("changed_by").references(() => users.id),
     changedAt: timestamp("changed_at").notNull(),
+    reason: text("reason"),
   },
   (t) => [index("settings_history_key").on(t.key)],
+);
+
+export const holidays = sqliteTable(
+  "holidays",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    date: text("date").notNull(),
+    name: text("name").notNull(),
+    kind: text("kind", { enum: HOLIDAY_KINDS }).notNull(),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("holidays_date_unique").on(t.date),
+    check("holidays_kind", sql`${t.kind} IN ('FULL', 'HALF')`),
+    check("holidays_date_format", sql`${t.date} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+  ],
+);
+
+const overrideDays = (name: string) => integer(name);
+
+export const agencies = sqliteTable(
+  "agencies",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    // One recipient list for all request types.
+    toRecipients: text("to_recipients", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    ccRecipients: text("cc_recipients", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    bankSenderAliases: text("bank_sender_aliases", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    blNumberPatterns: text("bl_number_patterns", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    batchSending: integer("batch_sending", { mode: "boolean" }).notNull().default(false),
+    requestChannel: text("request_channel", { enum: REQUEST_CHANNELS }).notNull().default("EMAIL"),
+    portalUrl: text("portal_url"),
+    notes: text("notes"),
+    // Setting overrides (null inherits the global value); column names match the setting registry.
+    firstRequestDueDays: overrideDays("first_request_due_days"),
+    upcomingDays: overrideDays("upcoming_days"),
+    followUpDays: overrideDays("follow_up_days"),
+    statementRequestDays: overrideDays("statement_request_days"),
+    statementFollowUpDays: overrideDays("statement_follow_up_days"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("agencies_name_unique").on(sql`lower(${t.name})`),
+    check("agencies_request_channel", sql`${t.requestChannel} IN ('EMAIL', 'PORTAL')`),
+    check("agencies_portal_url", sql`${t.requestChannel} <> 'PORTAL' OR ${t.portalUrl} IS NOT NULL`),
+    check(
+      "agencies_overrides_non_negative",
+      sql`coalesce(${t.firstRequestDueDays}, 0) >= 0 AND coalesce(${t.upcomingDays}, 0) >= 0
+        AND coalesce(${t.followUpDays}, 1) >= 1 AND coalesce(${t.statementRequestDays}, 0) >= 0
+        AND coalesce(${t.statementFollowUpDays}, 1) >= 1`,
+    ),
+  ],
 );

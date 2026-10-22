@@ -17,6 +17,14 @@ const rules = {
   "user.setActive": { roles: ["ADMIN"] },
   "user.resetPassword": { roles: ["ADMIN"] },
   "user.unlock": { roles: ["ADMIN"] },
+  "settings.view": { roles: ["ADMIN"] },
+  "settings.update": { roles: ["ADMIN"] },
+  "holiday.manage": { roles: ["ADMIN"] },
+  "agency.view": { roles: ["OPERATIONS", "ACCOUNTANT", "ADMIN"] },
+  "agency.create": { roles: ["OPERATIONS"] },
+  "agency.update": { roles: ["OPERATIONS"] },
+  // Setting overrides are settings, so only admins change them.
+  "agency.updateOverrides": { roles: ["ADMIN"] },
   "auth.changeOwnPassword": { roles: "ANY_AUTHENTICATED" },
   "preferences.saveOwn": { roles: "ANY_AUTHENTICATED" },
 } satisfies Record<string, Rule<never>>;
