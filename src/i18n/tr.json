@@ -1,0 +1,131 @@
+{
+  "app": {
+    "name": "Depozito Takip"
+  },
+  "common": {
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "confirm": "Onayla",
+    "close": "Kapat",
+    "actions": "İşlemler",
+    "loading": "Yükleniyor…",
+    "required": "Bu alan zorunludur.",
+    "yes": "Evet",
+    "no": "Hayır"
+  },
+  "errors": {
+    "forbidden": "Bu işlem için yetkiniz yok.",
+    "unexpected": "Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.",
+    "validation": "Lütfen girdiğiniz bilgileri kontrol edin.",
+    "notFound": "Kayıt bulunamadı."
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "users": "Kullanıcılar",
+    "changePassword": "Şifre değiştir",
+    "logout": "Çıkış yap",
+    "shortcuts": "Klavye kısayolları"
+  },
+  "roles": {
+    "ACCOUNTANT": "Muhasebe",
+    "OPERATIONS": "Operasyon",
+    "ADMIN": "Yönetici"
+  },
+  "auth": {
+    "login": {
+      "title": "Giriş",
+      "username": "Kullanıcı adı",
+      "password": "Şifre",
+      "submit": "Giriş yap",
+      "invalid": "Kullanıcı adı veya şifre hatalı.",
+      "locked": "Hesabınız çok sayıda hatalı giriş nedeniyle kilitlendi. Lütfen yöneticinize başvurun."
+    },
+    "changePassword": {
+      "title": "Şifre değiştir",
+      "forcedNotice": "Devam etmeden önce yeni bir şifre belirlemelisiniz.",
+      "current": "Mevcut şifre",
+      "new": "Yeni şifre",
+      "confirm": "Yeni şifre (tekrar)",
+      "submit": "Şifreyi değiştir",
+      "success": "Şifreniz değiştirildi.",
+      "mismatch": "Şifreler eşleşmiyor.",
+      "tooShort": "Şifre en az {min} karakter olmalıdır.",
+      "wrongCurrent": "Mevcut şifre hatalı.",
+      "sameAsOld": "Yeni şifre mevcut şifreyle aynı olamaz."
+    }
+  },
+  "dashboard": {
+    "title": "Panel",
+    "welcome": "Hoş geldiniz, {name}.",
+    "empty": "Panel içeriği sonraki geliştirme adımlarında eklenecek."
+  },
+  "users": {
+    "title": "Kullanıcılar",
+    "new": "Yeni kullanıcı",
+    "edit": "Kullanıcıyı düzenle",
+    "username": "Kullanıcı adı",
+    "displayName": "Ad soyad",
+    "roles": "Roller",
+    "status": "Durum",
+    "createdAt": "Oluşturulma",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "locked": "Kilitli",
+    "mustChangePassword": "Şifre değişikliği bekleniyor",
+    "temporaryPassword": "Geçici şifre",
+    "temporaryPasswordHint": "Kullanıcı ilk girişte şifresini değiştirmek zorundadır.",
+    "resetPassword": "Şifre sıfırla",
+    "resetPasswordTitle": "{name} için geçici şifre",
+    "resetPasswordHint": "Kullanıcının açık oturumları kapatılır ve hesap kilidi kaldırılır.",
+    "deactivate": "Pasifleştir",
+    "reactivate": "Aktifleştir",
+    "unlock": "Kilidi aç",
+    "deactivateConfirm": "{name} pasifleştirilsin mi? Kullanıcının açık oturumları kapatılır.",
+    "toast": {
+      "created": "Kullanıcı oluşturuldu.",
+      "updated": "Kullanıcı güncellendi.",
+      "passwordReset": "Geçici şifre ayarlandı.",
+      "deactivated": "Kullanıcı pasifleştirildi.",
+      "reactivated": "Kullanıcı aktifleştirildi.",
+      "unlocked": "Hesap kilidi kaldırıldı."
+    },
+    "errors": {
+      "usernameTaken": "Bu kullanıcı adı zaten kullanılıyor.",
+      "usernameFormat": "Kullanıcı adı 2–64 karakter olmalı; yalnızca İngilizce harf, rakam, nokta, tire ve alt çizgi içerebilir.",
+      "rolesRequired": "En az bir rol seçin.",
+      "lastAdmin": "Son aktif yöneticinin yönetici rolü kaldırılamaz ve hesabı pasifleştirilemez.",
+      "selfDeactivate": "Kendi hesabınızı pasifleştiremezsiniz."
+    }
+  },
+  "table": {
+    "search": "Tabloda ara…",
+    "columns": "Sütunlar",
+    "density": "Satır yüksekliği",
+    "densityCompact": "Sıkı",
+    "densityComfortable": "Rahat",
+    "resetLayout": "Görünümü sıfırla",
+    "moveLeft": "Sola taşı",
+    "moveRight": "Sağa taşı",
+    "rowCount": "{count} kayıt",
+    "filteredRowCount": "{count} / {total} kayıt",
+    "selectedCount": "{count} satır seçili",
+    "clearSelection": "Seçimi temizle",
+    "selectAll": "Tümünü seç",
+    "selectRow": "Satırı seç",
+    "noResults": "Kayıt bulunamadı.",
+    "filter": "Filtre",
+    "filterPlaceholder": "Süz…",
+    "clearFilters": "Filtreleri temizle",
+    "sortAscending": "Artan sırala",
+    "sortDescending": "Azalan sırala"
+  },
+  "shortcuts": {
+    "title": "Klavye kısayolları",
+    "moveRows": "Satırlar arasında gezin",
+    "openRow": "Seçili satırı aç",
+    "closePanel": "Paneli kapat",
+    "toggleRow": "Satırı seç / bırak",
+    "focusSearch": "Tabloda ara",
+    "showHelp": "Bu listeyi göster"
+  }
+}

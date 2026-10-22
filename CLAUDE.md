@@ -171,5 +171,13 @@ change.
 8. Portable packaging, backups, health page, `docs/RUNBOOK.md`
 
 ## Commands
-_To be filled in once the project is scaffolded (dev, test, lint, migrate,
-seed, build:portable)._
+Toolchain is pinned in `mise.toml` (Node 24, pnpm); prefix with `mise exec --`
+if mise is not activated in the shell. Runtime data goes to `DATA_DIR`
+(default `./data`, git-ignored).
+- `pnpm dev` dev server on :3000 (migrations + seed run on start)
+- `pnpm test` Vitest; `pnpm test:e2e` Playwright (own server on :3100, fresh `data-e2e/`)
+- `pnpm lint`, `pnpm typecheck`
+- `pnpm db:generate` new migration from `src/server/db/schema.ts` (one per schema change)
+- `pnpm db:prepare` apply migrations (after automatic backup) and load missing seed settings
+- `pnpm create-admin [username] [display name]` create an admin (password prompted)
+- `pnpm build` standalone build; `build:portable` comes in build step 8

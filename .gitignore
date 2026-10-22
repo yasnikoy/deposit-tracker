@@ -1,9 +1,25 @@
-node_modules/
-.next/
-out/
-dist/
+# dependencies
+/node_modules
+
+# next.js / build
+/.next/
+/out/
+/build
+/dist
+next-env.d.ts
+*.tsbuildinfo
+
+# tests
+/coverage
+/test-results/
+/playwright-report/
+
+# local runtime data and secrets (never committed)
 /data/
 *.key
 .env*
 !.env.example
+
+# logs
 *.log
+/data-e2e/

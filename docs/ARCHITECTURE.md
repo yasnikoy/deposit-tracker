@@ -40,7 +40,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Validation | zod schemas shared between server actions/API and forms; every server entry point validates input, including inline cell edits and bulk actions |
 | Money | Stored as integer minor units (cents) with a currency code; never floating point. Formatting to Turkish locale happens only in the UI and in exports |
 | Dates | Business dates stored as `YYYY-MM-DD` text; event timestamps as UTC ISO-8601 text. All business-day logic runs in Europe/Istanbul |
-| Authentication | Username + password (no email-based login; the app runs only on the office LAN), hashed with argon2id. Database-backed sessions in an httpOnly cookie; no idle timeout; failed-login lockout is a setting (default 5 attempts). No self-service reset: an admin sets a temporary password that must be changed at next login. The first admin is created with `create-admin.cmd`. Users are deactivated, never deleted |
+| Authentication | Username + password (no email-based login; the app runs only on the office LAN), hashed with argon2id. Database-backed sessions in an httpOnly cookie; no idle timeout; failed-login lockout is a setting (default 5 attempts); a locked account stays locked until an admin unlocks it or sets a temporary password. Minimum password length is a setting. Sessions end on logout, deactivation, or a password change or reset. At least one active admin must always remain, and admins cannot deactivate themselves. No self-service reset: an admin sets a temporary password that must be changed at next login. The first admin is created with `create-admin.cmd`. Users are deactivated, never deleted |
 | Authorization | One server-side `can(user, action, entity)` check used by every mutation, inline edit, bulk action and undo; UI hiding is cosmetic only |
 | Email | nodemailer (SMTP), ImapFlow (IMAP), mailparser (parsing). Raw messages stored as `.eml` files |
 | Jobs | In-process scheduler with a `jobs` table (run\_at, attempts, status). Send jobs retry 3 times with backoff, then mark the request failed. IMAP polling runs on the poll-interval setting. On start, overdue jobs run once to catch up |
@@ -50,7 +50,8 @@ These choices are fixed for v1 so implementation can start without further debat
 | Exports | CSV generated without extra dependencies: UTF-8 with BOM, semicolon separator, Turkish number and date formats, so Turkish Excel opens it directly. Clipboard copy uses tab-separated values |
 | Exact-subset search | Backtracking over candidates sorted oldest first, pruned by remaining amount; capped at the 30 oldest candidates and 500 ms. When the cap is hit, the screen says the search was incomplete |
 | Testing | Vitest for unit and domain tests; Playwright for a small set of end-to-end flows (create B/L, send request, allocate refund, bulk reply) |
-| Logging | pino structured logs to daily rotating files in the data folder, kept 30 days |
+| Logging | pino structured logs to daily rotating files in the data folder, kept 30 days; streams run in-process (no worker-thread transports) so the standalone build is self-contained |
+| Rendering | Next.js Cache Components are off: every screen is session-bound and shows live data, so pages render dynamically on each request |
 | Packaging | pnpm for development. `pnpm build:portable` produces one zip: a portable Node.js runtime, the Next.js standalone build with prebuilt native modules for Windows x64, and start/stop/backup/create-admin `.cmd` scripts |
 
 ## Roles and permissions
@@ -71,7 +72,7 @@ Role permissions are enforced on the server, not only hidden in the UI. Every st
 
 A B/L moves from payment through repeated requests to collection; it is closed only by confirmed refund allocations and classified deductions, never by hand.
 
-**Allowed transitions** (draft, pending approval; any transition not listed is rejected by the domain layer):
+**Allowed transitions** (any transition not listed is rejected by the domain layer):
 
 | From | To | Trigger |
 | --- | --- | --- |
@@ -134,12 +135,13 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `documents` | Uploaded and generated files | owner type/id, kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), file path, uploaded\_by |
 | `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at |
 | `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
-| `user_preferences` | Per-user UI state | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
+| `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date, name, full\_or\_half |
 | `email_templates` | Turkish templates with sections for batched emails | key, subject, body with placeholders and section blocks |
 | `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order |
-| `users`, `audit_log` | Users with one or more roles; every state change | username (unique), display name, roles, active; actor, role used, action, entity, before/after, reason, undo\_of, at |
+| `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
+| `sessions` | Login sessions | id (SHA-256 of the cookie token), user\_id, created\_at, last\_seen\_at, revoked\_at |
 
 `UNEXPLAINED` and `WRITE_OFF` are system deduction types: they can be relabelled but never deleted, and `UNEXPLAINED` can be replaced by a real type. Allocation suggestions are computed on screen and not stored; only confirmed allocations become rows. Seed reply types: *container not yet returned*, *approved, payment to follow*, *deduction statement received*.
 
@@ -165,7 +167,7 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | Lists | Deduction types, reply types, active currencies, bank accounts per currency, status display labels and colours |
 | Reconciliation | Number of alternative suggestions shown |
 | Rules | Block sending without an uploaded form; standing documents attached to every request; duplicate-record warning; draft lock timeout; undo window; allowed file types |
-| Users | Users and their roles (one or more); failed-login lockout attempts |
+| Users | Users and their roles (one or more); failed-login lockout attempts; minimum password length |
 | Backups | Daily backup time; number of daily and weekly copies kept; second backup location |
 
 Agency-level configuration (not global settings): B/L number patterns, form template, recipients, sending mode, request channel, portal URL. Editable by operations on the agency card; the form template by admin.
@@ -192,6 +194,7 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 | Draft lock timeout | 30 minutes |
 | Undo window | 10 minutes |
 | Session idle timeout / failed-login lockout | None / 5 attempts |
+| Minimum password length | 8 characters |
 | Allowed file types / max size | PDF, JPG, PNG, EML, DOC/DOCX, XLS/XLSX / 10 MB |
 | Block sending without uploaded form | On |
 | Duplicate-record warning | On |
@@ -423,12 +426,13 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 - Login uses username + password instead of email + password; the app runs only on the office LAN.
 - Document moved to `docs/ARCHITECTURE.md`.
-- B/L lifecycle transition table written (draft, pending approval); `DUE` is computed on read and never stored.
+- B/L lifecycle transition table written and approved; `DUE` is computed on read and never stored.
 - Operations can no longer correct a deposit's amount or currency; only the accountant corrects money records.
 - Invariant 7: opening-balance records are entered by an admin as a stated exception.
 - Refund status is computed from allocations, not stored.
 - Backup time, backup retention and failed-login lockout are settings (Backups and Users groups).
 - Stack additions: Node.js 24 LTS (development and portable runtime), `@node-rs/argon2`.
+- Build step 1: Cache Components off; locked accounts stay locked until an admin unlocks or resets them; at least one active admin is kept; minimum password length is a setting (seed 8); `sessions` and `user_roles` tables documented; table layout preferences are not audited; logging uses in-process streams.
 
 **Oct 22, 2026 — usability review**
 

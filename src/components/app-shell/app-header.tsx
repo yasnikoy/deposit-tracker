@@ -1,0 +1,72 @@
+"use client";
+
+import { CircleUser, KeyRound, LogOut } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { logoutAction } from "@/app/(auth)/actions";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { Role } from "@/domain/roles";
+import { t, type TranslationKey } from "@/i18n";
+import { cn } from "@/lib/utils";
+
+export type NavItem = { href: string; label: TranslationKey };
+
+export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: string; roles: Role[] } }) {
+  const pathname = usePathname();
+  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+
+  return (
+    <header className="bg-background sticky top-0 z-20 flex h-11 items-center gap-4 border-b px-4">
+      <Link href="/" className="font-semibold">
+        {t("app.name")}
+      </Link>
+      <nav className="flex items-center gap-1">
+        {nav.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={isActive(item.href) ? "page" : undefined}
+            className={cn(
+              "hover:bg-muted rounded-md px-2.5 py-1",
+              isActive(item.href) && "bg-muted font-medium",
+            )}
+          >
+            {t(item.label)}
+          </Link>
+        ))}
+      </nav>
+      <div className="ml-auto">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm">
+              <CircleUser /> {user.displayName}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuLabel className="font-normal">
+              <div className="font-medium">{user.displayName}</div>
+              <div className="text-muted-foreground text-xs">{user.roles.map((role) => t(`roles.${role}`)).join(", ")}</div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link href="/change-password">
+                <KeyRound /> {t("nav.changePassword")}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => logoutAction()}>
+              <LogOut /> {t("nav.logout")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
+  );
+}

@@ -1,0 +1,6 @@
+{
+  "settings": {
+    "auth.loginLockoutAttempts": 5,
+    "auth.minPasswordLength": 8
+  }
+}
