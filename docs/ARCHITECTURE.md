@@ -126,13 +126,14 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), bank\_account\_id (BANK only), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
-| `ledger_entries` | Every money movement on a B/L (B/L level only) | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
+| `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, bank\_account\_id, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_at, reply\_type\_id, replied\_at, attempt\_no, send\_status |
 | `emails` | Sent messages and in-thread replies | direction, message\_id, in\_reply\_to, thread\_key, from, to, cc, subject, body as sent, sent\_at, raw\_file\_id, processed\_at |
 | `email_bl_links` | Many-to-many emails and B/Ls | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL) |
-| `documents` | Uploaded and generated files | owner type/id, kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), file path, uploaded\_by |
+| `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by |
+| `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
 | `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at |
 | `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
@@ -304,7 +305,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **B/L number from the receipt.** The transfer description of an outgoing payment usually contains the B/L number. The parser searches the description with the agency's B/L number patterns and stores the candidates. The accountant may also type a B/L number hint by hand. When operations creates the B/L, the number is prefilled and must be confirmed. If more than one candidate is found, the user picks one; a payment still yields exactly one B/L.
 
-**B/L creation.** Operations creates B/Ls one at a time from a payment, or in bulk from a table of payments without a B/L: each row is prefilled (agency, amount, currency, B/L number candidate) and B/L numbers and container lists can be typed or pasted from Excel. Rows are saved together after validation; invalid rows stay in the table with their errors.
+**B/L creation.** Operations creates B/Ls one at a time from a payment, or in bulk from a table of payments without a B/L: each row is prefilled (agency, amount, currency, B/L number candidate) and B/L numbers and container lists can be typed or pasted from Excel. Rows are saved together after validation; invalid rows stay in the table with their errors. B/L numbers are stored upper-case without spaces (3–40 characters: letters, digits, `-`, `/`) and are unique among active B/Ls across all agencies; a number that does not match the agency's patterns only shows a warning. Container numbers must have the ISO 6346 form (4 letters, 7 digits); a wrong check digit only shows a warning. The B/L number can be edited until the first request is sent; containers can always be edited.
 
 **Incoming refunds.** The accountant enters agency (searchable by bank sender aliases), amount, currency, value date, bank account and the mandatory receipt, with the same duplicate warning. Offsets are entered the same way with kind `OFFSET` and the invoice as evidence. Refunds arrive in full; there is no bank-fee tolerance.
 
@@ -319,9 +320,11 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **Write-off.** When an amount will not be recovered (agency refuses, agency closed, amount too small to pursue), operations proposes a `WRITE_OFF` deduction for the remaining expected amount with a reason. An admin approves or rejects it. On approval the B/L closes; write-offs are shown separately in reports.
 
+**Payment records.** The payment date cannot be in the future; a bank payment's account must be in the payment currency; the evidence file must have been uploaded by the same user and is attached to exactly one record. Uploads are checked against the allowed types and size settings, and the content must match the extension.
+
 **Corrections and voiding.** Mistakes are fixed without deleting anything:
 
-- The accountant corrects the amount, currency, date, agency or bank account of an own money record with a reason while it has no confirmed allocation.
+- The accountant corrects the amount, currency, date, agency or bank account of an own money record with a reason while it has no confirmed allocation. An active B/L follows the correction (agency, currency, deposit, paid date), and its ledger entry is compensated and re-entered.
 - Operations voids a B/L created with wrong data while it has no confirmed allocation; its payment returns to "awaiting B/L" so a correct B/L can be created.
 - The accountant voids a duplicate or mistaken payment or refund with a reason, once its B/L (if any) is voided and it has no confirmed allocation.
 - Records with confirmed allocations need an admin reversal first.
@@ -427,6 +430,16 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 22, 2026 — build step 3 (payments, B/Ls, corrections)**
+
+- Seed lists: currencies USD and EUR; bank accounts are added by an admin (IBAN checked). v1 assumes two decimal places for every currency.
+- Receipt parser stays a stub until real samples arrive; bulk uploads go through a `receipt_queue` table.
+- B/L numbers unique among active B/Ls across agencies; container numbers in ISO 6346 form, check digit as a warning; payment dates not in the future.
+- Ledger is append-only with compensating entries; entries carry their currency; a payment correction moves its active B/L along.
+- Accountants correct and void their own payments; admins may void any (after the B/L is voided).
+- The B/L creation screen lists created B/Ls (edit, void) until the All B/Ls screen arrives in step 4.
+- Uploads go through `/api/uploads`, which bypasses the proxy (large bodies) and checks the session and `can()` itself; files are served by `/api/files/<id>` to signed-in users.
 
 **Oct 22, 2026 — build step 2 (settings, calendar, agencies)**
 

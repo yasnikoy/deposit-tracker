@@ -1,0 +1,58 @@
+import { z } from "zod";
+import { isValidIsoDate } from "@/domain/business-days";
+import { isValidBlNumber, normalizeBlNumber } from "@/domain/bl-number";
+import { PAYMENT_KINDS } from "@/domain/records";
+import type { TranslationKey } from "@/i18n";
+
+const msg = (key: TranslationKey) => key;
+const id = z.number().int().positive();
+
+export const requiredReasonSchema = z.string().trim().min(1, msg("payments.errors.reason")).max(500);
+
+const paymentFields = {
+  agencyId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.agency")).transform((v) => v as number),
+  amountMinor: z
+    .number(msg("payments.errors.amount"))
+    .int(msg("payments.errors.amount"))
+    .positive(msg("payments.errors.amount"))
+    .refine(Number.isSafeInteger, msg("payments.errors.amount")),
+  currency: z.string().regex(/^[A-Z]{3}$/, msg("payments.errors.currency")),
+  paidAt: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
+  bankAccountId: id.nullable(),
+};
+
+const blNoHint = z
+  .string()
+  .trim()
+  .max(40)
+  .transform((value) => normalizeBlNumber(value) || null)
+  .refine((value) => value === null || isValidBlNumber(value), msg("bls.errors.blNo"));
+
+const bankAccountMatchesKind = <T extends { kind: (typeof PAYMENT_KINDS)[number]; bankAccountId: number | null }>(v: T) =>
+  (v.kind === "BANK") === (v.bankAccountId !== null);
+
+export const createPaymentSchema = z
+  .object({
+    ...paymentFields,
+    kind: z.enum(PAYMENT_KINDS),
+    blNoHint,
+    evidenceDocumentId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.evidence")).transform((v) => v as number),
+    queueItemId: id.nullable().default(null),
+    confirmDuplicate: z.boolean().default(false),
+  })
+  .refine(bankAccountMatchesKind, { path: ["bankAccountId"], message: msg("payments.errors.bankAccount") });
+
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+/** Corrections cover amount, currency, date, agency and bank account; the kind is fixed. */
+export const correctPaymentSchema = z.object({
+  id,
+  ...paymentFields,
+  reason: requiredReasonSchema,
+});
+
+export type CorrectPaymentInput = z.infer<typeof correctPaymentSchema>;
+
+export const voidSchema = z.object({ id, reason: requiredReasonSchema });
+
+export const discardQueueItemSchema = z.object({ id });

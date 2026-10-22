@@ -11,6 +11,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { REQUEST_CHANNELS } from "../../domain/agency";
 import { HOLIDAY_KINDS } from "../../domain/business-days";
+import { BL_STATUSES, DOCUMENT_KINDS, LEDGER_TYPES, PAYMENT_KINDS } from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
 // Event timestamps are UTC ISO-8601 text; business dates are YYYY-MM-DD text.
@@ -175,5 +176,229 @@ export const agencies = sqliteTable(
         AND coalesce(${t.followUpDays}, 1) >= 1 AND coalesce(${t.statementRequestDays}, 0) >= 0
         AND coalesce(${t.statementFollowUpDays}, 1) >= 1`,
     ),
+  ],
+);
+
+// ---- Build step 3: lists, documents, payments, B/Ls, ledger ----
+
+const sqlList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(", "));
+
+/** Void columns: all three set together, or none (rule 15). */
+const voidColumns = () => ({
+  voidedAt: timestamp("voided_at"),
+  voidedBy: integer("voided_by").references(() => users.id),
+  voidReason: text("void_reason"),
+});
+const voidCheck = (name: string, t: { voidedAt: AnySQLiteColumn; voidedBy: AnySQLiteColumn; voidReason: AnySQLiteColumn }) =>
+  check(
+    name,
+    sql`(${t.voidedAt} IS NULL AND ${t.voidedBy} IS NULL AND ${t.voidReason} IS NULL)
+      OR (${t.voidedAt} IS NOT NULL AND ${t.voidedBy} IS NOT NULL AND length(trim(${t.voidReason})) > 0)`,
+  );
+
+export const currencies = sqliteTable(
+  "currencies",
+  {
+    code: text("code").primaryKey(),
+    name: text("name").notNull(),
+    minorUnitDigits: integer("minor_unit_digits").notNull().default(2),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (t) => [
+    check("currencies_code", sql`${t.code} GLOB '[A-Z][A-Z][A-Z]'`),
+    // v1 money handling assumes cents.
+    check("currencies_minor_unit_digits", sql`${t.minorUnitDigits} = 2`),
+  ],
+);
+
+export const bankAccounts = sqliteTable(
+  "bank_accounts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    bankName: text("bank_name").notNull(),
+    iban: text("iban").notNull(),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [uniqueIndex("bank_accounts_iban_unique").on(t.iban)],
+);
+
+export const documents = sqliteTable(
+  "documents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", { enum: DOCUMENT_KINDS }).notNull(),
+    // Set when the file is attached to a record; uploads waiting in a form or queue have none yet.
+    ownerType: text("owner_type"),
+    ownerId: integer("owner_id"),
+    originalName: text("original_name").notNull(),
+    // Relative to the data folder's files directory.
+    storedPath: text("stored_path").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    uploadedBy: integer("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    uploadedAt: timestamp("uploaded_at").notNull(),
+  },
+  (t) => [
+    check("documents_kind", sql`${t.kind} IN (${sqlList(DOCUMENT_KINDS)})`),
+    check("documents_owner", sql`(${t.ownerType} IS NULL) = (${t.ownerId} IS NULL)`),
+    check("documents_size", sql`${t.sizeBytes} > 0`),
+    uniqueIndex("documents_stored_path_unique").on(t.storedPath),
+    index("documents_owner").on(t.ownerType, t.ownerId),
+  ],
+);
+
+export const depositPayments = sqliteTable(
+  "deposit_payments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    agencyId: integer("agency_id")
+      .notNull()
+      .references(() => agencies.id),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    paidAt: text("paid_at").notNull(),
+    kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
+    bankAccountId: integer("bank_account_id").references(() => bankAccounts.id),
+    evidenceDocumentId: integer("evidence_document_id")
+      .notNull()
+      .references(() => documents.id),
+    extractedFields: text("extracted_fields", { mode: "json" }).$type<Record<string, unknown>>(),
+    extractedBlNumbers: text("extracted_bl_numbers", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    blNoHint: text("bl_no_hint"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+    ...voidColumns(),
+  },
+  (t) => [
+    check("deposit_payments_amount", sql`${t.amountMinor} > 0`),
+    check("deposit_payments_kind", sql`${t.kind} IN ('BANK', 'OFFSET')`),
+    check("deposit_payments_bank_account", sql`(${t.kind} = 'BANK') = (${t.bankAccountId} IS NOT NULL)`),
+    check("deposit_payments_paid_at", sql`${t.paidAt} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+    voidCheck("deposit_payments_void", t),
+    uniqueIndex("deposit_payments_evidence_unique").on(t.evidenceDocumentId),
+    index("deposit_payments_duplicate_lookup").on(t.agencyId, t.paidAt, t.amountMinor),
+  ],
+);
+
+export const receiptQueue = sqliteTable(
+  "receipt_queue",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    documentId: integer("document_id")
+      .notNull()
+      .references(() => documents.id),
+    extracted: text("extracted", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+    resolvedAt: timestamp("resolved_at"),
+    resolution: text("resolution", { enum: ["SAVED", "DISCARDED"] }),
+    paymentId: integer("payment_id").references(() => depositPayments.id),
+  },
+  (t) => [
+    uniqueIndex("receipt_queue_document_unique").on(t.documentId),
+    check(
+      "receipt_queue_resolution",
+      sql`(${t.resolvedAt} IS NULL AND ${t.resolution} IS NULL AND ${t.paymentId} IS NULL)
+        OR (${t.resolution} = 'DISCARDED' AND ${t.resolvedAt} IS NOT NULL AND ${t.paymentId} IS NULL)
+        OR (${t.resolution} = 'SAVED' AND ${t.resolvedAt} IS NOT NULL AND ${t.paymentId} IS NOT NULL)`,
+    ),
+  ],
+);
+
+export const billsOfLading = sqliteTable(
+  "bills_of_lading",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blNo: text("bl_no").notNull(),
+    // Null only for migrated records with an OPENING_BALANCE ledger entry (build step 6).
+    depositPaymentId: integer("deposit_payment_id").references(() => depositPayments.id),
+    agencyId: integer("agency_id")
+      .notNull()
+      .references(() => agencies.id),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    depositAmountMinor: integer("deposit_amount_minor").notNull(),
+    paidAt: text("paid_at").notNull(),
+    // DUE is computed on read and never stored.
+    status: text("status", { enum: BL_STATUSES }).notNull(),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+    ...voidColumns(),
+  },
+  (t) => [
+    check("bills_of_lading_amount", sql`${t.depositAmountMinor} > 0`),
+    check("bills_of_lading_status", sql`${t.status} IN (${sqlList(BL_STATUSES.filter((s) => s !== "DUE"))})`),
+    voidCheck("bills_of_lading_void", t),
+    // Rule 11: at most one active B/L per payment record.
+    uniqueIndex("bills_of_lading_payment_active")
+      .on(t.depositPaymentId)
+      .where(sql`${t.voidedAt} IS NULL AND ${t.depositPaymentId} IS NOT NULL`),
+    uniqueIndex("bills_of_lading_bl_no_active").on(sql`upper(${t.blNo})`).where(sql`${t.voidedAt} IS NULL`),
+    index("bills_of_lading_agency").on(t.agencyId),
+  ],
+);
+
+export const containers = sqliteTable(
+  "containers",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    containerNo: text("container_no").notNull(),
+    type: text("type"),
+  },
+  (t) => [uniqueIndex("containers_bl_container_unique").on(t.blId, t.containerNo)],
+);
+
+export const ledgerEntries = sqliteTable(
+  "ledger_entries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    type: text("type", { enum: LEDGER_TYPES }).notNull(),
+    // Signed: a compensating entry carries the negated amount of the entry it cancels.
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    entryDate: text("entry_date").notNull(),
+    depositPaymentId: integer("deposit_payment_id").references(() => depositPayments.id),
+    compensatesEntryId: integer("compensates_entry_id").references((): AnySQLiteColumn => ledgerEntries.id),
+    createdBy: integer("created_by").references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    check("ledger_entries_type", sql`${t.type} IN (${sqlList(LEDGER_TYPES)})`),
+    check("ledger_entries_amount", sql`${t.amountMinor} <> 0`),
+    // An entry is compensated at most once.
+    uniqueIndex("ledger_entries_compensates_unique")
+      .on(t.compensatesEntryId)
+      .where(sql`${t.compensatesEntryId} IS NOT NULL`),
+    index("ledger_entries_bl").on(t.blId),
   ],
 );

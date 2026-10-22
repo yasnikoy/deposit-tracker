@@ -8,9 +8,12 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   // Menu visibility is cosmetic; every page and server function checks can() again.
   const items: (NavItem & { visible: boolean })[] = [
     { href: "/", label: "nav.dashboard", visible: true },
+    { href: "/accounting", label: "nav.accounting", visible: can(user, "payment.create").allowed },
+    { href: "/bls", label: "nav.createBls", visible: can(user, "bl.create").allowed },
     { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },
     { href: "/admin/settings", label: "nav.settings", visible: can(user, "settings.view").allowed },
     { href: "/admin/holidays", label: "nav.holidays", visible: can(user, "holiday.manage").allowed },
+    { href: "/admin/lists", label: "nav.lists", visible: can(user, "lists.manage").allowed },
     { href: "/admin/users", label: "nav.users", visible: can(user, "user.list").allowed },
   ];
   const nav: NavItem[] = items.filter((item) => item.visible).map(({ href, label }) => ({ href, label }));

@@ -11,5 +11,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/health|_next/static|_next/image|favicon.ico).*)"],
+  // api/uploads checks the session itself; excluded so large uploads are not buffered here.
+  matcher: ["/((?!login|api/health|api/uploads|_next/static|_next/image|favicon.ico).*)"],
 };

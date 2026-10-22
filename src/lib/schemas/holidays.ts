@@ -4,11 +4,12 @@ import type { TranslationKey } from "@/i18n";
 
 const msg = (key: TranslationKey) => key;
 
+// Accepts its own output (null) too, so already-parsed data can be sent again.
 export const reasonSchema = z
   .string()
   .trim()
   .max(500)
-  .optional()
+  .nullish()
   .transform((value) => value || null);
 
 export const holidayInputSchema = z.object({

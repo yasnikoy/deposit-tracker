@@ -1,0 +1,279 @@
+import fs from "node:fs";
+import { and, eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it } from "vitest";
+import { agencyInputSchema } from "@/lib/schemas/agencies";
+import { createAgency } from "@/server/agencies";
+import type { AuthUser } from "@/server/auth/types";
+import { createBls, listBls, updateBl, voidBl } from "@/server/bls";
+import type { Db } from "@/server/db/client";
+import { auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/schema";
+import { ForbiddenError } from "@/server/errors";
+import { documentPath, storeUpload } from "@/server/files";
+import { addLedgerEntry, ledgerDeposit } from "@/server/ledger";
+import { saveBankAccount } from "@/server/lists";
+import {
+  correctPayment,
+  createPayment,
+  discardQueueItem,
+  enqueueReceipt,
+  listOwnPayments,
+  listPaymentsAwaitingBl,
+  listReceiptQueue,
+  voidPayment,
+} from "@/server/payments";
+import { updateSettings } from "@/server/settings";
+import { createTestDb, makeUser } from "../support/db";
+
+const NOW = new Date("2026-10-22T09:00:00Z");
+const PDF = Buffer.from("%PDF-1.4\n% test receipt\n");
+
+let db: Db;
+let admin: AuthUser;
+let acc: AuthUser;
+let acc2: AuthUser;
+let ops: AuthUser;
+let agencyId: number;
+let usdAccount: number;
+let eurAccount: number;
+
+beforeEach(async () => {
+  db = createTestDb();
+  admin = await makeUser(db, "admin", ["ADMIN"]);
+  acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
+  acc2 = await makeUser(db, "acc2", ["ACCOUNTANT"]);
+  ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  agencyId = createAgency(
+    db,
+    ops,
+    agencyInputSchema.parse({
+      name: "MSC",
+      active: true,
+      toRecipients: [],
+      ccRecipients: [],
+      bankSenderAliases: [],
+      blNumberPatterns: [String.raw`MEDU\d{7}`],
+      batchSending: false,
+      requestChannel: "EMAIL",
+      portalUrl: "",
+      notes: "",
+    }),
+  );
+  usdAccount = saveBankAccount(db, admin, { name: "USD hesabı", bankName: "Banka", iban: "TR330006100519786457841326", currency: "USD", active: true, reason: null });
+  eurAccount = saveBankAccount(db, admin, { name: "EUR hesabı", bankName: "Banka", iban: "DE89370400440532013000", currency: "EUR", active: true, reason: null });
+});
+
+const upload = (user: AuthUser, kind: "RECEIPT" | "INVOICE" = "RECEIPT", name = "dekont.pdf") =>
+  storeUpload(db, user, { originalName: name, content: PDF, kind }, NOW);
+
+const pay = (overrides: Record<string, unknown> = {}, user = acc) =>
+  createPayment(
+    db,
+    user,
+    {
+      agencyId,
+      amountMinor: 300000,
+      currency: "USD",
+      paidAt: "2026-10-20",
+      kind: "BANK",
+      bankAccountId: usdAccount,
+      blNoHint: null,
+      evidenceDocumentId: (overrides.evidenceDocumentId as number | undefined) ?? upload(user).id,
+      queueItemId: null,
+      confirmDuplicate: false,
+      ...overrides,
+    },
+    NOW,
+  );
+
+const created = (result: ReturnType<typeof pay>) => {
+  if (result.status !== "created") throw new Error("expected created");
+  return result.id;
+};
+
+describe("files", () => {
+  it("stores allowed files in the data folder and rejects wrong types, sizes and contents", () => {
+    const doc = upload(acc, "RECEIPT", "../../etc/dekont.pdf");
+    expect(doc.originalName).toBe("dekont.pdf");
+    expect(fs.readFileSync(documentPath(doc))).toEqual(PDF);
+
+    expect(() => storeUpload(db, acc, { originalName: "x.exe", content: PDF, kind: "RECEIPT" })).toThrow(
+      expect.objectContaining({ messageKey: "files.errors.type" }),
+    );
+    expect(() => storeUpload(db, acc, { originalName: "x.pdf", content: Buffer.from("not a pdf"), kind: "RECEIPT" })).toThrow(
+      expect.objectContaining({ messageKey: "files.errors.content" }),
+    );
+    updateSettings(db, admin, { changes: [{ key: "rules.maxFileSizeMb", value: 1 }] });
+    const big = Buffer.concat([PDF, Buffer.alloc(1024 * 1024)]);
+    expect(() => storeUpload(db, acc, { originalName: "x.pdf", content: big, kind: "RECEIPT" })).toThrow(
+      expect.objectContaining({ messageKey: "files.errors.size" }),
+    );
+  });
+});
+
+describe("deposit payments", () => {
+  it("is created by an accountant with the uploaded receipt attached", () => {
+    const id = created(pay());
+    const [row] = listOwnPayments(db, acc);
+    expect(row).toMatchObject({ id, amountMinor: 300000, blId: null, bankAccountName: "USD hesabı" });
+    expect(db.select().from(documents).where(eq(documents.id, row.evidenceDocumentId)).get()).toMatchObject({
+      ownerType: "deposit_payment",
+      ownerId: id,
+    });
+    expect(() => pay({}, ops)).toThrow(ForbiddenError);
+  });
+
+  it("requires matching evidence: a receipt for bank payments, an invoice for offsets", () => {
+    expect(() => pay({ evidenceDocumentId: upload(acc, "INVOICE").id })).toThrow(
+      expect.objectContaining({ messageKey: "files.errors.evidence" }),
+    );
+    // Someone else's upload cannot be claimed.
+    expect(() => pay({ evidenceDocumentId: upload(acc2).id })).toThrow(expect.objectContaining({ messageKey: "files.errors.evidence" }));
+    // An offset has no bank account and needs an invoice.
+    expect(created(pay({ kind: "OFFSET", bankAccountId: null, evidenceDocumentId: upload(acc, "INVOICE").id }))).toBeGreaterThan(0);
+  });
+
+  it("checks the bank account currency and rejects future dates", () => {
+    expect(() => pay({ bankAccountId: eurAccount })).toThrow(expect.objectContaining({ messageKey: "payments.errors.bankAccountCurrency" }));
+    expect(() => pay({ paidAt: "2026-10-23" })).toThrow(expect.objectContaining({ messageKey: "payments.errors.futureDate" }));
+  });
+
+  it("warns about a duplicate and saves it only after confirmation", () => {
+    created(pay());
+    const second = pay();
+    expect(second.status).toBe("duplicate");
+    expect(second.status === "duplicate" && second.duplicates[0]).toMatchObject({ agencyName: "MSC", amountMinor: 300000 });
+    expect(created(pay({ confirmDuplicate: true }))).toBeGreaterThan(0);
+
+    updateSettings(db, admin, { changes: [{ key: "rules.duplicateWarning", value: false }] });
+    expect(pay().status).toBe("created");
+  });
+});
+
+describe("B/L creation", () => {
+  it("saves valid rows together and returns the invalid ones with their errors", () => {
+    const p1 = created(pay({ paidAt: "2026-10-01" }));
+    const p2 = created(pay({ paidAt: "2026-10-02" }));
+    const p3 = created(pay({ paidAt: "2026-10-03" }));
+    const p4 = created(pay({ paidAt: "2026-10-04" }));
+
+    const result = createBls(
+      db,
+      ops,
+      [
+        { paymentId: p1, blNo: " medu1234567 ", containers: ["csqu 305438-3"] },
+        { paymentId: p2, blNo: "MEDU1234567", containers: [] }, // same number twice in the batch
+        { paymentId: p3, blNo: "MEDU7654321", containers: ["BAD1"] },
+        { paymentId: p4, blNo: "X", containers: [] },
+      ],
+      NOW,
+    );
+    expect(result.created).toEqual([{ index: 0, paymentId: p1, blId: expect.any(Number), blNo: "MEDU1234567" }]);
+    expect(result.errors).toEqual([
+      { index: 1, field: "blNo", message: "bls.errors.blNoDuplicateInBatch" },
+      { index: 2, field: "containers", message: "bls.errors.containerFormat", item: 1 },
+      { index: 3, field: "blNo", message: "bls.errors.blNo" },
+    ]);
+
+    const bl = listBls(db, ops)[0];
+    expect(bl).toMatchObject({ blNo: "MEDU1234567", status: "PAID", containers: ["CSQU3054383"], depositAmountMinor: 300000 });
+    expect(ledgerDeposit(db, bl.id)).toBe(300000);
+    expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p2, p3, p4]);
+    expect(() => createBls(db, acc, [{ paymentId: p2, blNo: "MEDU0000001", containers: [] }])).toThrow(ForbiddenError);
+  });
+
+  it("allows one active B/L per payment; voiding frees the payment and the number", () => {
+    const p1 = created(pay());
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]).created).toHaveLength(1);
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU9999999", containers: [] }]).errors[0].message).toBe(
+      "bls.errors.paymentUnavailable",
+    );
+    const [bl] = listBls(db, ops);
+    voidBl(db, ops, { id: bl.id, reason: "Yanlış B/L numarası" });
+    expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p1]);
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]).created).toHaveLength(1);
+  });
+
+  it("edits number and containers while no request has been sent", () => {
+    const p1 = created(pay());
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    const [bl] = listBls(db, ops);
+    updateBl(db, ops, { id: bl.id, blNo: "MEDU1234568", containers: ["CSQU3054383"] });
+    expect(listBls(db, ops)[0]).toMatchObject({ blNo: "MEDU1234568", containers: ["CSQU3054383"] });
+    db.update(billsOfLading).set({ status: "REQUESTED" }).where(eq(billsOfLading.id, bl.id)).run();
+    expect(() => updateBl(db, ops, { id: bl.id, blNo: "MEDU1234569", containers: [] })).toThrow(
+      expect.objectContaining({ messageKey: "bls.errors.blNoLocked" }),
+    );
+  });
+});
+
+describe("corrections and voiding", () => {
+  it("lets only the creating accountant correct, with a reason; the B/L and ledger follow", () => {
+    const p1 = created(pay());
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    const [bl] = listBls(db, ops);
+    const correction = { id: p1, agencyId, amountMinor: 250000, currency: "USD", paidAt: "2026-10-19", bankAccountId: usdAccount, reason: "Dekont tutarı hatalı girildi" };
+
+    expect(() => correctPayment(db, acc2, correction)).toThrow(ForbiddenError);
+    expect(() => correctPayment(db, ops, correction)).toThrow(ForbiddenError);
+    correctPayment(db, acc, correction, NOW);
+
+    expect(listBls(db, ops)[0]).toMatchObject({ depositAmountMinor: 250000, paidAt: "2026-10-19" });
+    expect(ledgerDeposit(db, bl.id)).toBe(250000);
+    const entries = db.select().from(ledgerEntries).where(eq(ledgerEntries.blId, bl.id)).all();
+    expect(entries.map((e) => e.amountMinor)).toEqual([300000, -300000, 250000]);
+    expect(entries[1].compensatesEntryId).toBe(entries[0].id);
+    const audit = db.select().from(auditLog).where(eq(auditLog.action, "payment.correct")).get();
+    expect(audit).toMatchObject({ roleUsed: "ACCOUNTANT", reason: "Dekont tutarı hatalı girildi" });
+  });
+
+  it("moves the whole B/L to the new currency on a currency correction", () => {
+    const p1 = created(pay());
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    const [bl] = listBls(db, ops);
+    correctPayment(db, acc, { id: p1, agencyId, amountMinor: 280000, currency: "EUR", paidAt: "2026-10-20", bankAccountId: eurAccount, reason: "Para birimi EUR" }, NOW);
+    expect(listBls(db, ops)[0]).toMatchObject({ currency: "EUR", depositAmountMinor: 280000 });
+    expect(ledgerDeposit(db, bl.id)).toBe(280000);
+  });
+
+  it("voids a payment only after its B/L is voided, and freezes records with a confirmed allocation", () => {
+    const p1 = created(pay());
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    const [bl] = listBls(db, ops);
+    expect(() => voidPayment(db, acc, { id: p1, reason: "Mükerrer" })).toThrow(
+      expect.objectContaining({ messageKey: "payments.errors.voidBlFirst" }),
+    );
+
+    // A confirmed refund allocation freezes both records (rules 13 and 15).
+    addLedgerEntry(db, { blId: bl.id, type: "REFUND_ALLOCATION", amountMinor: -300000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
+    expect(() => voidBl(db, ops, { id: bl.id, reason: "x" })).toThrow(expect.objectContaining({ messageKey: "bls.errors.allocated" }));
+    expect(() =>
+      correctPayment(db, acc, { id: p1, agencyId, amountMinor: 1, currency: "USD", paidAt: "2026-10-20", bankAccountId: usdAccount, reason: "x" }),
+    ).toThrow(expect.objectContaining({ messageKey: "payments.errors.allocated" }));
+  });
+
+  it("voids after the B/L is voided; voided payments leave the work lists", () => {
+    const p1 = created(pay());
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    voidBl(db, ops, { id: listBls(db, ops)[0].id, reason: "Yanlış kayıt" });
+    voidPayment(db, acc, { id: p1, reason: "Mükerrer kayıt" });
+    expect(listPaymentsAwaitingBl(db, ops)).toEqual([]);
+    expect(listOwnPayments(db, acc)[0]).toMatchObject({ voidReason: "Mükerrer kayıt" });
+    expect(db.select().from(auditLog).where(and(eq(auditLog.action, "payment.void"), eq(auditLog.entityId, String(p1)))).get()).toBeTruthy();
+  });
+});
+
+describe("receipt review queue", () => {
+  it("queues bulk receipts per accountant; saving or discarding resolves them", () => {
+    const d1 = upload(acc);
+    const d2 = upload(acc);
+    const q1 = enqueueReceipt(db, acc, d1, { parser: "stub" });
+    const q2 = enqueueReceipt(db, acc, d2, { parser: "stub" });
+    expect(listReceiptQueue(db, acc).map((q) => q.id)).toEqual([q1, q2]);
+    expect(listReceiptQueue(db, acc2)).toEqual([]);
+
+    created(pay({ evidenceDocumentId: d1.id, queueItemId: q1 }));
+    expect(() => discardQueueItem(db, acc2, { id: q2 })).toThrow(expect.objectContaining({ messageKey: "payments.errors.queueItem" }));
+    discardQueueItem(db, acc, { id: q2 });
+    expect(listReceiptQueue(db, acc)).toEqual([]);
+  });
+});

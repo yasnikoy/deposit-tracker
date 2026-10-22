@@ -5,6 +5,7 @@ import { migrateWithBackup } from "./db/migrate";
 import { getEnv } from "./env";
 import { acquireInstanceLock } from "./instance-lock";
 import { enableFileLogging, logger } from "./logger";
+import { seedLists } from "./lists";
 import { seedSettings } from "./settings";
 
 /** Prepares the database: migrations (after an automatic backup) and seed values. */
@@ -18,6 +19,8 @@ export async function prepareDatabase(): Promise<void> {
   }
   const seeded = seedSettings(db);
   if (seeded.length > 0) logger.info({ keys: seeded }, "settings seeded");
+  const currencies = seedLists(db);
+  if (currencies.length > 0) logger.info({ currencies }, "lists seeded");
 }
 
 /** Runs once per server process, before the first request is handled. */

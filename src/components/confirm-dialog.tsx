@@ -21,7 +21,9 @@ export type ConfirmDialogProps = {
   items?: string[];
   confirmLabel: string;
   destructive?: boolean;
-  onConfirm: () => Promise<void> | void;
+  /** Asks for a mandatory reason (voids and other irreversible steps). */
+  requireReason?: boolean;
+  onConfirm: (reason: string) => Promise<void> | void;
 };
 
 export function ConfirmDialog({
@@ -32,14 +34,17 @@ export function ConfirmDialog({
   items,
   confirmLabel,
   destructive,
+  requireReason,
   onConfirm,
 }: ConfirmDialogProps) {
   const [busy, setBusy] = useState(false);
+  const [reason, setReason] = useState("");
+  const missingReason = requireReason === true && reason.trim() === "";
 
   const confirm = async () => {
     setBusy(true);
     try {
-      await onConfirm();
+      await onConfirm(reason.trim());
     } finally {
       setBusy(false);
     }
@@ -59,11 +64,22 @@ export function ConfirmDialog({
             ))}
           </ul>
         )}
+        {requireReason && (
+          <textarea
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            rows={2}
+            autoFocus
+            aria-label={t("common.reasonRequired")}
+            placeholder={t("common.reasonRequired")}
+            className="border-input bg-background rounded-md border px-2 py-1 text-sm"
+          />
+        )}
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={busy}>
             {t("common.cancel")}
           </Button>
-          <Button variant={destructive ? "destructive" : "default"} onClick={confirm} disabled={busy} autoFocus>
+          <Button variant={destructive ? "destructive" : "default"} onClick={confirm} disabled={busy || missingReason} autoFocus={!requireReason}>
             {confirmLabel}
           </Button>
         </DialogFooter>

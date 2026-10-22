@@ -33,3 +33,19 @@ describe("can()", () => {
     expect(authorize(user(["ADMIN"]), "user.list")).toBe("ADMIN");
   });
 });
+
+describe("entity conditions", () => {
+  const acc = { ...user(["ACCOUNTANT"]), id: 7 };
+  const accAdmin = { ...user(["ACCOUNTANT", "ADMIN"]), id: 7 };
+
+  it("lets accountants correct only their own money records", () => {
+    expect(can(acc, "payment.correct", { createdBy: 7 })).toEqual({ allowed: true, role: "ACCOUNTANT" });
+    expect(can(acc, "payment.correct", { createdBy: 8 })).toEqual({ allowed: false });
+    expect(can(acc, "payment.correct")).toEqual({ allowed: false });
+  });
+
+  it("records the role that actually granted the action", () => {
+    expect(can(accAdmin, "payment.void", { createdBy: 7 })).toEqual({ allowed: true, role: "ACCOUNTANT" });
+    expect(can(accAdmin, "payment.void", { createdBy: 8 })).toEqual({ allowed: true, role: "ADMIN" });
+  });
+});

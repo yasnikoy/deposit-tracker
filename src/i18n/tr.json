@@ -15,7 +15,13 @@
     "edit": "Düzenle",
     "delete": "Sil",
     "reasonOptional": "Değişiklik nedeni (isteğe bağlı)",
-    "line": "satır {line}"
+    "line": "satır {line}",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı.",
+    "reasonRequired": "Neden (zorunlu)",
+    "view": "Görüntüle",
+    "none": "—",
+    "continue": "Devam"
   },
   "errors": {
     "forbidden": "Bu işlem için yetkiniz yok.",
@@ -31,7 +37,10 @@
     "shortcuts": "Klavye kısayolları",
     "settings": "Ayarlar",
     "holidays": "Tatiller",
-    "agencies": "Acenteler"
+    "agencies": "Acenteler",
+    "accounting": "Muhasebe",
+    "createBls": "B/L oluştur",
+    "lists": "Listeler"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -375,6 +384,163 @@
         "matchesEmpty": "Desen boş metinle eşleşiyor; en az bir karakter gerektirmeli.",
         "unsafe": "İç içe tekrar içeren desen sunucuyu kilitleyebilir; lütfen sadeleştirin."
       }
+    }
+  },
+  "files": {
+    "drop": "Dosyayı buraya bırakın veya seçmek için tıklayın",
+    "dropMany": "Dekontları buraya bırakın veya seçmek için tıklayın (birden fazla seçilebilir)",
+    "uploading": "Yükleniyor…",
+    "uploaded": "Yüklendi: {name}",
+    "change": "Dosyayı değiştir",
+    "open": "Dosyayı aç",
+    "errors": {
+      "type": "Bu dosya türü yüklenemez. İzin verilenler: {types}.",
+      "size": "Dosya en fazla {max} MB olabilir.",
+      "empty": "Dosya boş.",
+      "content": "Dosyanın içeriği uzantısıyla uyuşmuyor.",
+      "evidence": "Belge bu kayda eklenemez; lütfen dosyayı yeniden yükleyin.",
+      "upload": "Dosya yüklenemedi."
+    }
+  },
+  "lists": {
+    "title": "Listeler",
+    "currencies": "Para birimleri",
+    "currencyCode": "Kod",
+    "currencyName": "Ad",
+    "addCurrency": "Para birimi ekle",
+    "bankAccounts": "Banka hesapları",
+    "addBankAccount": "Banka hesabı ekle",
+    "accountName": "Hesap adı",
+    "bankName": "Banka",
+    "iban": "IBAN",
+    "currency": "Para birimi",
+    "active": "Aktif",
+    "inactive": "Pasif",
+    "status": "Durum",
+    "toast": {
+      "saved": "Kaydedildi."
+    },
+    "errors": {
+      "ibanTaken": "Bu IBAN başka bir hesapta kayıtlı.",
+      "iban": "Geçersiz IBAN.",
+      "code": "Kod üç büyük harf olmalı (ör. GBP)."
+    }
+  },
+  "payments": {
+    "kinds": {
+      "BANK": "Banka havalesi",
+      "OFFSET": "Fatura mahsubu"
+    },
+    "evidence": {
+      "BANK": "Banka dekontu",
+      "OFFSET": "Fatura"
+    },
+    "agency": "Acente",
+    "agencySearch": "Acente adı veya bankadaki gönderen adı…",
+    "amount": "Tutar",
+    "amountPreview": "{amount}",
+    "currency": "Para birimi",
+    "paidAt": "Ödeme tarihi",
+    "kind": "Ödeme türü",
+    "bankAccount": "Banka hesabı",
+    "blNoHint": "B/L numarası notu (isteğe bağlı)",
+    "blNoHintHelp": "Operasyon B/L oluştururken ön doldurulur ve onaylanır.",
+    "blCandidates": "Dekontta bulunan B/L numaraları: {list}",
+    "save": "Ödemeyi kaydet",
+    "saved": "Ödeme kaydedildi.",
+    "duplicateTitle": "Mükerrer kayıt olabilir",
+    "duplicateText": "Aynı acente, tutar ve tarihle kayıtlı ödeme var. Yine de kaydedilsin mi?",
+    "duplicateConfirm": "Yine de kaydet",
+    "newTitle": "Yeni depozito ödemesi",
+    "queueTitle": "İnceleme kuyruğu",
+    "queueEmpty": "Kuyrukta bekleyen dekont yok.",
+    "queueCount": "{count} dekont inceleme bekliyor",
+    "queueAdded": "{count} dekont kuyruğa eklendi.",
+    "discard": "Kuyruktan çıkar",
+    "discarded": "Dekont kuyruktan çıkarıldı.",
+    "myRecords": "Kayıtlarım",
+    "status": "Durum",
+    "statuses": {
+      "awaitingBl": "B/L bekliyor",
+      "hasBl": "B/L oluşturuldu",
+      "voided": "İptal"
+    },
+    "bl": "B/L",
+    "receipt": "Dekont",
+    "correct": "Düzelt",
+    "correctTitle": "Ödemeyi düzelt",
+    "corrected": "Ödeme düzeltildi.",
+    "void": "İptal et",
+    "voidTitle": "Ödemeyi iptal et",
+    "voidText": "{agency} – {amount} – {date} kaydı iptal edilsin mi? Kayıt silinmez; listelerden ve bakiyelerden çıkar.",
+    "voided": "Ödeme iptal edildi.",
+    "showVoided": "İptal edilenleri göster",
+    "continueToBl": "B/L oluşturmaya devam et",
+    "parserStub": "Dekont okuma henüz devrede değil; alanları elle doldurun.",
+    "errors": {
+      "agency": "Acente seçin.",
+      "amount": "Geçerli bir tutar girin (ör. 3.000,50).",
+      "currency": "Aktif bir para birimi seçin.",
+      "date": "Geçerli bir tarih girin.",
+      "futureDate": "Ödeme tarihi bugünden sonra olamaz.",
+      "bankAccount": "Banka havalesi için banka hesabı seçin; mahsupta hesap seçilmez.",
+      "bankAccountCurrency": "Banka hesabının para birimi ödemeninkiyle aynı olmalı.",
+      "evidence": "Dekont veya fatura yükleyin.",
+      "reason": "Neden yazın.",
+      "voided": "Bu kayıt iptal edilmiş.",
+      "voidBlFirst": "Önce bu ödemeye bağlı B/L iptal edilmeli.",
+      "allocated": "Onaylanmış iade dağıtımı olan kayıt değiştirilemez.",
+      "noChange": "Değişiklik yok.",
+      "queueItem": "Bu dekont artık kuyrukta değil."
+    }
+  },
+  "bls": {
+    "createTitle": "B/L oluştur",
+    "awaitingTab": "B/L bekleyen ödemeler",
+    "createdTab": "Oluşturulan B/L'ler",
+    "awaitingEmpty": "B/L bekleyen ödeme yok.",
+    "blNo": "B/L no",
+    "containers": "Konteynerler",
+    "containersHint": "Virgül, boşluk veya satırla ayırın.",
+    "pasteHint": "Excel'den B/L no ve konteyner sütunlarını ilk satıra yapıştırabilirsiniz; satırlar sırayla dolar.",
+    "saveAll": "Geçerli satırları kaydet",
+    "savedCount": "{count} B/L oluşturuldu.",
+    "rowErrors": "{count} satır hatalı; düzeltip yeniden kaydedin.",
+    "candidates": "Öneriler",
+    "useCandidate": "{bl} kullan",
+    "patternWarning": "Acentenin B/L desenlerine uymuyor.",
+    "checkDigitWarning": "Kontrol hanesi tutmuyor: {list}",
+    "status": "Durum",
+    "statuses": {
+      "PAID": "Ödendi",
+      "DUE": "Talep zamanı",
+      "REQUESTED": "Talep edildi",
+      "AWAITING_RETURN": "İade bekleniyor",
+      "DEDUCTION_OPEN": "Kesinti açık",
+      "DISPUTED": "İtirazlı",
+      "COLLECTED": "Tahsil edildi"
+    },
+    "voidedBadge": "İptal",
+    "edit": "B/L'yi düzenle",
+    "updated": "B/L güncellendi.",
+    "void": "B/L'yi iptal et",
+    "voidText": "{bl} iptal edilsin mi? Ödeme kaydı yeniden \"B/L bekliyor\" durumuna döner.",
+    "voided": "B/L iptal edildi.",
+    "createOne": "B/L oluştur",
+    "createdOne": "B/L oluşturuldu: {bl}",
+    "deposit": "Depozito",
+    "paidAt": "Ödeme tarihi",
+    "agency": "Acente",
+    "errors": {
+      "blNo": "B/L numarası 3–40 karakter olmalı; harf, rakam, - ve / kullanılabilir.",
+      "blNoTaken": "Bu B/L numarası başka bir aktif B/L'de kayıtlı.",
+      "blNoDuplicateInBatch": "Bu B/L numarası tabloda birden fazla satırda var.",
+      "blNoLocked": "Talep gönderildikten sonra B/L numarası değiştirilemez.",
+      "paymentUnavailable": "Bu ödeme için artık B/L oluşturulamaz (iptal edilmiş ya da B/L'si var).",
+      "containerFormat": "Konteyner numarası 4 harf ve 7 rakam olmalı (ör. MSCU1234565).",
+      "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
+      "voided": "Bu B/L iptal edilmiş.",
+      "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez."
     }
   }
 }

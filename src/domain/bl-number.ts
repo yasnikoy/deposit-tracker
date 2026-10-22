@@ -52,3 +52,12 @@ export function matchesBlNumberPattern(blNumber: string, patterns: readonly stri
     (pattern) => validateBlNumberPattern(pattern) === null && new RegExp(`^(?:${pattern})$`, "i").test(blNumber.trim()),
   );
 }
+
+/** B/L numbers are stored upper-case without spaces. */
+export function normalizeBlNumber(text: string): string {
+  return text.toUpperCase().replace(/\s+/g, "");
+}
+
+export function isValidBlNumber(value: string): boolean {
+  return /^[A-Z0-9][A-Z0-9\-/]{2,39}$/.test(value);
+}
