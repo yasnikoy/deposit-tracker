@@ -10,7 +10,8 @@ import { DueRequestsScreen, type DueTab } from "./due-requests-screen";
 export default async function DueRequestsPage({ searchParams }: PageProps<"/requests">) {
   const { user } = await requireSession();
   if (!can(user, "request.view").allowed) return <Forbidden />;
-  const tab: DueTab = (await searchParams).tab === "upcoming" ? "UPCOMING" : "DUE";
+  const param = (await searchParams).tab;
+  const tab: DueTab = param === "upcoming" ? "UPCOMING" : param === "failed" ? "FAILED" : "DUE";
 
   return (
     <>
@@ -21,6 +22,7 @@ export default async function DueRequestsPage({ searchParams }: PageProps<"/requ
         today={istanbulToday()}
         canRecordPortal={can(user, "request.recordPortal").allowed}
         canForms={can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed}
+        canSend={can(user, "request.prepareEmail").allowed && can(user, "request.sendEmail").allowed}
       />
     </>
   );

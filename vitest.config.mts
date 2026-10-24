@@ -16,6 +16,11 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.test.ts"],
     // Uploaded files in tests go to a throwaway folder, never ./data.
-    env: { NODE_ENV: "test", TZ: "UTC", DATA_DIR: path.join(os.tmpdir(), "deposit-vitest-data") },
+    env: {
+      NODE_ENV: "test",
+      TZ: "UTC",
+      DATA_DIR: path.join(os.tmpdir(), "deposit-vitest-data"),
+      KEY_FILE: path.join(os.tmpdir(), "deposit-vitest.key"),
+    },
   },
 });

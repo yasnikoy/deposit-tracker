@@ -24,7 +24,7 @@ All code, identifiers, database names, comments and docs are in **English**; onl
 - **Deployment:** a portable folder on the designated PC's internal disk; no installer, no Docker, no separate database server (see Operations and deployment). Daily database and file backups.
 - **Network access:** plain HTTP on the office network at http://\<computer-name>:3000; never exposed to the internet. Remote access only through a VPN into the office network, not in v1.
 - **Files:** uploaded forms, form templates, receipts, invoices and email attachments stored in the app's data folder on the PC's internal disk, referenced from the database. Not publicly accessible.
-- **Secrets:** SMTP/IMAP credentials stored encrypted; the encryption key lives in a key file outside the data folder, never in the database or in backups; a copy is kept offline in a safe place.
+- **Secrets:** SMTP/IMAP credentials stored encrypted (AES-256-GCM); the encryption key lives in a key file outside the data folder (`KEY_FILE`, default `deposit.key` next to the data folder, created when the first password is saved), never in the database or in backups; a copy is kept offline in a safe place. The settings screen, history and audit log only show that a password was changed.
 - **Engineering rule:** no business constant is hardcoded. Durations, thresholds, templates, lists and B/L number patterns come from the settings system or agency configuration. Business invariants are the only rules that live in code.
 - **Testing:** the business-day engine, the refund allocation algorithm and the receipt parser are written test-first, with the scenarios in this document as test cases.
 
@@ -43,7 +43,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Authentication | Username + password (no email-based login; the app runs only on the office LAN), hashed with argon2id. Database-backed sessions in an httpOnly cookie; no idle timeout; failed-login lockout is a setting (default 5 attempts); a locked account stays locked until an admin unlocks it or sets a temporary password. Minimum password length is a setting. Sessions end on logout, deactivation, or a password change or reset. At least one active admin must always remain, and admins cannot deactivate themselves. No self-service reset: an admin sets a temporary password that must be changed at next login. The first admin is created with `create-admin.cmd`. Users are deactivated, never deleted |
 | Authorization | One server-side `can(user, action, entity)` check used by every mutation, inline edit, bulk action and undo; UI hiding is cosmetic only |
 | Email | nodemailer (SMTP), ImapFlow (IMAP), mailparser (parsing). Raw messages stored as `.eml` files |
-| Jobs | In-process scheduler with a `jobs` table (run\_at, attempts, status). Send jobs retry 3 times with backoff, then mark the request failed. IMAP polling runs on the poll-interval setting. On start, overdue jobs run once to catch up |
+| Jobs | In-process scheduler with a `jobs` table (run\_at, attempts, status), checked every few seconds. Send jobs retry 3 times with backoff (1, 5 and 15 minutes), then mark the request failed. IMAP polling runs on the poll-interval setting. On start, overdue jobs run once to catch up; a job cut off by a restart runs again (a send already accepted by the server could then repeat, which is accepted as rare) |
 | Mail outage | If SMTP or IMAP is unreachable, a banner on every screen shows since when; queued sends wait and retry; nothing is lost |
 | Receipt parsing | pdfjs-dist text extraction plus one parser module for the bank's layout, covered by tests with real sample receipts. Extracts name, amount, currency, date and, for outgoing payments, B/L number candidates from the transfer description |
 | Form generation | Agency form templates are `.docx` files with placeholders, filled server-side by docxtemplater + pizzip (approved Oct 24, 2026) |
@@ -130,7 +130,11 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, reply\_type\_id, replied\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
-| `emails` | Sent messages and in-thread replies | direction, message\_id, in\_reply\_to, thread\_key, from, to, cc, subject, body as sent, sent\_at, raw\_file\_id, processed\_at |
+| `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), processed\_at (step 5) |
+| `email_attachments` | Files sent with an email | email\_id, document\_id |
+| `standing_documents` | Signature circular and power of attorney; the newest per slot is current | slot (SIGNATURE\_CIRCULAR, POWER\_OF\_ATTORNEY), document\_id, uploaded\_by |
+| `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, …), payload, run\_at, status, attempts, last\_error |
+| `service_status` | Mail server reachability for the outage banner | service (SMTP, IMAP), failing\_since, last\_error, last\_ok\_at |
 | `email_bl_links` | Many-to-many emails and B/Ls | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL) |
 | `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by |
 | `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
@@ -139,7 +143,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
-| `email_templates` | Turkish templates with sections for batched emails | key, subject, body with placeholders and section blocks |
+| `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, BATCH, BATCH\_LINE), subject, body with placeholders and section blocks |
 | `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order |
 | `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
 | `sessions` | Login sessions | id (SHA-256 of the cookie token), user\_id, created\_at, last\_seen\_at, revoked\_at |
@@ -204,6 +208,8 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 | Minimum password length | 8 characters |
 | Allowed file types / max size | PDF, JPG/JPEG, PNG, EML, DOC/DOCX, XLS/XLSX / 10 MB |
 | Block sending without uploaded form | On |
+| Attach standing documents to every request | On |
+| Email server | smtp.yandex.com:465 and imap.yandex.com:993 (SSL/TLS), sent folder "Sent", poll every 5 minutes, attachments up to 25 MB in total; sender, user and password entered at setup |
 | Duplicate-record warning | On |
 | Daily backup time | 12:30 |
 | Backup copies kept | 14 daily / 8 weekly |
@@ -254,7 +260,7 @@ Tüm belgeler ektedir.
 {signature}
 ```
 
-In a batched email, `{bl_no}` in the subject lists all B/L numbers; each section line shows B/L number, containers, amount and currency, and an empty section is left out.
+In a batched email, `{bl_no}` in the subject lists all B/L numbers; each section line shows B/L number, containers, amount and currency, and an empty section is left out. In the stored template a section is a block `[[refund]] … {refund_section} … [[/refund]]` (likewise `[[statement]]`), removed with its intro line when the section is empty; each line comes from the BATCH\_LINE template. A batch with a single B/L uses the single templates. Follow-ups are sent as replies with the subject "Re: " + the earlier subject; the follow-up subject template is used only when there is no earlier email to reply to (portal agencies). Templates are edited on their own admin page with a live preview.
 
 ### Form template placeholders
 
@@ -444,6 +450,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - Standing documents are attached to every request by default (rule setting, seed on).
 - Due lists: a B/L is *upcoming* while at most the "upcoming" number of business days remain before its due date, and *due* from that date on. A request can be sent or recorded only while the B/L is due or upcoming (rule 9). Portal agencies file only the first request on the portal; it is recorded with the filing date (not in the future, not before payment) and counts as attempt 1.
 - Request-timing overrides per B/L (admin, on the B/L detail) resolve B/L → agency → global, like `getSetting`.
+- Email sending: preparing a request email locks its B/Ls for the drafting user (draft lock timeout setting); others see a lock badge. The server rebuilds the draft when the email is sent, so due state, form, recipients, threading and attachments are checked again; the user can edit recipients, subject and body and remove attachments, but cannot add files. A sender address must be set. Requests count as sent (B/L → REQUESTED, follow-up clock from the send date) only when the send job succeeds; in dry-run the message is stored as `.eml` and counts as sent, with a "dry-run" note on the timeline, but never reaches a mail server.
+- The email settings group holds the server, sender, sent folder, poll interval, default CC/BCC, signature and attachment limit (seed: Yandex hosts and ports, sent folder "Sent", 5 minutes, 25 MB); an admin can send a test email. A mail outage banner shows since when SMTP or IMAP is unreachable; a dry-run banner shows outside live mode.
 - Agency form templates: an admin uploads the `.docx` on the agency card; templates with unknown placeholders, loops or broken syntax are refused with the offending tags listed. Tags are read from the template's full text, so a placeholder Word splits across formatting runs still works.
 
 **Oct 24, 2026 — form filling decisions**

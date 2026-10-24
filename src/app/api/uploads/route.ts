@@ -11,7 +11,7 @@ import { parseReceipt } from "@/server/receipts/parser";
 // Uploads bypass the proxy (see proxy.ts) so large files are not buffered there;
 // authentication and can() run here.
 const fieldsSchema = z.object({
-  kind: z.enum(["RECEIPT", "INVOICE", "FORM", "FORM_TEMPLATE"]),
+  kind: z.enum(["RECEIPT", "INVOICE", "FORM", "FORM_TEMPLATE", "STANDING"]),
   queue: z.enum(["0", "1"]).default("0"),
 });
 

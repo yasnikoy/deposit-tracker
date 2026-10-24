@@ -6,7 +6,7 @@ import { z } from "zod";
  * Groups for email, templates, notifications and lists arrive with the features that use them.
  */
 
-export const SETTING_GROUPS = ["calendar", "durations", "rules", "reconciliation", "users", "backups"] as const;
+export const SETTING_GROUPS = ["calendar", "durations", "rules", "email", "reconciliation", "users", "backups"] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 /** Editor and unit of a value. Every duration declares its day type through its kind. */
@@ -20,7 +20,13 @@ export type SettingKind =
   | "weekdays"
   | "bucketEdges"
   | "fileTypes"
-  | "text";
+  | "text"
+  | "longText"
+  | "emailList"
+  /** One of a fixed list of technical options (labels in tr.json under settings.choices). */
+  | "choice"
+  /** Stored encrypted; never sent back to the browser (rule 14). */
+  | "secret";
 
 type Definition = {
   group: SettingGroup;
@@ -28,6 +34,8 @@ type Definition = {
   schema: z.ZodType;
   /** Overridable per agency and per B/L; the agency override is stored in this column. */
   agencyColumn?: string;
+  /** Options of a "choice" setting. */
+  options?: readonly string[];
 };
 
 const int = (min: number, max: number) => z.number().int().min(min).max(max);
@@ -44,6 +52,12 @@ const bucketEdges = z
   .refine((edges) => edges.every((edge, i) => i === 0 || edge > edges[i - 1]), "edges must ascend");
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+
+const emailAddress = z.string().trim().toLowerCase().pipe(z.email());
+const emailList = z.array(emailAddress).max(20);
+const host = z.string().trim().max(253);
+const port = int(1, 65535);
+const MAIL_SECURITY = ["tls", "starttls", "none"] as const;
 
 const fileTypes = z
   .array(z.string().regex(/^[a-z0-9]{1,10}$/))
@@ -84,6 +98,27 @@ export const settingDefinitions = {
   "rules.allowedFileTypes": { group: "rules", kind: "fileTypes", schema: fileTypes },
   "rules.maxFileSizeMb": { group: "rules", kind: "megabytes", schema: int(1, 100) },
 
+  "rules.attachStandingDocuments": { group: "rules", kind: "boolean", schema: z.boolean() },
+
+  "email.smtpHost": { group: "email", kind: "text", schema: host },
+  "email.smtpPort": { group: "email", kind: "count", schema: port },
+  "email.smtpSecurity": { group: "email", kind: "choice", schema: z.enum(MAIL_SECURITY), options: MAIL_SECURITY },
+  "email.imapHost": { group: "email", kind: "text", schema: host },
+  "email.imapPort": { group: "email", kind: "count", schema: port },
+  "email.imapSecurity": { group: "email", kind: "choice", schema: z.enum(MAIL_SECURITY), options: MAIL_SECURITY },
+  "email.username": { group: "email", kind: "text", schema: z.string().trim().max(254) },
+  /** Encrypted app password ("" until entered). */
+  "email.password": { group: "email", kind: "secret", schema: z.string().max(2000) },
+  /** Sender address; empty until the mailbox is set up. */
+  "email.fromAddress": { group: "email", kind: "text", schema: z.union([z.literal(""), emailAddress]) },
+  "email.fromName": { group: "email", kind: "text", schema: z.string().trim().max(100) },
+  "email.sentFolder": { group: "email", kind: "text", schema: z.string().trim().min(1).max(100) },
+  "email.pollIntervalMinutes": { group: "email", kind: "minutes", schema: int(1, 1440) },
+  "email.defaultCc": { group: "email", kind: "emailList", schema: emailList },
+  "email.defaultBcc": { group: "email", kind: "emailList", schema: emailList },
+  "email.signature": { group: "email", kind: "longText", schema: z.string().max(2000) },
+  "email.maxAttachmentMb": { group: "email", kind: "megabytes", schema: int(1, 100) },
+
   "reconciliation.alternativeSuggestions": { group: "reconciliation", kind: "count", schema: int(1, 10) },
 
   /** Failed logins before an account is locked; 0 disables lockout. */
@@ -120,4 +155,8 @@ export function isOverridableSettingKey(key: string): key is OverridableSettingK
 
 export function parseSettingValue<K extends SettingKey>(key: K, value: unknown): SettingValue<K> {
   return settingDefinitions[key].schema.parse(value) as SettingValue<K>;
+}
+
+export function isSecretSetting(key: SettingKey): boolean {
+  return settingDefinitions[key].kind === "secret";
 }

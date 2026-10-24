@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import type { SettingKind } from "@/domain/settings/definitions";
-import { t } from "@/i18n";
+import { t, type TranslationKey } from "@/i18n";
 
 const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
 
@@ -25,11 +25,17 @@ export function SettingEditor({
   id,
   kind,
   value,
+  options,
+  secretSet,
   onChange,
 }: {
   id: string;
   kind: SettingKind;
   value: unknown;
+  /** Choices of a "choice" setting. */
+  options?: readonly string[];
+  /** Secret settings: whether a value is stored (the value itself is never sent here). */
+  secretSet?: boolean;
   onChange: (value: unknown) => void;
 }) {
   const initialText = Array.isArray(value) ? value.join(", ") : value === undefined || value === null ? "" : String(value);
@@ -99,6 +105,71 @@ export function SettingEditor({
 
     case "time":
       return <Input id={id} type="time" className="h-8 w-32" value={String(value ?? "")} onChange={(event) => onChange(event.target.value)} />;
+
+    case "choice":
+      return (
+        <select
+          id={id}
+          className="border-input bg-background h-8 w-48 rounded-md border px-2"
+          value={String(value ?? "")}
+          onChange={(event) => onChange(event.target.value)}
+        >
+          {(options ?? []).map((option) => (
+            <option key={option} value={option}>
+              {t(`settings.choices.${option}` as TranslationKey)}
+            </option>
+          ))}
+        </select>
+      );
+
+    case "secret":
+      return (
+        <div className="flex flex-col gap-1">
+          <Input
+            id={id}
+            type="password"
+            autoComplete="new-password"
+            className="h-8 w-80"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              onChange(event.target.value);
+            }}
+          />
+          <span className="text-muted-foreground text-xs">{secretSet ? t("settings.secretSet") : t("settings.secretNotSet")}</span>
+        </div>
+      );
+
+    case "emailList":
+      return (
+        <div className="flex flex-col gap-1">
+          <textarea
+            id={id}
+            rows={2}
+            className="border-input bg-background w-96 rounded-md border px-2 py-1 text-sm"
+            value={text}
+            onChange={(event) => {
+              setText(event.target.value);
+              onChange(toList(event.target.value));
+            }}
+          />
+          <span className="text-muted-foreground text-xs">{t("settings.emailListHint")}</span>
+        </div>
+      );
+
+    case "longText":
+      return (
+        <textarea
+          id={id}
+          rows={4}
+          className="border-input bg-background w-96 rounded-md border px-2 py-1 text-sm"
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            onChange(event.target.value);
+          }}
+        />
+      );
 
     case "text":
       return (

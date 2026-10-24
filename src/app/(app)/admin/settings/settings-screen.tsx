@@ -17,8 +17,11 @@ import {
 import { t, type TranslationKey } from "@/i18n";
 import { formatTimestamp } from "@/lib/format";
 import type { SettingListItem } from "@/server/settings";
+import type { StandingDocument } from "@/server/standing-documents";
 import { updateSettingsAction } from "./actions";
+import { EmailTestCard } from "./email-test-card";
 import { describeBuckets, SettingEditor } from "./setting-editor";
+import { StandingDocumentsCard } from "./standing-documents-card";
 
 /** Settings that move B/Ls between the request lists; their changes show an impact preview. */
 const IMPACT_KEYS: SettingKey[] = [
@@ -29,10 +32,11 @@ const IMPACT_KEYS: SettingKey[] = [
   "calendar.halfDaysAreBusinessDays",
 ];
 
+const optionsOf = (key: SettingKey) => (settingDefinitions[key] as { options?: readonly string[] }).options;
 const labelKey = (key: SettingKey) => `settings.keys.${key}.label` as TranslationKey;
 const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationKey;
 
-export function SettingsScreen({ settings }: { settings: SettingListItem[] }) {
+export function SettingsScreen({ settings, standingDocuments }: { settings: SettingListItem[]; standingDocuments: StandingDocument[] }) {
   return (
     <div className="flex gap-6">
       <nav className="sticky top-16 flex h-fit w-48 shrink-0 flex-col gap-1">
@@ -41,13 +45,21 @@ export function SettingsScreen({ settings }: { settings: SettingListItem[] }) {
             {t(`settings.groups.${group}`)}
           </a>
         ))}
+        <a href="#email-test" className="hover:bg-muted rounded-md px-2 py-1">
+          {t("emailSettings.testTitle")}
+        </a>
+        <a href="#standing" className="hover:bg-muted rounded-md px-2 py-1">
+          {t("standing.title")}
+        </a>
       </nav>
       <div className="flex max-w-4xl flex-1 flex-col gap-4">
         {SETTING_GROUPS.map((group) => {
           const items = settings.filter((s) => settingDefinitions[s.key].group === group);
           // Remount after a save so the form starts from the stored values.
-          return <GroupForm key={`${group}:${JSON.stringify(items.map((i) => i.value))}`} group={group} items={items} />;
+          return <GroupForm key={`${group}:${JSON.stringify(items.map((i) => [i.value, i.secretSet]))}`} group={group} items={items} />;
         })}
+        <EmailTestCard />
+        <StandingDocumentsCard documents={standingDocuments} />
       </div>
     </div>
   );
@@ -94,7 +106,14 @@ function GroupForm({ group, items }: { group: SettingGroup; items: SettingListIt
                 {t(labelKey(item.key))}
               </Label>
               <div className="flex flex-col gap-1">
-                <SettingEditor id={item.key} kind={kind} value={value} onChange={(v) => setDraft((d) => ({ ...d, [item.key]: v }))} />
+                <SettingEditor
+                  id={item.key}
+                  kind={kind}
+                  value={value}
+                  options={optionsOf(item.key)}
+                  secretSet={item.secretSet}
+                  onChange={(v) => setDraft((d) => ({ ...d, [item.key]: v }))}
+                />
                 {invalid.includes(item.key) && (
                   <p role="alert" className="text-destructive text-xs">
                     {t("settings.invalid")}

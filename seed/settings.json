@@ -32,6 +32,23 @@
       "xlsx"
     ],
     "rules.maxFileSizeMb": 10,
+    "rules.attachStandingDocuments": true,
+    "email.smtpHost": "smtp.yandex.com",
+    "email.smtpPort": 465,
+    "email.smtpSecurity": "tls",
+    "email.imapHost": "imap.yandex.com",
+    "email.imapPort": 993,
+    "email.imapSecurity": "tls",
+    "email.username": "",
+    "email.password": "",
+    "email.fromAddress": "",
+    "email.fromName": "",
+    "email.sentFolder": "Sent",
+    "email.pollIntervalMinutes": 5,
+    "email.defaultCc": [],
+    "email.defaultBcc": [],
+    "email.signature": "",
+    "email.maxAttachmentMb": 25,
     "reconciliation.alternativeSuggestions": 3,
     "auth.loginLockoutAttempts": 5,
     "auth.minPasswordLength": 8,
@@ -51,5 +68,23 @@
         "name": "Euro"
       }
     ]
+  },
+  "emailTemplates": {
+    "REFUND_REQUEST": {
+      "subject": "Depozito İade Talebi – B/L {bl_no}",
+      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait {containers} numaralı konteyner(ler) için ödemiş olduğumuz {amount} {currency} tutarındaki depozitonun iadesini rica ederiz. İade talep formu, depozito dekontu, imza sirküleri ve vekaletname ektedir.\n\nBilgilerinize sunar, iyi çalışmalar dileriz.\n{signature}"
+    },
+    "FOLLOW_UP": {
+      "subject": "Depozito İade Talebi – B/L {bl_no} – Portal ref. {portal_ref}",
+      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.\n\n{signature}"
+    },
+    "BATCH": {
+      "subject": "Depozito Talepleri – B/L {bl_no}",
+      "body": "Sayın {agency_name} yetkilisi,\n\n[[refund]]\nAşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n{refund_section}\n\n[[/refund]]\n[[statement]]\nAşağıdaki konşimentolarda oluşan farkların kesinti dökümünü rica ederiz:\n{statement_section}\n\n[[/statement]]\nTüm belgeler ektedir.\n{signature}"
+    },
+    "BATCH_LINE": {
+      "subject": "",
+      "body": "• {bl_no} – {containers} – {amount} {currency}"
+    }
   }
 }

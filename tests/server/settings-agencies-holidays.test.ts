@@ -10,7 +10,7 @@ import type { Db } from "@/server/db/client";
 import { agencies, auditLog, settingsHistory } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { deleteHoliday, listHolidays, saveHolidays } from "@/server/holidays";
-import { getSetting, listSettings, updateSettings } from "@/server/settings";
+import { getSecretSetting, getSetting, listSettings, updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
 
 let db: Db;
@@ -72,6 +72,23 @@ describe("settings", () => {
       }),
     ).toThrow();
     expect(getSetting("durations.firstRequestDueDays", {}, db)).toBe(7);
+  });
+
+  it("stores the mail password encrypted and never shows or logs it", () => {
+    expect(listSettings(db, admin).find((s) => s.key === "email.password")).toMatchObject({ value: "", secretSet: false });
+    updateSettings(db, admin, { changes: [{ key: "email.password", value: "yandex-uygulama-sifresi" }] });
+
+    const stored = getSetting("email.password", {}, db);
+    expect(stored).toMatch(/^v1:/);
+    expect(getSecretSetting("email.password", db)).toBe("yandex-uygulama-sifresi");
+    expect(listSettings(db, admin).find((s) => s.key === "email.password")).toMatchObject({ value: "", secretSet: true });
+    const logged = JSON.stringify([db.select().from(settingsHistory).all(), db.select().from(auditLog).all()]);
+    expect(logged).not.toContain("yandex-uygulama-sifresi");
+    expect(logged).not.toContain(stored);
+
+    // An empty field keeps the stored password.
+    expect(updateSettings(db, admin, { changes: [{ key: "email.password", value: "" }] })).toEqual([]);
+    expect(getSecretSetting("email.password", db)).toBe("yandex-uygulama-sifresi");
   });
 
   it("is admin-only", () => {

@@ -42,7 +42,8 @@
     "createBls": "B/L oluştur",
     "lists": "Listeler",
     "allBls": "B/L'ler",
-    "dueRequests": "Talepler"
+    "dueRequests": "Talepler",
+    "templates": "E-posta şablonları"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -176,7 +177,8 @@
       "rules": "Kurallar",
       "reconciliation": "Mutabakat",
       "users": "Kullanıcı güvenliği",
-      "backups": "Yedekleme"
+      "backups": "Yedekleme",
+      "email": "E-posta sunucusu"
     },
     "units": {
       "businessDays": "iş günü",
@@ -249,6 +251,10 @@
         "maxFileSizeMb": {
           "label": "En büyük dosya boyutu",
           "help": "Yüklenen tek bir dosyanın üst sınırı."
+        },
+        "attachStandingDocuments": {
+          "label": "Sabit belgeleri her talebe ekle",
+          "help": "İmza sirküleri ve vekaletname her talep e-postasına eklenir; önizlemede tek seferlik çıkarılabilir."
         }
       },
       "reconciliation": {
@@ -284,6 +290,72 @@
           "label": "İkinci yedek konumu",
           "help": "Yedeklerin kopyalanacağı paylaşımlı klasör veya USB disk yolu."
         }
+      },
+      "email": {
+        "smtpHost": {
+          "label": "SMTP sunucusu",
+          "help": "Giden posta sunucusu (Yandex: smtp.yandex.com)."
+        },
+        "smtpPort": {
+          "label": "SMTP portu",
+          "help": "SSL/TLS için genellikle 465, STARTTLS için 587."
+        },
+        "smtpSecurity": {
+          "label": "SMTP şifreleme",
+          "help": "Sunucunun beklediği bağlantı türü."
+        },
+        "imapHost": {
+          "label": "IMAP sunucusu",
+          "help": "Gelen posta sunucusu (Yandex: imap.yandex.com)."
+        },
+        "imapPort": {
+          "label": "IMAP portu",
+          "help": "SSL/TLS için genellikle 993."
+        },
+        "imapSecurity": {
+          "label": "IMAP şifreleme",
+          "help": "Sunucunun beklediği bağlantı türü."
+        },
+        "username": {
+          "label": "Kullanıcı adı",
+          "help": "Ortak posta kutusunun oturum adı (genellikle e-posta adresi)."
+        },
+        "password": {
+          "label": "Uygulama şifresi",
+          "help": "Şifreli saklanır; anahtar dosyası veri klasörünün dışındadır. Ekranda ve kayıtlarda gösterilmez."
+        },
+        "fromAddress": {
+          "label": "Gönderen adresi",
+          "help": "Taleplerin gönderildiği ortak posta kutusu adresi."
+        },
+        "fromName": {
+          "label": "Gönderen adı",
+          "help": "Alıcının gördüğü ad (ör. şirket adı)."
+        },
+        "sentFolder": {
+          "label": "Gönderilmiş klasörü",
+          "help": "Gönderilen e-postaların kopyası bu IMAP klasörüne eklenir (Outlook'ta görünür)."
+        },
+        "pollIntervalMinutes": {
+          "label": "Gelen kutusu kontrol aralığı",
+          "help": "Acente yanıtları bu aralıkla okunur (5. adımda devreye girer)."
+        },
+        "defaultCc": {
+          "label": "Varsayılan bilgi (CC)",
+          "help": "Her talep e-postasına bilgi olarak eklenir."
+        },
+        "defaultBcc": {
+          "label": "Varsayılan gizli bilgi (BCC)",
+          "help": "Her talep e-postasına gizli olarak eklenir."
+        },
+        "signature": {
+          "label": "İmza",
+          "help": "Şablonlardaki {signature} alanına yazılır."
+        },
+        "maxAttachmentMb": {
+          "label": "En büyük ek toplamı",
+          "help": "Bir e-postadaki eklerin toplam üst sınırı."
+        }
       }
     },
     "save": "Değişiklikleri kaydet",
@@ -293,7 +365,15 @@
     "seedValue": "Kurulum değeri",
     "system": "Sistem",
     "invalid": "Geçersiz değer.",
-    "bucketsPreview": "Aralıklar: {buckets}"
+    "bucketsPreview": "Aralıklar: {buckets}",
+    "choices": {
+      "tls": "SSL/TLS",
+      "starttls": "STARTTLS",
+      "none": "Şifresiz"
+    },
+    "secretSet": "Kayıtlı. Değiştirmek için yenisini yazın.",
+    "secretNotSet": "Henüz girilmedi.",
+    "emailListHint": "Adresleri virgül veya satırla ayırın."
   },
   "holidays": {
     "title": "Resmi tatiller",
@@ -614,12 +694,16 @@
         "upload": "İmzalı form yüklendi"
       },
       "request": {
-        "portal": "Portal talebi kaydedildi"
+        "portal": "Portal talebi kaydedildi",
+        "queue": "Talep e-postası kuyruğa alındı",
+        "sent": "Talep e-postası gönderildi",
+        "failed": "Talep e-postası gönderilemedi"
       }
     },
     "system": "Sistem",
     "notes": {
-      "duplicateConfirmed": "Mükerrer kayıt uyarısı onaylanarak kaydedildi"
+      "duplicateConfirmed": "Mükerrer kayıt uyarısı onaylanarak kaydedildi",
+      "dryRun": "Deneme modu: gönderilmedi"
     }
   },
   "forms": {
@@ -687,8 +771,38 @@
       "notDue": "Bu B/L için şu anda talep yapılamaz.",
       "futureDate": "Tarih ileri bir gün olamaz.",
       "beforePayment": "Tarih depozito ödemesinden önce olamaz.",
-      "formMissing": "{bl} için imzalı form yüklenmemiş."
-    }
+      "formMissing": "{bl} için imzalı form yüklenmemiş.",
+      "notDueBl": "{bl} için şu anda talep gönderilemez.",
+      "portalFirst": "{bl}: bu acentenin ilk talebi portal üzerinden yapılır.",
+      "noRecipients": "{agency} için alıcı adresi girilmemiş (acente kartı).",
+      "locked": "{bl} şu anda {user} tarafından hazırlanıyor.",
+      "draftChanged": "Seçili B/L'ler değişti; e-postayı yeniden hazırlayın.",
+      "attachment": "Bu ek bu e-postaya eklenemez.",
+      "tooLarge": "Eklerin toplamı {max} MB sınırını aşıyor; bir eki çıkarın.",
+      "noSender": "Gönderen adresi ayarlanmamış (Ayarlar → E-posta sunucusu).",
+      "recipients": "Geçerli e-posta adresleri girin (en az bir alıcı)."
+    },
+    "prepare": "E-posta hazırla",
+    "preview": "E-posta önizlemesi",
+    "previewCount": "{index} / {count}",
+    "to": "Kime",
+    "cc": "Bilgi (CC)",
+    "bcc": "Gizli (BCC)",
+    "subject": "Konu",
+    "body": "Metin",
+    "attachments": "Ekler",
+    "attachmentsTotal": "Toplam {size} / en fazla {max} MB",
+    "reply": "Önceki e-postaya yanıt olarak gider.",
+    "covers": "Kapsanan B/L'ler",
+    "send": "Gönder",
+    "skip": "Bu e-postayı atla",
+    "queued": "E-posta gönderim kuyruğuna alındı.",
+    "allDone": "Hazırlanan e-postalar tamamlandı.",
+    "lockedBy": "{user} hazırlıyor",
+    "failedAt": "Gönderim denemesi",
+    "failureReason": "Hata",
+    "retry": "Yeniden hazırla",
+    "selectHint": "Gönderilecek B/L'leri seçin; portal ilk talepleri portal üzerinden kaydedilir."
   },
   "overrides": {
     "blTitle": "B/L ayar istisnaları",
@@ -703,5 +817,54 @@
     "none": "Bu değişiklik talep listelerini etkilemiyor.",
     "DUE": "Zamanı gelen: {before} → {after} B/L ({entering} girer, {leaving} çıkar)",
     "UPCOMING": "Yaklaşan: {before} → {after} B/L ({entering} girer, {leaving} çıkar)"
+  },
+  "emailSettings": {
+    "testTitle": "Deneme e-postası",
+    "testTo": "Alıcı adresi",
+    "testSend": "Deneme gönder",
+    "testSent": "Deneme e-postası gönderildi.",
+    "testDryRun": "Deneme modu: e-posta kaydedildi ama gönderilmedi.",
+    "testFailed": "Gönderilemedi: {error}",
+    "saveFirst": "Önce değişiklikleri kaydedin."
+  },
+  "templates": {
+    "title": "E-posta şablonları",
+    "subject": "Konu",
+    "body": "Metin",
+    "placeholders": "Kullanılabilecek alanlar:",
+    "sectionsHint": "[[refund]] … [[/refund]] ve [[statement]] … [[/statement]] blokları, bölüm boşsa e-postadan çıkarılır.",
+    "preview": "Önizleme (örnek değerlerle)",
+    "save": "Şablonu kaydet",
+    "saved": "Şablon kaydedildi.",
+    "keys": {
+      "REFUND_REQUEST": "İade talebi (ilk talep)",
+      "FOLLOW_UP": "Takip talebi",
+      "BATCH": "Toplu e-posta",
+      "BATCH_LINE": "Toplu e-posta satırı"
+    },
+    "help": {
+      "REFUND_REQUEST": "Tek B/L için ilk talep.",
+      "FOLLOW_UP": "Önceki e-postaya yanıt olarak gider (konu \"Re: …\"). Konu yalnızca yanıtlanacak e-posta yoksa (portal acenteleri) kullanılır.",
+      "BATCH": "Toplu gönderim yapan acentelerde birden fazla B/L tek e-postada.",
+      "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz."
+    }
+  },
+  "standing": {
+    "title": "Sabit belgeler",
+    "hint": "Her talep e-postasına eklenir. Yeni yüklenen belge, sonraki e-postalarda eskisinin yerine geçer.",
+    "slots": {
+      "SIGNATURE_CIRCULAR": "İmza sirküleri",
+      "POWER_OF_ATTORNEY": "Vekaletname"
+    },
+    "none": "Yüklenmedi.",
+    "upload": "{slot} yükleyin",
+    "saved": "Belge kaydedildi."
+  },
+  "mail": {
+    "outage": {
+      "SMTP": "Giden posta sunucusuna {since} tarihinden beri ulaşılamıyor; e-postalar bekletiliyor ve yeniden denenecek.",
+      "IMAP": "Gelen posta sunucusuna {since} tarihinden beri ulaşılamıyor."
+    },
+    "dryRunBanner": "Deneme modu: e-postalar kaydedilir ama gönderilmez."
   }
 }

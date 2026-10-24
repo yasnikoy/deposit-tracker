@@ -138,3 +138,54 @@ test("an admin sees the impact of a timing change before saving it", async ({ pa
   await field.fill("7");
   await expect(page.getByRole("status").filter({ hasText: tr.impact.title })).toHaveCount(0);
 });
+
+test("an admin sets the sender address and uploads a standing document", async ({ page }) => {
+  await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
+  await page.goto("/admin/settings");
+  const email = page.locator("#email");
+  await email.getByLabel(tr.settings.keys.email.fromAddress.label).fill("depozito@firma.example");
+  await email.getByLabel(tr.settings.keys.email.password.label).fill("uygulama-sifresi");
+  await email.getByRole("button", { name: tr.settings.save }).click();
+  await expect(page.getByText("2 ayar kaydedildi.")).toBeVisible();
+  await expect(email.getByText(tr.settings.secretSet)).toBeVisible();
+  await expect(email.getByLabel(tr.settings.keys.email.password.label)).toHaveValue("");
+
+  const standing = page.locator("#standing");
+  await standing.getByLabel(`${tr.standing.slots.SIGNATURE_CIRCULAR} yükleyin`).setInputFiles(pdf("imza-sirkuleri.pdf"));
+  await expect(page.getByText(tr.standing.saved)).toBeVisible();
+  await expect(standing.getByRole("link", { name: "imza-sirkuleri.pdf" })).toBeVisible();
+
+  // The test email goes through the same dry-run transport.
+  await page.locator("#email-test").getByLabel(tr.emailSettings.testTo).fill("it@firma.example");
+  await page.getByRole("button", { name: tr.emailSettings.testSend }).click();
+  await expect(page.getByText(tr.emailSettings.testDryRun)).toBeVisible();
+});
+
+test("operations previews and sends a request email; the scheduler sends it (dry-run) and the B/L is requested", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/requests");
+  await page.getByRole("checkbox", { name: `${tr.table.selectRow} – ${BL_NO}` }).check();
+  await page.getByRole("button", { name: tr.requests.prepare }).click();
+
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByLabel(tr.requests.subject)).toHaveValue(`Depozito İade Talebi – B/L ${BL_NO}`);
+  await expect(dialog.getByLabel(tr.requests.to)).toHaveValue("iade@example.com");
+  await expect(dialog.getByLabel(tr.requests.body)).toHaveValue(/2\.500,00 USD tutarındaki depozitonun iadesini/);
+  for (const name of ["imzali-form.pdf", `${BL_NO}-dekont.pdf`, "imza-sirkuleri.pdf"]) {
+    await expect(dialog.getByRole("link", { name })).toBeVisible();
+  }
+  await dialog.getByLabel(tr.requests.cc).fill("bilgi@firma.example");
+  await dialog.getByRole("button", { name: tr.requests.send }).click();
+  await expect(page.getByText(tr.requests.queued)).toBeVisible();
+  await expect(page.getByTestId(`due-row-${BL_NO}`)).toHaveCount(0);
+
+  // The in-process scheduler picks the job up within seconds.
+  await expect(async () => {
+    await page.goto(`/bls`);
+    await expect(page.getByRole("row").filter({ hasText: BL_NO })).toContainText(tr.bls.statuses.REQUESTED, { timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
+  await page.getByRole("row").filter({ hasText: BL_NO }).click();
+  await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await expect(page.getByText(tr.timeline.actions.request.sent, { exact: true })).toBeVisible();
+  await expect(page.getByText(tr.timeline.notes.dryRun)).toBeVisible();
+});

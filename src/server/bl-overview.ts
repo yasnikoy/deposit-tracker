@@ -14,6 +14,7 @@ import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
 import { agencies, auditLog, billsOfLading, containers, depositPayments, documents, ledgerEntries, users } from "./db/schema";
+import { activeLockers } from "./draft-locks";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
 import { refundRequestStats, timingResolver } from "./requests";
@@ -31,6 +32,8 @@ export type BlOverview = BlBalance & {
   containers: string[];
   /** Business days since payment while the B/L is open; null once collected or voided. */
   daysWaiting: number | null;
+  /** Another user is drafting a request email for this B/L. */
+  lockedBy: string | null;
   /** Refund requests sent or recorded on a portal. */
   attempts: number;
   lastRequestOn: string | null;
@@ -42,8 +45,9 @@ export type BlOverview = BlBalance & {
 
 type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string };
 
-function toOverviews(db: DbOrTx, rows: BlRow[], now: Date): BlOverview[] {
+function toOverviews(db: DbOrTx, viewer: AuthUser, rows: BlRow[], now: Date): BlOverview[] {
   if (rows.length === 0) return [];
+  const lockers = activeLockers(db, viewer, now);
   const ids = rows.map((row) => row.id);
   const calendar: BusinessCalendar = loadCalendar(db);
   const today = istanbulToday(now);
@@ -79,6 +83,7 @@ function toOverviews(db: DbOrTx, rows: BlRow[], now: Date): BlOverview[] {
       currency: row.currency,
       containers: containerRows.filter((c) => c.blId === row.id).map((c) => c.containerNo),
       daysWaiting: open ? Math.max(0, businessDaysBetween(row.paidAt, today, calendar)) : null,
+      lockedBy: lockers.get(row.id) ?? null,
       attempts: stats.get(row.id)?.attempts ?? 0,
       lastRequestOn: stats.get(row.id)?.lastRequestOn ?? null,
       depositPaymentId: row.depositPaymentId,
@@ -103,7 +108,7 @@ export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()):
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
     .map(({ bl, agencyName }) => ({ ...bl, agencyName }));
-  return toOverviews(db, rows, now);
+  return toOverviews(db, actor, rows, now);
 }
 
 export type BlSearchResult = {
@@ -166,8 +171,8 @@ export type TimelineEvent = {
   action: string;
   actorName: string | null;
   reason: string | null;
-  /** System notes shown with the event, e.g. a confirmed duplicate warning. */
-  notes: "duplicateConfirmed"[];
+  /** System notes shown with the event, e.g. a confirmed duplicate warning or a dry-run send. */
+  notes: ("duplicateConfirmed" | "dryRun")[];
 };
 
 export type BlDetail = {
@@ -191,7 +196,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   authorize(actor, "bl.view");
   const found = blRows(db).where(eq(billsOfLading.id, id)).get();
   if (!found) throw new DomainError("errors.notFound");
-  const [bl] = toOverviews(db, [{ ...found.bl, agencyName: found.agencyName }], now);
+  const [bl] = toOverviews(db, actor, [{ ...found.bl, agencyName: found.agencyName }], now);
 
   const payment = found.bl.depositPaymentId
     ? (db
@@ -258,10 +263,13 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .where(or(...entityConditions))
     .orderBy(auditLog.at, auditLog.id)
     .all()
-    .map(({ after, ...event }) => ({
-      ...event,
-      notes: (after as { duplicateConfirmed?: boolean } | null)?.duplicateConfirmed ? ["duplicateConfirmed" as const] : [],
-    }));
+    .map(({ after, ...event }) => {
+      const flags = (after ?? {}) as { duplicateConfirmed?: boolean; dryRun?: boolean };
+      const notes: TimelineEvent["notes"] = [];
+      if (flags.duplicateConfirmed) notes.push("duplicateConfirmed");
+      if (flags.dryRun) notes.push("dryRun");
+      return { ...event, notes };
+    });
 
   const template = db.select({ id: agencies.formTemplateDocumentId }).from(agencies).where(eq(agencies.id, found.bl.agencyId)).get();
   const current = currentBlForm(db, id);

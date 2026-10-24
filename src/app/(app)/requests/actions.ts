@@ -1,10 +1,18 @@
 "use server";
 
 import { ZodError } from "zod";
-import { impactPreviewSchema, recordPortalRequestSchema, updateBlOverridesSchema } from "@/lib/schemas/requests";
+import {
+  impactPreviewSchema,
+  prepareEmailsSchema,
+  queueEmailSchema,
+  recordPortalRequestSchema,
+  updateBlOverridesSchema,
+} from "@/lib/schemas/requests";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
+import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
+import { queueRequestEmail } from "@/server/email/send";
 import { DomainError, type ActionResult } from "@/server/errors";
 import { previewDueImpact, recordPortalRequest, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
 
@@ -29,4 +37,19 @@ export async function previewImpactAction(input: unknown): Promise<ActionResult<
       throw error;
     }
   });
+}
+
+export async function prepareEmailsAction(input: unknown): Promise<ActionResult<EmailDraft[]>> {
+  const { user } = await requireSession();
+  return runAction(prepareEmailsSchema, input, (data) => prepareRequestEmails(getDb(), user, data));
+}
+
+export async function cancelEmailsAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(prepareEmailsSchema, input, (data) => cancelRequestEmails(getDb(), user, data));
+}
+
+export async function queueEmailAction(input: unknown): Promise<ActionResult<number>> {
+  const { user } = await requireSession();
+  return runAction(queueEmailSchema, input, (data) => queueRequestEmail(getDb(), user, data));
 }

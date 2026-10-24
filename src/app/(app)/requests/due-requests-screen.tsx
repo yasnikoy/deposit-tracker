@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -8,18 +8,29 @@ import { toast } from "sonner";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
-import { formatBusinessDate } from "@/lib/format";
+import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import type { DueGroup, DueLists, DueRow } from "@/server/requests";
+import type { EmailDraft } from "@/server/email/compose";
+import type { DueGroup, DueLists, DueRow, FailedRequest } from "@/server/requests";
 import { generateBlFormAction, uploadBlFormAction } from "../bls/actions";
-import { recordPortalRequestAction } from "./actions";
+import { prepareEmailsAction, recordPortalRequestAction } from "./actions";
+import { EmailPreviewDialog } from "./email-preview-dialog";
 
-export type DueTab = "DUE" | "UPCOMING";
+export type DueTab = "DUE" | "UPCOMING" | "FAILED";
+const TABS: { tab: DueTab; href: string }[] = [
+  { tab: "DUE", href: "/requests" },
+  { tab: "UPCOMING", href: "/requests?tab=upcoming" },
+  { tab: "FAILED", href: "/requests?tab=failed" },
+];
+
+/** A row can go into an email when it is an email request, has its form (if required) and nobody else is drafting it. */
+const selectable = (row: DueRow, formRequired: boolean) => row.channel === "EMAIL" && (!formRequired || !!row.form) && !row.lockedBy;
 
 /** Due (today and overdue) and upcoming requests, grouped by agency. */
 export function DueRequestsScreen({
@@ -28,45 +39,143 @@ export function DueRequestsScreen({
   today,
   canRecordPortal,
   canForms,
+  canSend,
 }: {
   tab: DueTab;
   lists: DueLists;
   today: string;
   canRecordPortal: boolean;
   canForms: boolean;
+  canSend: boolean;
 }) {
+  const router = useRouter();
   const [portalRow, setPortalRow] = useState<DueRow | null>(null);
-  const count = (list: DueTab) => lists[list].reduce((n, g) => n + g.rows.length, 0);
-  const groups = lists[tab];
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [drafts, setDrafts] = useState<EmailDraft[] | null>(null);
+  const [preparing, setPreparing] = useState(false);
+  const count = (list: DueTab) => (list === "FAILED" ? lists.FAILED.length : lists[list].reduce((n, g) => n + g.rows.length, 0));
+  const groups = tab === "FAILED" ? [] : lists[tab];
+  // Selection only keeps rows that are still listed and selectable after a refresh.
+  const selectableIds = new Set(groups.flatMap((g) => g.rows.filter((r) => selectable(r, lists.formRequired)).map((r) => r.blId)));
+  const chosen = [...selected].filter((id) => selectableIds.has(id));
+
+  const toggle = (ids: number[], on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (on) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+
+  const prepare = async (blIds: number[]) => {
+    setPreparing(true);
+    const result = await prepareEmailsAction({ blIds });
+    setPreparing(false);
+    if (!result.ok) return void toast.error(t(result.error, result.params));
+    setDrafts(result.data);
+  };
 
   return (
     <div className="flex flex-col gap-4">
       <nav className="flex gap-1 border-b">
-        {(["DUE", "UPCOMING"] as const).map((item) => (
+        {TABS.map((item) => (
           <Link
-            key={item}
-            href={item === "DUE" ? "/requests" : "/requests?tab=upcoming"}
-            aria-current={tab === item ? "page" : undefined}
-            className={cn("-mb-px border-b-2 px-3 py-1.5", tab === item ? "border-primary font-medium" : "border-transparent")}
+            key={item.tab}
+            href={item.href}
+            aria-current={tab === item.tab ? "page" : undefined}
+            className={cn("-mb-px border-b-2 px-3 py-1.5", tab === item.tab ? "border-primary font-medium" : "border-transparent")}
           >
-            {t(`requests.tabs.${item}`)} ({count(item)})
+            {t(`requests.tabs.${item.tab}`)} ({count(item.tab)})
           </Link>
         ))}
       </nav>
-      {lists.formRequired && <p className="text-muted-foreground text-xs">{t("requests.formRequiredHint")}</p>}
-      {groups.length === 0 && <p className="text-muted-foreground">{t(`requests.empty.${tab}`)}</p>}
-      {groups.map((group) => (
-        <AgencyGroup
-          key={group.agencyId}
-          group={group}
-          formRequired={lists.formRequired}
-          canRecordPortal={canRecordPortal}
-          canForms={canForms}
-          onRecordPortal={setPortalRow}
-        />
-      ))}
+      {tab !== "FAILED" && (
+        <div className="flex items-center gap-3">
+          <p className="text-muted-foreground text-xs">
+            {t("requests.selectHint")} {lists.formRequired && t("requests.formRequiredHint")}
+          </p>
+          {canSend && (
+            <div className="ml-auto flex items-center gap-2">
+              {chosen.length > 0 && <span className="text-sm">{t("requests.selectedTotal", { count: chosen.length })}</span>}
+              <Button size="sm" onClick={() => prepare(chosen)} disabled={chosen.length === 0 || preparing}>
+                <Mail /> {t("requests.prepare")}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+      {tab === "FAILED" ? (
+        <FailedList failed={lists.FAILED} onRetry={canSend ? (blId) => prepare([blId]) : undefined} />
+      ) : (
+        <>
+          {groups.length === 0 && <p className="text-muted-foreground">{t(`requests.empty.${tab}`)}</p>}
+          {groups.map((group) => (
+            <AgencyGroup
+              key={group.agencyId}
+              group={group}
+              formRequired={lists.formRequired}
+              canRecordPortal={canRecordPortal}
+              canForms={canForms}
+              selection={canSend ? { selected, toggle } : null}
+              onRecordPortal={setPortalRow}
+            />
+          ))}
+        </>
+      )}
       {portalRow && <PortalDialog row={portalRow} today={today} onClose={() => setPortalRow(null)} />}
+      {drafts && (
+        <EmailPreviewDialog
+          drafts={drafts}
+          onDone={() => {
+            setDrafts(null);
+            setSelected(new Set());
+            router.refresh();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function FailedList({ failed, onRetry }: { failed: FailedRequest[]; onRetry?: (blId: number) => void }) {
+  if (failed.length === 0) return <p className="text-muted-foreground">{t("requests.empty.FAILED")}</p>;
+  return (
+    <table className="tabular w-full rounded-md border">
+      <thead className="bg-muted/40 text-muted-foreground text-left text-xs">
+        <tr>
+          <th className="px-3 py-1 font-normal">{t("bls.blNo")}</th>
+          <th className="px-3 py-1 font-normal">{t("bls.agency")}</th>
+          <th className="px-3 py-1 font-normal">{t("requests.attempt")}</th>
+          <th className="px-3 py-1 font-normal">{t("requests.failedAt")}</th>
+          <th className="px-3 py-1 font-normal">{t("requests.failureReason")}</th>
+          <th className="px-3 py-1 font-normal">{t("common.actions")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {failed.map((item) => (
+          <tr key={item.requestId} className="border-t">
+            <td className="px-3 py-1.5">
+              <Link href={`/bls/${item.blId}`} className="font-mono hover:underline">
+                {item.blNo}
+              </Link>
+            </td>
+            <td className="px-3 py-1.5">{item.agencyName}</td>
+            <td className="px-3 py-1.5">{item.attemptNo}</td>
+            <td className="px-3 py-1.5">{formatTimestamp(item.queuedAt)}</td>
+            <td className="text-destructive px-3 py-1.5 text-xs">{item.failureReason}</td>
+            <td className="px-3 py-1.5">
+              {onRetry && (
+                <Button size="sm" variant="outline" onClick={() => onRetry(item.blId)}>
+                  {t("requests.retry")}
+                </Button>
+              )}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -75,17 +184,30 @@ function AgencyGroup({
   formRequired,
   canRecordPortal,
   canForms,
+  selection,
   onRecordPortal,
 }: {
   group: DueGroup;
   formRequired: boolean;
   canRecordPortal: boolean;
   canForms: boolean;
+  selection: { selected: Set<number>; toggle: (ids: number[], on: boolean) => void } | null;
   onRecordPortal: (row: DueRow) => void;
 }) {
+  const ids = group.rows.filter((row) => selectable(row, formRequired)).map((row) => row.blId);
+  const all = ids.length > 0 && ids.every((id) => selection?.selected.has(id));
+  const some = ids.some((id) => selection?.selected.has(id));
   return (
     <section aria-label={group.agencyName} className="rounded-md border">
       <header className="bg-muted/40 flex flex-wrap items-center gap-3 border-b px-3 py-2">
+        {selection && (
+          <Checkbox
+            aria-label={`${t("table.selectAll")} – ${group.agencyName}`}
+            checked={all ? true : some ? "indeterminate" : false}
+            disabled={ids.length === 0}
+            onCheckedChange={(checked) => selection.toggle(ids, checked === true)}
+          />
+        )}
         <h2 className="font-semibold">{group.agencyName}</h2>
         <Badge variant="outline">{group.batchSending ? t("requests.batch") : t("requests.single")}</Badge>
         <span className="text-muted-foreground">{t("requests.blCount", { count: group.rows.length })}</span>
@@ -96,6 +218,7 @@ function AgencyGroup({
       <table className="tabular w-full">
         <thead className="text-muted-foreground text-left text-xs">
           <tr>
+            {selection && <th className="w-8 px-3 py-1" />}
             <th className="px-3 py-1 font-normal">{t("bls.blNo")}</th>
             <th className="px-3 py-1 font-normal">{t("requests.attempt")}</th>
             <th className="px-3 py-1 font-normal">{t("bls.paidAt")}</th>
@@ -109,10 +232,25 @@ function AgencyGroup({
         <tbody>
           {group.rows.map((row) => (
             <tr key={row.blId} className="border-t" data-testid={`due-row-${row.blNo}`}>
+              {selection && (
+                <td className="px-3 py-1.5">
+                  <Checkbox
+                    aria-label={`${t("table.selectRow")} – ${row.blNo}`}
+                    checked={selection.selected.has(row.blId)}
+                    disabled={!selectable(row, formRequired)}
+                    onCheckedChange={(checked) => selection.toggle([row.blId], checked === true)}
+                  />
+                </td>
+              )}
               <td className="px-3 py-1.5">
                 <Link href={`/bls/${row.blId}`} className="font-mono hover:underline">
                   {row.blNo}
                 </Link>
+                {row.lockedBy && (
+                  <Badge variant="secondary" className="ml-2" title={t("requests.lockedBy", { user: row.lockedBy })}>
+                    <Lock /> {t("requests.lockedBy", { user: row.lockedBy })}
+                  </Badge>
+                )}
               </td>
               <td className="px-3 py-1.5 whitespace-nowrap">
                 <Badge variant={row.kind === "FIRST" ? "secondary" : "outline"}>{t(`requests.kinds.${row.kind}`)}</Badge> {row.attemptNo}

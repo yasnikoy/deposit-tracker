@@ -1,5 +1,6 @@
 "use client";
 
+import { Lock } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -7,6 +8,7 @@ import { BlStatusBadge } from "@/components/bl-status-badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { dataTableColumns } from "@/components/data-table/features";
 import { DetailPanel } from "@/components/detail-panel";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { BL_STATUSES } from "@/domain/records";
@@ -25,7 +27,16 @@ const columns = col.columns([
   col.accessor("blNo", {
     meta: { label: "bls.blNo", filter: "text" },
     sortFn: "turkishText",
-    cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
+    cell: ({ row }) => (
+      <span className="inline-flex items-center gap-2">
+        <span className="font-mono">{row.original.blNo}</span>
+        {row.original.lockedBy && (
+          <Badge variant="secondary" title={t("requests.lockedBy", { user: row.original.lockedBy })}>
+            <Lock />
+          </Badge>
+        )}
+      </span>
+    ),
   }),
   col.accessor("agencyName", { meta: { label: "bls.agency", filter: "text" }, sortFn: "turkishText" }),
   col.accessor("status", {

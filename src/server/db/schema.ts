@@ -11,7 +11,20 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { REQUEST_CHANNELS } from "../../domain/agency";
 import { HOLIDAY_KINDS } from "../../domain/business-days";
-import { BL_STATUSES, DOCUMENT_KINDS, LEDGER_TYPES, PAYMENT_KINDS, REQUEST_TYPES, SEND_STATUSES } from "../../domain/records";
+import { EMAIL_TEMPLATE_KEYS } from "../../domain/email-templates";
+import {
+  BL_STATUSES,
+  DOCUMENT_KINDS,
+  EMAIL_DIRECTIONS,
+  JOB_KINDS,
+  JOB_STATUSES,
+  LEDGER_TYPES,
+  MAIL_SERVICES,
+  PAYMENT_KINDS,
+  REQUEST_TYPES,
+  SEND_STATUSES,
+  STANDING_DOCUMENT_SLOTS,
+} from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
 // Event timestamps are UTC ISO-8601 text; business dates are YYYY-MM-DD text.
@@ -347,6 +360,9 @@ export const billsOfLading = sqliteTable(
     followUpDays: overrideDays("follow_up_days"),
     statementRequestDays: overrideDays("statement_request_days"),
     statementFollowUpDays: overrideDays("statement_follow_up_days"),
+    // Draft lock (rule 14): set while a user prepares a request email for this B/L.
+    lockedBy: integer("locked_by").references(() => users.id),
+    lockedAt: timestamp("locked_at"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -433,6 +449,8 @@ export const requests = sqliteTable(
     requestedOn: text("requested_on"),
     sentAt: timestamp("sent_at"),
     portalRef: text("portal_ref"),
+    // The email that carries this request; null for portal requests.
+    emailId: integer("email_id").references((): AnySQLiteColumn => emails.id),
     failureReason: text("failure_reason"),
     createdBy: integer("created_by")
       .notNull()
@@ -457,4 +475,119 @@ export const requests = sqliteTable(
       .where(sql`${t.sendStatus} <> 'FAILED'`),
     index("requests_bl").on(t.blId),
   ],
+);
+
+// ---- Build step 4: email ----
+
+export const emailTemplates = sqliteTable("email_templates", {
+  key: text("key", { enum: EMAIL_TEMPLATE_KEYS }).primaryKey(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+  updatedBy: integer("updated_by").references(() => users.id),
+});
+
+/** Outgoing request emails (and, from build step 5, imported replies). */
+export const emails = sqliteTable(
+  "emails",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    direction: text("direction", { enum: EMAIL_DIRECTIONS }).notNull(),
+    agencyId: integer("agency_id").references(() => agencies.id),
+    messageId: text("message_id").notNull(),
+    inReplyTo: text("in_reply_to"),
+    references: text("references", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    fromAddress: text("from_address").notNull(),
+    to: text("to", { mode: "json" }).$type<string[]>().notNull(),
+    cc: text("cc", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    bcc: text("bcc", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    subject: text("subject").notNull(),
+    // The body as actually sent, not the template.
+    bodyText: text("body_text").notNull(),
+    // Outgoing only.
+    sendStatus: text("send_status", { enum: SEND_STATUSES }),
+    // Rule 13: stored and logged but never handed to the SMTP server.
+    dryRun: integer("dry_run", { mode: "boolean" }).notNull().default(false),
+    sendAttempts: integer("send_attempts").notNull().default(0),
+    lastError: text("last_error"),
+    queuedBy: integer("queued_by").references(() => users.id),
+    roleUsed: text("role_used"),
+    sentAt: timestamp("sent_at"),
+    copiedToSentAt: timestamp("copied_to_sent_at"),
+    rawDocumentId: integer("raw_document_id").references(() => documents.id),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    check("emails_direction", sql`${t.direction} IN ('OUT', 'IN')`),
+    check("emails_send_status", sql`(${t.direction} = 'OUT') = (${t.sendStatus} IS NOT NULL)`),
+    uniqueIndex("emails_message_id_unique").on(t.messageId),
+    index("emails_in_reply_to").on(t.inReplyTo),
+  ],
+);
+
+export const emailAttachments = sqliteTable(
+  "email_attachments",
+  {
+    emailId: integer("email_id")
+      .notNull()
+      .references(() => emails.id),
+    documentId: integer("document_id")
+      .notNull()
+      .references(() => documents.id),
+  },
+  (t) => [primaryKey({ columns: [t.emailId, t.documentId] })],
+);
+
+/** Signature circular and power of attorney; the newest upload per slot is attached to requests. */
+export const standingDocuments = sqliteTable(
+  "standing_documents",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    slot: text("slot", { enum: STANDING_DOCUMENT_SLOTS }).notNull(),
+    documentId: integer("document_id")
+      .notNull()
+      .references(() => documents.id),
+    uploadedBy: integer("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    uploadedAt: timestamp("uploaded_at").notNull(),
+  },
+  (t) => [
+    check("standing_documents_slot", sql`${t.slot} IN (${sqlList(STANDING_DOCUMENT_SLOTS)})`),
+    uniqueIndex("standing_documents_document_unique").on(t.documentId),
+  ],
+);
+
+/** In-process scheduler queue; overdue jobs run once at start. */
+export const jobs = sqliteTable(
+  "jobs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", { enum: JOB_KINDS }).notNull(),
+    payload: text("payload", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+    runAt: timestamp("run_at").notNull(),
+    status: text("status", { enum: JOB_STATUSES }).notNull().default("PENDING"),
+    attempts: integer("attempts").notNull().default(0),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check("jobs_kind", sql`${t.kind} IN (${sqlList(JOB_KINDS)})`),
+    check("jobs_status", sql`${t.status} IN (${sqlList(JOB_STATUSES)})`),
+    index("jobs_due").on(t.status, t.runAt),
+  ],
+);
+
+/** Mail server reachability, for the outage banner. */
+export const serviceStatus = sqliteTable(
+  "service_status",
+  {
+    service: text("service", { enum: MAIL_SERVICES }).primaryKey(),
+    failingSince: timestamp("failing_since"),
+    lastError: text("last_error"),
+    lastOkAt: timestamp("last_ok_at"),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [check("service_status_service", sql`${t.service} IN (${sqlList(MAIL_SERVICES)})`)],
 );

@@ -40,3 +40,18 @@ export type RequestType = (typeof REQUEST_TYPES)[number];
 /** QUEUED: waiting for the sender job; SENT: sent by email or recorded as filed on the portal. */
 export const SEND_STATUSES = ["QUEUED", "SENT", "FAILED"] as const;
 export type SendStatus = (typeof SEND_STATUSES)[number];
+
+export const EMAIL_DIRECTIONS = ["OUT", "IN"] as const;
+export type EmailDirection = (typeof EMAIL_DIRECTIONS)[number];
+
+/** Signature circular (imza sirküleri) and power of attorney (vekaletname), sent with every request. */
+export const STANDING_DOCUMENT_SLOTS = ["SIGNATURE_CIRCULAR", "POWER_OF_ATTORNEY"] as const;
+export type StandingDocumentSlot = (typeof STANDING_DOCUMENT_SLOTS)[number];
+
+export const JOB_KINDS = ["SEND_EMAIL", "COPY_TO_SENT_FOLDER"] as const;
+export type JobKind = (typeof JOB_KINDS)[number];
+export const JOB_STATUSES = ["PENDING", "RUNNING", "DONE", "FAILED"] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+export const MAIL_SERVICES = ["SMTP", "IMAP"] as const;
+export type MailService = (typeof MAIL_SERVICES)[number];

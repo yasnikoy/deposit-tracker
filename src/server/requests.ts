@@ -16,6 +16,7 @@ import { loadCalendar } from "./calendar";
 import type { Db, DbOrTx } from "./db/client";
 import { agencies, billsOfLading, ledgerEntries, requests } from "./db/schema";
 import { DomainError } from "./errors";
+import { activeLockers } from "./draft-locks";
 import { currentBlForm } from "./forms";
 import { getSetting } from "./settings";
 
@@ -96,10 +97,10 @@ function calendarUnder(db: DbOrTx, hypothesis: SettingsHypothesis): BusinessCale
   };
 }
 
-type DueEntry = { bl: BlRow; agency: AgencyRow; state: DueState; stats: RequestStats; calendar: BusinessCalendar };
+export type DueEntry = { bl: BlRow; agency: AgencyRow; state: DueState; stats: RequestStats; calendar: BusinessCalendar };
 
-/** The due state of every active B/L that can take a refund request. */
-function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis = {}): DueEntry[] {
+/** The due state of every active B/L that can take a refund request (or of the given ones). */
+export function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis = {}, onlyBlIds?: number[]): DueEntry[] {
   const calendar = calendarUnder(db, hypothesis);
   const timing = timingResolver(db, hypothesis);
   const today = istanbulToday(now);
@@ -107,7 +108,13 @@ function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis = {}):
     .select({ bl: billsOfLading, agency: agencies })
     .from(billsOfLading)
     .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
-    .where(and(isNull(billsOfLading.voidedAt), inArray(billsOfLading.status, ["PAID", "REQUESTED", "AWAITING_RETURN"])))
+    .where(
+      and(
+        isNull(billsOfLading.voidedAt),
+        inArray(billsOfLading.status, ["PAID", "REQUESTED", "AWAITING_RETURN"]),
+        onlyBlIds ? inArray(billsOfLading.id, onlyBlIds) : undefined,
+      ),
+    )
     .all();
   const stats = refundRequestStats(
     db,
@@ -149,6 +156,8 @@ export type DueRow = {
   /** The first request of a portal agency is filed on the portal; follow-ups go by email. */
   channel: RequestChannel;
   form: { id: number; originalName: string } | null;
+  /** Another user is drafting a request email for this B/L. */
+  lockedBy: string | null;
 };
 
 export type DueGroup = {
@@ -160,7 +169,17 @@ export type DueGroup = {
   totals: { currency: string; amountMinor: number }[];
 };
 
-export type DueLists = Record<DueList, DueGroup[]> & { formRequired: boolean };
+export type FailedRequest = {
+  requestId: number;
+  blId: number;
+  blNo: string;
+  agencyName: string;
+  attemptNo: number;
+  failureReason: string | null;
+  queuedAt: string;
+};
+
+export type DueLists = Record<DueList, DueGroup[]> & { FAILED: FailedRequest[]; formRequired: boolean };
 
 /** The due-requests screen: due (today and overdue) and upcoming, grouped by agency, oldest first. */
 export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Date()): DueLists {
@@ -180,7 +199,13 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
         .all()
     : [];
 
-  const lists: DueLists = { DUE: [], UPCOMING: [], formRequired: getSetting("rules.blockSendingWithoutForm", {}, db) };
+  const lockers = activeLockers(db, actor, now);
+  const lists: DueLists = {
+    DUE: [],
+    UPCOMING: [],
+    FAILED: failedRequests(db),
+    formRequired: getSetting("rules.blockSendingWithoutForm", {}, db),
+  };
   for (const list of ["DUE", "UPCOMING"] as const) {
     const groups = new Map<number, DueGroup>();
     const inList = entries
@@ -212,6 +237,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
         dueDate: state.dueDate,
         channel: agency.requestChannel === "PORTAL" && state.kind === "FIRST" ? "PORTAL" : "EMAIL",
         form: form ? { id: form.id, originalName: form.originalName } : null,
+        lockedBy: lockers.get(bl.id) ?? null,
       });
       const total = group.totals.find((t) => t.currency === bl.currency);
       if (total) total.amountMinor += depositMinor;
@@ -221,6 +247,37 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
     lists[list] = [...groups.values()];
   }
   return lists;
+}
+
+/** Sends that failed after their retries and have not been sent again since. */
+function failedRequests(db: DbOrTx): FailedRequest[] {
+  const rows = db
+    .select({ request: requests, blNo: billsOfLading.blNo, agencyName: agencies.name })
+    .from(requests)
+    .innerJoin(billsOfLading, eq(billsOfLading.id, requests.blId))
+    .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
+    .where(isNull(billsOfLading.voidedAt))
+    .all();
+  return rows
+    .filter(
+      ({ request }) =>
+        request.sendStatus === "FAILED" &&
+        !rows.some(
+          ({ request: other }) =>
+            other.blId === request.blId && other.type === request.type && other.attemptNo === request.attemptNo && other.sendStatus !== "FAILED",
+        ) &&
+        // Only the latest failure per attempt.
+        !rows.some(({ request: other }) => other.blId === request.blId && other.attemptNo === request.attemptNo && other.id > request.id),
+    )
+    .map(({ request, blNo, agencyName }) => ({
+      requestId: request.id,
+      blId: request.blId,
+      blNo,
+      agencyName,
+      attemptNo: request.attemptNo,
+      failureReason: request.failureReason,
+      queuedAt: request.createdAt,
+    }));
 }
 
 export type ListImpact = { before: number; after: number; entering: number; leaving: number };
@@ -256,7 +313,7 @@ export function previewDueImpact(db: DbOrTx, actor: AuthUser, hypothesis: Settin
 
 /** The current due state of one B/L, or null when no request can be made. */
 export function blDueState(db: DbOrTx, blId: number, now: Date = new Date()): DueState | null {
-  return dueEntries(db, now).find((e) => e.bl.id === blId)?.state ?? null;
+  return dueEntries(db, now, {}, [blId])[0]?.state ?? null;
 }
 
 /**

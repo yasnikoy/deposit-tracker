@@ -29,3 +29,18 @@ export const impactPreviewSchema = z
     bl: z.object({ blId: id, overrides: agencyOverridesSchema }).optional(),
   })
   .refine((h) => [h.settings, h.agency, h.bl].filter(Boolean).length === 1);
+
+const blIds = z.array(id).min(1).max(200);
+const addresses = z.array(z.string().trim().toLowerCase().pipe(z.email(msg("requests.errors.recipients")))).max(50);
+
+export const prepareEmailsSchema = z.object({ blIds });
+
+export const queueEmailSchema = z.object({
+  blIds,
+  to: addresses.min(1, msg("requests.errors.recipients")),
+  cc: addresses,
+  bcc: addresses,
+  subject: z.string().trim().min(1).max(500),
+  body: z.string().min(1).max(20_000),
+  documentIds: z.array(id).max(100),
+});

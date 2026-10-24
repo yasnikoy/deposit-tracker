@@ -50,6 +50,12 @@ const rules = {
   "bl.updateOverrides": only("ADMIN"),
   "request.view": only("OPERATIONS"),
   "request.recordPortal": only("OPERATIONS"),
+  // Preparing a request email locks its B/Ls; queueing it sends.
+  "request.prepareEmail": only("OPERATIONS"),
+  "request.sendEmail": only("OPERATIONS"),
+  "email.sendTest": only("ADMIN"),
+  "standingDocument.view": ALL_ROLES,
+  "standingDocument.manage": only("ADMIN"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",
   "preferences.saveOwn": "ANY_AUTHENTICATED",
 } satisfies Record<string, Rule>;

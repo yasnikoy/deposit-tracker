@@ -173,7 +173,8 @@ change.
 ## Commands
 Toolchain is pinned in `mise.toml` (Node 24, pnpm); prefix with `mise exec --`
 if mise is not activated in the shell. Runtime data goes to `DATA_DIR`
-(default `./data`, git-ignored).
+(default `./data`, git-ignored). The mail password key file is `KEY_FILE` (default
+`deposit.key` next to the data folder, git-ignored); it must stay outside `DATA_DIR`.
 - `pnpm dev` dev server on :3000 (migrations + seed run on start)
 - `pnpm test` Vitest; `pnpm test:e2e` Playwright (own server on :3100, fresh `data-e2e/`)
 - `pnpm lint`, `pnpm typecheck`

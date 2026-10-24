@@ -4,6 +4,7 @@ import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { listSettings } from "@/server/settings";
+import { listStandingDocuments } from "@/server/standing-documents";
 import { SettingsScreen } from "./settings-screen";
 
 export default async function SettingsPage() {
@@ -12,7 +13,7 @@ export default async function SettingsPage() {
   return (
     <>
       <h1 className="text-lg font-semibold">{t("settings.title")}</h1>
-      <SettingsScreen settings={listSettings(getDb(), user)} />
+      <SettingsScreen settings={listSettings(getDb(), user)} standingDocuments={listStandingDocuments(getDb(), user)} />
     </>
   );
 }

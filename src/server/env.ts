@@ -8,6 +8,8 @@ const envSchema = z.object({
   DATA_DIR: z.string().min(1).default("./data"),
   // Rule 13: dry-run unless explicitly set to live in production.
   EMAIL_MODE: z.enum(["dry-run", "live"]).default("dry-run"),
+  // Encryption key for mail passwords; defaults to deposit.key next to the data folder.
+  KEY_FILE: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema> & { dataDir: string };

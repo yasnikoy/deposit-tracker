@@ -4,6 +4,7 @@ import path from "node:path";
 import { desc, eq, inArray } from "drizzle-orm";
 import {
   isOverridableSettingKey,
+  isSecretSetting,
   isSettingKey,
   parseSettingValue,
   SETTING_KEYS,
@@ -18,6 +19,7 @@ import { getDb, type Db, type DbOrTx } from "./db/client";
 import { agencies, billsOfLading, settings, settingsHistory, users } from "./db/schema";
 import { DomainError } from "./errors";
 import { agencyOverrideColumns, blOverrideColumns } from "./agency-overrides";
+import { decryptSecret, encryptSecret } from "./secrets";
 
 export const SEED_FILE = path.join(process.cwd(), "seed", "settings.json");
 
@@ -61,7 +63,10 @@ export function getSetting<K extends SettingKey>(
 
 export type SettingListItem = {
   key: SettingKey;
+  /** For secret settings always "": the stored value never leaves the server. */
   value: unknown;
+  /** Secret settings: whether a value is stored. */
+  secretSet?: boolean;
   changedAt: string | null;
   changedBy: string | null;
 };
@@ -78,13 +83,25 @@ export function listSettings(db: Db, actor: AuthUser): SettingListItem[] {
     .all();
   return SETTING_KEYS.map((key) => {
     const last = history.find((h) => h.key === key);
-    return { key, value: values.get(key), changedAt: last?.changedAt ?? null, changedBy: last?.changedBy ?? null };
+    const item = { key, value: values.get(key), changedAt: last?.changedAt ?? null, changedBy: last?.changedBy ?? null };
+    return isSecretSetting(key) ? { ...item, value: "", secretSet: values.get(key) !== "" } : item;
   });
+}
+
+/** What history and audit record for a secret: that it changed, never the value (rule 14). */
+const SECRET_MARK = { secret: "changed" };
+
+/** A secret setting decrypted for use (e.g. the SMTP password); "" when not set. */
+export function getSecretSetting(key: SettingKey, db: DbOrTx = getDb()): string {
+  if (!isSecretSetting(key)) throw new Error(`${key} is not a secret setting`);
+  const stored = getSetting(key, {}, db) as string;
+  return stored === "" ? "" : decryptSecret(stored);
 }
 
 /**
  * Saves changed global settings together; each change gets a history row and an audit row.
- * Unchanged values are skipped. Returns the keys that changed.
+ * Unchanged values are skipped. Returns the keys that changed. A secret arrives as plain
+ * text, is stored encrypted, and is recorded only as "changed"; an empty secret is skipped.
  */
 export function updateSettings(
   db: Db,
@@ -115,15 +132,19 @@ export function updateSettings(
     );
     const changed: SettingKey[] = [];
     for (const { key, value } of parsed) {
+      const secret = isSecretSetting(key);
+      if (secret && value === "") continue;
       const before = current.get(key) ?? null;
-      if (JSON.stringify(before) === JSON.stringify(value)) continue;
-      tx.update(settings).set({ value, updatedAt: at, updatedBy: actor.id }).where(eq(settings.key, key)).run();
+      if (!secret && JSON.stringify(before) === JSON.stringify(value)) continue;
+      const stored = secret ? encryptSecret(value as string) : value;
+      const [logBefore, logAfter] = secret ? [before === "" ? null : SECRET_MARK, SECRET_MARK] : [before, value];
+      tx.update(settings).set({ value: stored, updatedAt: at, updatedBy: actor.id }).where(eq(settings.key, key)).run();
       tx.insert(settingsHistory)
-        .values({ key, oldValue: before, newValue: value, changedBy: actor.id, changedAt: at, reason })
+        .values({ key, oldValue: logBefore, newValue: logAfter, changedBy: actor.id, changedAt: at, reason })
         .run();
       writeAudit(
         tx,
-        { actorUserId: actor.id, roleUsed, action: "settings.update", entityType: "setting", entityId: key, before, after: value, reason },
+        { actorUserId: actor.id, roleUsed, action: "settings.update", entityType: "setting", entityId: key, before: logBefore, after: logAfter, reason },
         now,
       );
       changed.push(key);
