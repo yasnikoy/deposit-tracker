@@ -40,8 +40,8 @@ change.
 - Email: nodemailer (SMTP), ImapFlow (IMAP), mailparser. Raw messages stored as `.eml`.
 - Receipt parsing: pdfjs-dist + one parser module for our bank's layout;
   extracts name, amount, currency, date and B/L number candidates.
-- Form generation: `.docx` agency templates with placeholders, filled by a
-  docx templating library. **The library is not yet approved: ask first.**
+- Form generation: `.docx` agency templates with placeholders, filled with
+  docxtemplater + pizzip (approved).
 - Exports: CSV without extra dependencies (UTF-8 with BOM, `;` separator,
   Turkish number/date formats); clipboard copy as tab-separated text.
 - Logging: pino, daily rotating files in the data folder, kept 30 days.

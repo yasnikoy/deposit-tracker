@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — Architecture
 
-Oct 20, 2026 · updated Oct 22, 2026 (usability review, see Change log)
+Oct 20, 2026 · updated Oct 24, 2026 (see Change log)
 
 ## Purpose and scope
 
@@ -46,7 +46,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Jobs | In-process scheduler with a `jobs` table (run\_at, attempts, status). Send jobs retry 3 times with backoff, then mark the request failed. IMAP polling runs on the poll-interval setting. On start, overdue jobs run once to catch up |
 | Mail outage | If SMTP or IMAP is unreachable, a banner on every screen shows since when; queued sends wait and retry; nothing is lost |
 | Receipt parsing | pdfjs-dist text extraction plus one parser module for the bank's layout, covered by tests with real sample receipts. Extracts name, amount, currency, date and, for outgoing payments, B/L number candidates from the transfer description |
-| Form generation | Agency form templates are `.docx` files with placeholders, filled server-side by a docx templating library (library choice to be approved before adding) |
+| Form generation | Agency form templates are `.docx` files with placeholders, filled server-side by docxtemplater + pizzip (approved Oct 24, 2026) |
 | Exports | CSV generated without extra dependencies: UTF-8 with BOM, semicolon separator, Turkish number and date formats, so Turkish Excel opens it directly. Clipboard copy uses tab-separated values |
 | Exact-subset search | Backtracking over candidates sorted oldest first, pruned by remaining amount; capped at the 30 oldest candidates and 500 ms. When the cap is hit, the screen says the search was incomplete |
 | Testing | Vitest for unit and domain tests; Playwright for a small set of end-to-end flows (create B/L, send request, allocate refund, bulk reply) |
@@ -260,6 +260,8 @@ In a batched email, `{bl_no}` in the subject lists all B/L numbers; each section
 
 Agency form templates (`.docx`) may use: `{agency_name}`, `{bl_no}`, `{containers}`, `{container_count}`, `{amount}`, `{currency}`, `{paid_at}`, `{bank_name}`, `{iban}`, `{today}`. Unknown placeholders are reported when the template is uploaded.
 
+`{bank_name}` / `{iban}` come from the single active bank account in the B/L's currency. If there is none, or more than one, the form is still generated with both fields left blank, and the download shows a warning.
+
 ## Email
 
 All mail goes through one shared company mailbox on Yandex (used by staff via Outlook): SMTP to send, IMAP to read, and the app stays invisible to people working in Outlook.
@@ -407,7 +409,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Name of the bank and 3–5 sample PDF receipts (incoming and outgoing, including transfer descriptions with B/L numbers) for the receipt parser
 - [ ] B/L number formats of each agency, to set up the patterns
 - [ ] Blank refund forms of each agency, converted to `.docx` templates with placeholders
-- [ ] Approve the docx templating library
+- [x] Approve the docx templating library (docxtemplater + pizzip)
 - [ ] Rename the host PC from the generic "UserPc" to a unique name (e.g. DEPOZITO-PC; ask IT first if it is domain-joined); sleep and Windows Update settings adjusted
 - [ ] Second backup location (shared drive or USB disk)
 - [ ] Yandex mailbox: IMAP enabled, app password, sent-folder name
@@ -430,6 +432,11 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 24, 2026 — form filling decisions**
+
+- Form generation library approved: docxtemplater + pizzip.
+- `{bank_name}` / `{iban}` use the single active bank account in the B/L's currency; none or several → fields left blank with a warning on download.
 
 **Oct 22, 2026 — bank accounts only for forms**
 
