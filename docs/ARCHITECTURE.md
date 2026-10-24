@@ -122,7 +122,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 
 | Table | Purpose | Key fields |
 | --- | --- | --- |
-| `agencies` | Shipping lines / agencies | name (unique, case-insensitive), active, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_file\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
+| `agencies` | Shipping lines / agencies | name (unique, case-insensitive), active, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_document\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
 | `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
@@ -258,7 +258,7 @@ In a batched email, `{bl_no}` in the subject lists all B/L numbers; each section
 
 ### Form template placeholders
 
-Agency form templates (`.docx`) may use: `{agency_name}`, `{bl_no}`, `{containers}`, `{container_count}`, `{amount}`, `{currency}`, `{paid_at}`, `{bank_name}`, `{iban}`, `{today}`. Unknown placeholders are reported when the template is uploaded.
+Agency form templates (`.docx`) may use: `{agency_name}`, `{bl_no}`, `{containers}`, `{container_count}`, `{amount}`, `{currency}`, `{paid_at}`, `{bank_name}`, `{iban}`, `{today}`. Unknown placeholders are reported when the template is uploaded, and the template is refused until they are fixed; loops and conditions are not part of the placeholder set. Amounts and dates are filled in Turkish format. Each download is kept on the B/L as a generated form (timeline: "prefilled form created"). The signed, scanned form is uploaded to the B/L; a newer upload becomes the current form for later requests.
 
 `{bank_name}` / `{iban}` come from the single active bank account in the B/L's currency. If there is none, or more than one, the form is still generated with both fields left blank, and the download shows a warning.
 
@@ -442,6 +442,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - A `REQUESTED` B/L with no recorded reply becomes due for a follow-up once the follow-up interval has passed since the last request.
 - Batched follow-ups reply in the existing thread when all selected B/Ls share it; otherwise one reply is sent per thread.
 - Standing documents are attached to every request by default (rule setting, seed on).
+- Agency form templates: an admin uploads the `.docx` on the agency card; templates with unknown placeholders, loops or broken syntax are refused with the offending tags listed. Tags are read from the template's full text, so a placeholder Word splits across formatting runs still works.
 
 **Oct 24, 2026 — form filling decisions**
 

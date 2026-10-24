@@ -46,7 +46,7 @@ export function FileDrop({
   label,
   onUploaded,
 }: {
-  kind: "RECEIPT" | "INVOICE";
+  kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE";
   multiple?: boolean;
   queue?: boolean;
   label: string;

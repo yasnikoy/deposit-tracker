@@ -1,26 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { agencyInputSchema, type AgencyOverrides } from "@/lib/schemas/agencies";
-import { createAgency, updateAgencyOverrides } from "@/server/agencies";
+import { updateAgencyOverrides } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail, listAllBls, searchBls } from "@/server/bl-overview";
-import { createBls, voidBl } from "@/server/bls";
+import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
 import { ForbiddenError } from "@/server/errors";
-import { storeUpload } from "@/server/files";
 import { addLedgerEntry } from "@/server/ledger";
-import { correctPayment, createPayment } from "@/server/payments";
+import { correctPayment } from "@/server/payments";
 import { createTestDb, makeUser } from "../support/db";
+import { makeAgency, makeBl, NO_OVERRIDES } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
-const NO_OVERRIDES: AgencyOverrides = {
-  "durations.firstRequestDueDays": null,
-  "durations.upcomingDays": null,
-  "durations.followUpDays": null,
-  "durations.statementRequestDays": null,
-  "durations.statementFollowUpDays": null,
-};
-const PDF = Buffer.from("%PDF-1.4\n% test receipt\n");
 
 let db: Db;
 let admin: AuthUser;
@@ -29,45 +20,8 @@ let ops: AuthUser;
 let msc: number;
 let maersk: number;
 
-const agency = (name: string) =>
-  createAgency(
-    db,
-    ops,
-    agencyInputSchema.parse({
-      name,
-      active: true,
-      toRecipients: [],
-      ccRecipients: [],
-      bankSenderAliases: [],
-      blNumberPatterns: [],
-      batchSending: false,
-      requestChannel: "EMAIL",
-      portalUrl: "",
-      notes: "",
-    }),
-  );
-
-function bl(input: { agencyId: number; blNo: string; amountMinor: number; paidAt: string; currency?: string; containers?: string[] }) {
-  const result = createPayment(
-    db,
-    acc,
-    {
-      agencyId: input.agencyId,
-      amountMinor: input.amountMinor,
-      currency: input.currency ?? "USD",
-      paidAt: input.paidAt,
-      kind: "BANK",
-      blNoHint: null,
-      evidenceDocumentId: storeUpload(db, acc, { originalName: "dekont.pdf", content: PDF, kind: "RECEIPT" }, NOW).id,
-      queueItemId: null,
-      confirmDuplicate: true,
-    },
-    NOW,
-  );
-  if (result.status !== "created") throw new Error("payment not created");
-  const created = createBls(db, ops, [{ paymentId: result.id, blNo: input.blNo, containers: input.containers ?? [] }], NOW).created[0];
-  return { paymentId: result.id, blId: created.blId };
-}
+const agency = (name: string) => makeAgency(db, ops, name);
+const bl = (input: Parameters<typeof makeBl>[2]) => makeBl(db, { acc, ops }, input, NOW);
 
 beforeEach(async () => {
   db = createTestDb();

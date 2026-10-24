@@ -73,30 +73,10 @@ export function storeUpload(
     throw new DomainError("files.errors.content");
   }
 
-  const month = now.toISOString().slice(0, 7).replace("-", "/");
-  const storedPath = `${month}/${randomUUID()}.${extension}`;
-  const target = path.join(/*turbopackIgnore: true*/ filesRoot(), storedPath);
-  fs.mkdirSync(path.dirname(target), { recursive: true });
-  const temp = `${target}.part`;
-  fs.writeFileSync(temp, input.content, { flag: "wx" });
-  fs.renameSync(temp, target);
-
+  const { storedPath, target } = writeDataFile(input.content, extension, now);
   try {
     return db.transaction((tx) => {
-      const row = tx
-        .insert(documents)
-        .values({
-          kind: input.kind,
-          originalName,
-          storedPath,
-          mimeType: MIME_BY_EXTENSION[extension] ?? "application/octet-stream",
-          sizeBytes: input.content.length,
-          sha256: createHash("sha256").update(input.content).digest("hex"),
-          uploadedBy: actor.id,
-          uploadedAt: now.toISOString(),
-        })
-        .returning()
-        .get();
+      const row = insertDocument(tx, { kind: input.kind, originalName, storedPath, extension, content: input.content, uploadedBy: actor.id }, now);
       writeAudit(
         tx,
         {
@@ -115,6 +95,71 @@ export function storeUpload(
     fs.rmSync(target, { force: true });
     throw error;
   }
+}
+
+/** Writes a file under files/YYYY/MM/ with a generated name; the rename makes it appear complete. */
+function writeDataFile(content: Buffer, extension: string, now: Date): { storedPath: string; target: string } {
+  const month = now.toISOString().slice(0, 7).replace("-", "/");
+  const storedPath = `${month}/${randomUUID()}.${extension}`;
+  const target = path.join(/*turbopackIgnore: true*/ filesRoot(), storedPath);
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const temp = `${target}.part`;
+  fs.writeFileSync(temp, content, { flag: "wx" });
+  fs.renameSync(temp, target);
+  return { storedPath, target };
+}
+
+function insertDocument(
+  tx: DbOrTx,
+  input: { kind: DocumentKind; originalName: string; storedPath: string; extension: string; content: Buffer; uploadedBy: number; ownerType?: string; ownerId?: number },
+  now: Date,
+): StoredDocument {
+  return tx
+    .insert(documents)
+    .values({
+      kind: input.kind,
+      ownerType: input.ownerType ?? null,
+      ownerId: input.ownerId ?? null,
+      originalName: input.originalName,
+      storedPath: input.storedPath,
+      mimeType: MIME_BY_EXTENSION[input.extension] ?? "application/octet-stream",
+      sizeBytes: input.content.length,
+      sha256: createHash("sha256").update(input.content).digest("hex"),
+      uploadedBy: input.uploadedBy,
+      uploadedAt: now.toISOString(),
+    })
+    .returning()
+    .get();
+}
+
+/**
+ * Stores a file the app produced (e.g. a prefilled form) already attached to its record.
+ * Upload rules (allowed types, size) apply to user files only. Call inside the transaction
+ * that records the event; the caller writes the audit row.
+ */
+export function storeGeneratedDocument(
+  tx: DbOrTx,
+  input: { kind: DocumentKind; originalName: string; content: Buffer; createdBy: number; ownerType: string; ownerId: number },
+  now: Date = new Date(),
+): StoredDocument {
+  const originalName = cleanOriginalName(input.originalName);
+  const extension = extensionOf(originalName);
+  const { storedPath, target } = writeDataFile(input.content, extension, now);
+  try {
+    return insertDocument(
+      tx,
+      { kind: input.kind, originalName, storedPath, extension, content: input.content, uploadedBy: input.createdBy, ownerType: input.ownerType, ownerId: input.ownerId },
+      now,
+    );
+  } catch (error) {
+    fs.rmSync(target, { force: true });
+    throw error;
+  }
+}
+
+/** Reads a stored document's bytes. */
+export function readDocument(doc: StoredDocument): Buffer {
+  return fs.readFileSync(documentPath(doc));
 }
 
 /**

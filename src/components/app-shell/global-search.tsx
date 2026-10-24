@@ -30,7 +30,7 @@ export function GlobalSearch() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const [result, setResult] = useState<BlSearchResult | null>(null);
+  const [result, setResult] = useState<(BlSearchResult & { query: string }) | null>(null);
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
 
@@ -53,7 +53,7 @@ export function GlobalSearch() {
     const timer = setTimeout(async () => {
       const response = await searchBlsAction({ query });
       if (cancelled) return;
-      setResult(response.ok ? response.data : null);
+      setResult(response.ok ? { ...response.data, query } : null);
       setActive(0);
     }, DEBOUNCE_MS);
     return () => {
@@ -69,10 +69,23 @@ export function GlobalSearch() {
     router.push(`/bls/${id}`);
   };
 
+  /** Enter right after typing must not wait for the debounce: search now and open the first match. */
+  const openActive = async () => {
+    if (result?.query === query) {
+      if (items[active]) go(items[active].id);
+      return;
+    }
+    const response = await searchBlsAction({ query });
+    if (!response.ok) return;
+    setResult({ ...response.data, query });
+    setActive(0);
+    if (response.data.items[0]) go(response.data.items[0].id);
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") setActive((i) => Math.min(items.length - 1, i + 1));
     else if (event.key === "ArrowUp") setActive((i) => Math.max(0, i - 1));
-    else if (event.key === "Enter" && items[active]) go(items[active].id);
+    else if (event.key === "Enter" && query.trim() !== "") void openActive();
     else if (event.key === "Escape") {
       setOpen(false);
       inputRef.current?.blur();

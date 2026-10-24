@@ -11,6 +11,7 @@ import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
 import { agencies, auditLog, billsOfLading, containers, depositPayments, documents, ledgerEntries, users } from "./db/schema";
 import { DomainError } from "./errors";
+import { currentBlForm } from "./forms";
 import { getSetting } from "./settings";
 
 export type BlOverview = BlBalance & {
@@ -167,6 +168,12 @@ export type BlDetail = {
   ledger: BlLedgerLine[];
   documents: BlDocument[];
   timeline: TimelineEvent[];
+  form: {
+    /** Whether the agency has a template, so a prefilled form can be downloaded. */
+    templateAvailable: boolean;
+    /** The uploaded, signed form that requests attach. */
+    current: { id: number; originalName: string; uploadedAt: string } | null;
+  };
 };
 
 /** Everything the B/L detail shows; voided B/Ls stay readable for their timeline. */
@@ -246,5 +253,12 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
       notes: (after as { duplicateConfirmed?: boolean } | null)?.duplicateConfirmed ? ["duplicateConfirmed" as const] : [],
     }));
 
-  return { bl, payment, ledger, documents: blDocuments, timeline };
+  const template = db.select({ id: agencies.formTemplateDocumentId }).from(agencies).where(eq(agencies.id, found.bl.agencyId)).get();
+  const current = currentBlForm(db, id);
+  const form = {
+    templateAvailable: template?.id != null,
+    current: current ? { id: current.id, originalName: current.originalName, uploadedAt: current.uploadedAt } : null,
+  };
+
+  return { bl, payment, ledger, documents: blDocuments, timeline, form };
 }

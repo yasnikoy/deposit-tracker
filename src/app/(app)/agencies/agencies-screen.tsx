@@ -11,11 +11,12 @@ import { REQUEST_CHANNELS } from "@/domain/agency";
 import { t } from "@/i18n";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
 import type { TableLayout } from "@/lib/schemas/table-layout";
-import type { AgencyWithOverrides } from "@/server/agencies";
+import type { AgencyListItem } from "@/server/agencies";
 import { AgencyForm } from "./agency-form";
+import { FormTemplateCard } from "./form-template-card";
 import { OverridesForm } from "./overrides-form";
 
-export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean };
+export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean; updateFormTemplate: boolean };
 
 export function AgenciesScreen({
   agencies,
@@ -23,7 +24,7 @@ export function AgenciesScreen({
   layout,
   permissions,
 }: {
-  agencies: AgencyWithOverrides[];
+  agencies: AgencyListItem[];
   globals: AgencyOverrides;
   layout: TableLayout | null;
   permissions: AgencyPermissions;
@@ -33,7 +34,7 @@ export function AgenciesScreen({
   const agency = typeof selected === "number" ? agencies.find((a) => a.id === selected) : undefined;
 
   const columns = useMemo(() => {
-    const col = dataTableColumns<AgencyWithOverrides>();
+    const col = dataTableColumns<AgencyListItem>();
     return col.columns([
       col.accessor("name", { meta: { label: "agencies.name", filter: "text" }, sortFn: "turkishText" }),
       col.accessor((a) => (a.active ? "active" : "inactive"), {
@@ -108,6 +109,7 @@ export function AgenciesScreen({
               readOnly={agency ? !permissions.update : !permissions.create}
               onCreated={(id) => setSelected(id)}
             />
+            {agency && <FormTemplateCard agency={agency} editable={permissions.updateFormTemplate} />}
             {agency && (
               <OverridesForm key={`${agency.id}:${JSON.stringify(agency.overrides)}`} agency={agency} globals={globals} editable={permissions.updateOverrides} />
             )}

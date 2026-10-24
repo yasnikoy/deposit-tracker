@@ -20,5 +20,14 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
     if (error instanceof DomainError && error.messageKey === "errors.notFound") notFound();
     throw error;
   }
-  return <BlDetailScreen detail={detail} canEdit={can(user, "bl.update").allowed} canVoid={can(user, "bl.void").allowed} />;
+  return (
+    <BlDetailScreen
+      detail={detail}
+      can={{
+        edit: can(user, "bl.update").allowed,
+        void: can(user, "bl.void").allowed,
+        forms: can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed,
+      }}
+    />
+  );
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { blSearchSchema, createBlsSchema, updateBlSchema } from "@/lib/schemas/bls";
+import { blSearchSchema, createBlsSchema, generateFormSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
@@ -8,6 +8,7 @@ import { searchBls, type BlSearchResult } from "@/server/bl-overview";
 import { createBls, updateBl, voidBl, type CreateBlsResult } from "@/server/bls";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
+import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
 
 /** Each row is validated by createBls with the shared row schema; invalid rows come back with errors. */
 export async function createBlsAction(input: unknown): Promise<ActionResult<CreateBlsResult>> {
@@ -28,4 +29,14 @@ export async function voidBlAction(input: unknown): Promise<ActionResult<void>> 
 export async function searchBlsAction(input: unknown): Promise<ActionResult<BlSearchResult>> {
   const { user } = await requireSession();
   return runAction(blSearchSchema, input, (data) => searchBls(getDb(), user, data.query));
+}
+
+export async function generateBlFormAction(input: unknown): Promise<ActionResult<GeneratedForm>> {
+  const { user } = await requireSession();
+  return runAction(generateFormSchema, input, (data) => generateBlForm(getDb(), user, data));
+}
+
+export async function uploadBlFormAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(uploadFormSchema, input, (data) => uploadBlForm(getDb(), user, data));
 }

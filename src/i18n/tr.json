@@ -604,11 +604,41 @@
       },
       "document": {
         "upload": "Belge yüklendi"
+      },
+      "form": {
+        "generate": "Ön doldurulmuş form oluşturuldu",
+        "upload": "İmzalı form yüklendi"
       }
     },
     "system": "Sistem",
     "notes": {
       "duplicateConfirmed": "Mükerrer kayıt uyarısı onaylanarak kaydedildi"
+    }
+  },
+  "forms": {
+    "sectionTitle": "İade talep formu",
+    "templateTitle": "Form şablonu (Word)",
+    "noTemplateYet": "Bu acente için form şablonu yüklenmemiş.",
+    "uploadTemplate": "Şablonu (.docx) buraya bırakın veya seçmek için tıklayın",
+    "replaceTemplate": "Yeni şablon yükleyin (.docx)",
+    "templateSaved": "Form şablonu kaydedildi.",
+    "placeholderHelp": "Kullanılabilecek alanlar:",
+    "download": "Ön doldurulmuş formu indir",
+    "noTemplateForAgency": "Acentenin form şablonu yok; yönetici acente kartından yükleyebilir.",
+    "currentForm": "Yüklenen form:",
+    "noFormYet": "İmzalı form henüz yüklenmedi.",
+    "uploadForm": "İmzalı, kaşeli ve taranmış formu buraya bırakın",
+    "replaceForm": "Yeni bir imzalı form yükleyin (eskisinin yerine geçer)",
+    "formUploaded": "Form yüklendi.",
+    "bankAccountWarning": {
+      "none": "B/L para biriminde aktif banka hesabı yok; banka adı ve IBAN boş bırakıldı.",
+      "several": "B/L para biriminde birden fazla aktif banka hesabı var; banka adı ve IBAN boş bırakıldı."
+    },
+    "errors": {
+      "invalidTemplate": "Şablon okunamadı. Dosyanın bozuk olmadığını ve alanların {alan_adı} biçiminde yazıldığını kontrol edin.",
+      "templateType": "Form şablonu .docx biçiminde olmalı.",
+      "unknownPlaceholders": "Şablonda tanınmayan alanlar var: {list}",
+      "noTemplate": "{agency} için form şablonu yüklenmemiş."
     }
   }
 }

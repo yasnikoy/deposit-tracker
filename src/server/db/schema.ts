@@ -156,6 +156,8 @@ export const agencies = sqliteTable(
     batchSending: integer("batch_sending", { mode: "boolean" }).notNull().default(false),
     requestChannel: text("request_channel", { enum: REQUEST_CHANNELS }).notNull().default("EMAIL"),
     portalUrl: text("portal_url"),
+    // The agency's refund request form (.docx with placeholders), uploaded by an admin.
+    formTemplateDocumentId: integer("form_template_document_id").references((): AnySQLiteColumn => documents.id),
     notes: text("notes"),
     // Setting overrides (null inherits the global value); column names match the setting registry.
     firstRequestDueDays: overrideDays("first_request_due_days"),

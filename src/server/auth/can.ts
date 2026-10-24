@@ -31,6 +31,7 @@ const rules = {
   "agency.update": only("OPERATIONS"),
   // Setting overrides are settings, so only admins change them.
   "agency.updateOverrides": only("ADMIN"),
+  "agency.updateFormTemplate": only("ADMIN"),
   "document.upload": only("ACCOUNTANT", "OPERATIONS", "ADMIN"),
   "document.view": ALL_ROLES,
   // Money enters through the accountant role; corrections only on own records (rule 7).
@@ -43,6 +44,8 @@ const rules = {
   "bl.create": only("OPERATIONS"),
   "bl.update": only("OPERATIONS"),
   "bl.void": only("OPERATIONS", "ADMIN"),
+  "bl.generateForm": only("OPERATIONS"),
+  "bl.uploadForm": only("OPERATIONS"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",
   "preferences.saveOwn": "ANY_AUTHENTICATED",
 } satisfies Record<string, Rule>;

@@ -1,0 +1,1 @@
+ALTER TABLE `agencies` ADD `form_template_document_id` integer REFERENCES documents(id);

@@ -27,6 +27,7 @@ export default async function AgenciesPage() {
           create: can(user, "agency.create").allowed,
           update: can(user, "agency.update").allowed,
           updateOverrides: can(user, "agency.updateOverrides").allowed,
+          updateFormTemplate: can(user, "agency.updateFormTemplate").allowed,
         }}
       />
     </>

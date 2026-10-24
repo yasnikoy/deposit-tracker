@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import type { BlDetail } from "@/server/bl-overview";
 import { BalanceStrip } from "../balance-strip";
 import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
+import { FormSection } from "../form-section";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -29,7 +30,9 @@ const actionLabel = (action: string) => {
   return isTranslationKey(key) ? t(key) : action;
 };
 
-export function BlDetailScreen({ detail, canEdit, canVoid }: { detail: BlDetail; canEdit: boolean; canVoid: boolean }) {
+export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean };
+
+export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetailPermissions }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"edit" | "void" | null>(null);
   const { bl, payment, ledger, documents, timeline } = detail;
@@ -48,12 +51,12 @@ export function BlDetailScreen({ detail, canEdit, canVoid }: { detail: BlDetail;
         <BlStatusBadge status={bl.status} voided={!!bl.voidedAt} voidReason={bl.voidReason} />
         <span>{bl.agencyName}</span>
         <div className="ml-auto flex gap-2">
-          {canEdit && !bl.voidedAt && (
+          {can.edit && !bl.voidedAt && (
             <Button size="sm" variant="outline" onClick={() => setDialog("edit")}>
               {t("bls.edit")}
             </Button>
           )}
-          {canVoid && !bl.voidedAt && (
+          {can.void && !bl.voidedAt && (
             <Button size="sm" variant="outline" onClick={() => setDialog("void")}>
               {t("bls.void")}
             </Button>
@@ -93,6 +96,10 @@ export function BlDetailScreen({ detail, canEdit, canVoid }: { detail: BlDetail;
               )}
             </dd>
           </dl>
+        </Section>
+
+        <Section title={t("forms.sectionTitle")}>
+          <FormSection blId={bl.id} form={detail.form} editable={can.forms && !bl.voidedAt} />
         </Section>
 
         <Section title={t("bls.detail.documents")}>

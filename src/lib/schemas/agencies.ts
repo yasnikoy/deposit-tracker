@@ -78,3 +78,8 @@ export const updateAgencyOverridesSchema = z.object({
   overrides: agencyOverridesSchema,
   reason: reasonSchema,
 });
+
+export const setFormTemplateSchema = z.object({
+  agencyId: z.number().int().positive(),
+  documentId: z.number().int().positive(),
+});

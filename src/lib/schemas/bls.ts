@@ -44,3 +44,10 @@ export const updateBlSchema = z.object({
 
 /** Header search; a pasted column of numbers may be long. */
 export const blSearchSchema = z.object({ query: z.string().max(20_000) });
+
+export const generateFormSchema = z.object({ blId: z.number().int().positive() });
+
+export const uploadFormSchema = z.object({
+  blId: z.number().int().positive(),
+  documentId: z.number().int().positive(),
+});

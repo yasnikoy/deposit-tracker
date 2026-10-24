@@ -7,13 +7,14 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies } from "./db/schema";
+import { agencies, documents } from "./db/schema";
 import { DomainError } from "./errors";
 
 export type Agency = typeof agencies.$inferSelect;
 export type AgencyWithOverrides = Omit<Agency, (typeof agencyOverrideFields)[keyof typeof agencyOverrideFields]> & {
   overrides: AgencyOverrides;
 };
+export type AgencyListItem = AgencyWithOverrides & { formTemplateName: string | null };
 
 function overridesOf(row: Agency): AgencyOverrides {
   return Object.fromEntries(
@@ -46,9 +47,14 @@ function requireAgency(tx: DbOrTx, id: number): Agency {
   return row;
 }
 
-export function listAgencies(db: Db, actor: AuthUser): AgencyWithOverrides[] {
+export function listAgencies(db: Db, actor: AuthUser): AgencyListItem[] {
   authorize(actor, "agency.view");
-  return db.select().from(agencies).all().map(toView);
+  return db
+    .select({ agency: agencies, formTemplateName: documents.originalName })
+    .from(agencies)
+    .leftJoin(documents, eq(documents.id, agencies.formTemplateDocumentId))
+    .all()
+    .map(({ agency, formTemplateName }) => ({ ...toView(agency), formTemplateName }));
 }
 
 export function createAgency(db: Db, actor: AuthUser, input: AgencyInput, now: Date = new Date()): number {
