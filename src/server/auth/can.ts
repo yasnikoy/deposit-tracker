@@ -46,6 +46,10 @@ const rules = {
   "bl.void": only("OPERATIONS", "ADMIN"),
   "bl.generateForm": only("OPERATIONS"),
   "bl.uploadForm": only("OPERATIONS"),
+  // B/L setting overrides are settings, like agency overrides.
+  "bl.updateOverrides": only("ADMIN"),
+  "request.view": only("OPERATIONS"),
+  "request.recordPortal": only("OPERATIONS"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",
   "preferences.saveOwn": "ANY_AUTHENTICATED",
 } satisfies Record<string, Rule>;

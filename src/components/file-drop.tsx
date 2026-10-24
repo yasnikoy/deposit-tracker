@@ -44,12 +44,15 @@ export function FileDrop({
   multiple = false,
   queue = false,
   label,
+  compact = false,
   onUploaded,
 }: {
   kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE";
   multiple?: boolean;
   queue?: boolean;
   label: string;
+  /** One-line drop target for table cells. */
+  compact?: boolean;
   onUploaded: (results: { file: File; response: UploadResponse }[]) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -85,11 +88,12 @@ export function FileDrop({
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
       className={cn(
-        "text-muted-foreground flex cursor-pointer flex-col items-center gap-2 rounded-md border-2 border-dashed p-6 text-center",
+        "text-muted-foreground flex cursor-pointer items-center rounded-md border-2 border-dashed text-center",
+        compact ? "gap-1 px-2 py-0.5 text-xs" : "flex-col gap-2 p-6",
         dragging && "border-primary bg-muted",
       )}
     >
-      <Upload className="size-5" />
+      <Upload className={compact ? "size-3.5" : "size-5"} />
       <span>{busy ? t("files.uploading") : label}</span>
       <input
         ref={input}

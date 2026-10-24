@@ -81,6 +81,15 @@ describe("migrateWithBackup", () => {
     expect(db.$client.pragma("foreign_keys", { simple: true })).toBe(1);
     // Constraints of the rebuilt table still hold.
     expect(() => db.$client.exec("UPDATE deposit_payments SET amount_minor = 0")).toThrow(/CHECK/);
+    // 0005 rebuilds bills_of_lading with override columns; existing B/Ls keep their data and inherit.
+    expect(db.$client.prepare("SELECT bl_no, status, follow_up_days FROM bills_of_lading").all()).toEqual([
+      { bl_no: "B1", status: "PAID", follow_up_days: null },
+    ]);
+    expect(() => db.$client.exec("UPDATE bills_of_lading SET follow_up_days = 0")).toThrow(/CHECK/);
+    expect(() =>
+      db.$client.exec(`INSERT INTO bills_of_lading(bl_no,agency_id,currency,deposit_amount_minor,paid_at,status,created_by,created_at,updated_at)
+        VALUES ('b1',1,'USD',100,'2026-10-01','PAID',1,'t','t')`),
+    ).toThrow(/UNIQUE/);
   });
 
   it("does nothing when no migration is pending", async () => {

@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/sqlite-core";
 import { REQUEST_CHANNELS } from "../../domain/agency";
 import { HOLIDAY_KINDS } from "../../domain/business-days";
-import { BL_STATUSES, DOCUMENT_KINDS, LEDGER_TYPES, PAYMENT_KINDS } from "../../domain/records";
+import { BL_STATUSES, DOCUMENT_KINDS, LEDGER_TYPES, PAYMENT_KINDS, REQUEST_TYPES, SEND_STATUSES } from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
 // Event timestamps are UTC ISO-8601 text; business dates are YYYY-MM-DD text.
@@ -341,6 +341,12 @@ export const billsOfLading = sqliteTable(
     paidAt: text("paid_at").notNull(),
     // DUE is computed on read and never stored.
     status: text("status", { enum: BL_STATUSES }).notNull(),
+    // Setting overrides (null inherits the agency, then the global value).
+    firstRequestDueDays: overrideDays("first_request_due_days"),
+    upcomingDays: overrideDays("upcoming_days"),
+    followUpDays: overrideDays("follow_up_days"),
+    statementRequestDays: overrideDays("statement_request_days"),
+    statementFollowUpDays: overrideDays("statement_follow_up_days"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -352,6 +358,12 @@ export const billsOfLading = sqliteTable(
     check("bills_of_lading_amount", sql`${t.depositAmountMinor} > 0`),
     check("bills_of_lading_status", sql`${t.status} IN (${sqlList(BL_STATUSES.filter((s) => s !== "DUE"))})`),
     voidCheck("bills_of_lading_void", t),
+    check(
+      "bills_of_lading_overrides_non_negative",
+      sql`coalesce(${t.firstRequestDueDays}, 0) >= 0 AND coalesce(${t.upcomingDays}, 0) >= 0
+        AND coalesce(${t.followUpDays}, 1) >= 1 AND coalesce(${t.statementRequestDays}, 0) >= 0
+        AND coalesce(${t.statementFollowUpDays}, 1) >= 1`,
+    ),
     // Rule 11: at most one active B/L per payment record.
     uniqueIndex("bills_of_lading_payment_active")
       .on(t.depositPaymentId)
@@ -401,5 +413,48 @@ export const ledgerEntries = sqliteTable(
       .on(t.compensatesEntryId)
       .where(sql`${t.compensatesEntryId} IS NOT NULL`),
     index("ledger_entries_bl").on(t.blId),
+  ],
+);
+
+// ---- Build step 4: request cycles ----
+
+export const requests = sqliteTable(
+  "requests",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    type: text("type", { enum: REQUEST_TYPES }).notNull(),
+    channel: text("channel", { enum: REQUEST_CHANNELS }).notNull(),
+    attemptNo: integer("attempt_no").notNull(),
+    sendStatus: text("send_status", { enum: SEND_STATUSES }).notNull(),
+    // Business date the request counts from: the send date, or the filing date on a portal.
+    requestedOn: text("requested_on"),
+    sentAt: timestamp("sent_at"),
+    portalRef: text("portal_ref"),
+    failureReason: text("failure_reason"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    check("requests_type", sql`${t.type} IN (${sqlList(REQUEST_TYPES)})`),
+    check("requests_channel", sql`${t.channel} IN ('EMAIL', 'PORTAL')`),
+    check("requests_send_status", sql`${t.sendStatus} IN (${sqlList(SEND_STATUSES)})`),
+    check("requests_attempt_no", sql`${t.attemptNo} >= 1`),
+    check(
+      "requests_sent",
+      sql`(${t.sendStatus} = 'SENT') = (${t.requestedOn} IS NOT NULL AND ${t.sentAt} IS NOT NULL)`,
+    ),
+    check("requests_requested_on", sql`${t.requestedOn} IS NULL OR ${t.requestedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+    // Portal requests are recorded after filing, so they are never queued or failed.
+    check("requests_portal_sent", sql`${t.channel} <> 'PORTAL' OR ${t.sendStatus} = 'SENT'`),
+    // One live request per attempt; a failed send may be retried under the same attempt number.
+    uniqueIndex("requests_attempt_unique")
+      .on(t.blId, t.type, t.attemptNo)
+      .where(sql`${t.sendStatus} <> 'FAILED'`),
+    index("requests_bl").on(t.blId),
   ],
 );

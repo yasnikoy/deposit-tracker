@@ -27,6 +27,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         edit: can(user, "bl.update").allowed,
         void: can(user, "bl.void").allowed,
         forms: can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed,
+        overrides: can(user, "bl.updateOverrides").allowed,
       }}
     />
   );

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ImpactPreview } from "@/components/impact-preview";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,15 @@ import { formatTimestamp } from "@/lib/format";
 import type { SettingListItem } from "@/server/settings";
 import { updateSettingsAction } from "./actions";
 import { describeBuckets, SettingEditor } from "./setting-editor";
+
+/** Settings that move B/Ls between the request lists; their changes show an impact preview. */
+const IMPACT_KEYS: SettingKey[] = [
+  "durations.firstRequestDueDays",
+  "durations.upcomingDays",
+  "durations.followUpDays",
+  "calendar.weekendDays",
+  "calendar.halfDaysAreBusinessDays",
+];
 
 const labelKey = (key: SettingKey) => `settings.keys.${key}.label` as TranslationKey;
 const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationKey;
@@ -51,6 +61,11 @@ function GroupForm({ group, items }: { group: SettingGroup; items: SettingListIt
 
   const invalid = items.filter((i) => !settingDefinitions[i.key].schema.safeParse(draft[i.key]).success).map((i) => i.key);
   const changed = items.filter((i) => JSON.stringify(draft[i.key]) !== JSON.stringify(i.value));
+  const timingChanges = changed.filter((i) => IMPACT_KEYS.includes(i.key));
+  const impactHypothesis =
+    timingChanges.length > 0 && invalid.length === 0
+      ? { settings: Object.fromEntries(timingChanges.map((i) => [i.key, draft[i.key]])) }
+      : null;
 
   const save = async () => {
     setSaving(true);
@@ -98,6 +113,7 @@ function GroupForm({ group, items }: { group: SettingGroup; items: SettingListIt
             </div>
           );
         })}
+        <ImpactPreview hypothesis={impactHypothesis} />
         <div className="flex items-center gap-2 border-t pt-4">
           <Input
             value={reason}

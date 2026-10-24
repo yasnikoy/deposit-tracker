@@ -129,7 +129,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
-| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_at, reply\_type\_id, replied\_at, attempt\_no, send\_status |
+| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, reply\_type\_id, replied\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
 | `emails` | Sent messages and in-thread replies | direction, message\_id, in\_reply\_to, thread\_key, from, to, cc, subject, body as sent, sent\_at, raw\_file\_id, processed\_at |
 | `email_bl_links` | Many-to-many emails and B/Ls | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL) |
 | `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by |
@@ -156,9 +156,9 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 
 **Business-day engine:** one module, `addBusinessDays(date, n)` / `businessDaysBetween(a, b)`, driven by the weekend-days setting and the `holidays` table. `addBusinessDays(d, n)` is the n-th business day after `d` (`n = 0` returns `d`); `businessDaysBetween(a, b)` counts business days after `a` up to and including `b` (negative when `b` is earlier), so the two are inverses. Half days (arife) count as business days only when the calendar setting says so. "Today" is the Europe/Istanbul date. Every duration declares its day type; v1 uses business days for all app reminders. Calendar days are reserved for any future demurrage logic.
 
-**Impact preview:** before saving a change, the panel shows how many B/Ls move into or out of each list (e.g. "14 B/Ls become due today"). Built in step 4 together with the due-requests list.
+**Impact preview:** before saving a change, the panel shows how many B/Ls move into or out of each list (e.g. "14 B/Ls become due today"). It covers the request-timing durations, weekend days and the half-day rule in settings, and agency and B/L overrides; holiday edits are not previewed in v1.
 
-**Overrides:** only the request-timing durations are overridable per agency and per B/L: first request due, "upcoming" window, follow-up interval, statement request delay, statement follow-up interval. All other settings are global. Agency overrides are set by an admin. A reason can be given with any settings, override or holiday change (optional) and is stored in the audit log and settings history.
+**Overrides:** only the request-timing durations are overridable per agency and per B/L: first request due, "upcoming" window, follow-up interval, statement request delay, statement follow-up interval. All other settings are global. Agency overrides (agency card) and B/L overrides (B/L detail) are set by an admin. A reason can be given with any settings, override or holiday change (optional) and is stored in the audit log and settings history.
 
 | Group | Settings |
 | --- | --- |
@@ -442,6 +442,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - A `REQUESTED` B/L with no recorded reply becomes due for a follow-up once the follow-up interval has passed since the last request.
 - Batched follow-ups reply in the existing thread when all selected B/Ls share it; otherwise one reply is sent per thread.
 - Standing documents are attached to every request by default (rule setting, seed on).
+- Due lists: a B/L is *upcoming* while at most the "upcoming" number of business days remain before its due date, and *due* from that date on. A request can be sent or recorded only while the B/L is due or upcoming (rule 9). Portal agencies file only the first request on the portal; it is recorded with the filing date (not in the future, not before payment) and counts as attempt 1.
+- Request-timing overrides per B/L (admin, on the B/L detail) resolve B/L → agency → global, like `getSetting`.
 - Agency form templates: an admin uploads the `.docx` on the agency card; templates with unknown placeholders, loops or broken syntax are refused with the offending tags listed. Tags are read from the template's full text, so a placeholder Word splits across formatting runs still works.
 
 **Oct 24, 2026 — form filling decisions**

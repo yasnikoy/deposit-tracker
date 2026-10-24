@@ -41,7 +41,8 @@
     "accounting": "Muhasebe",
     "createBls": "B/L oluştur",
     "lists": "Listeler",
-    "allBls": "B/L'ler"
+    "allBls": "B/L'ler",
+    "dueRequests": "Talepler"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -574,7 +575,9 @@
       "DEDUCTION": "Kesinti",
       "REFUND_ALLOCATION": "İade dağıtımı",
       "OPENING_BALANCE": "Açılış bakiyesi"
-    }
+    },
+    "attempts": "Talep sayısı",
+    "lastRequestOn": "Son talep"
   },
   "search": {
     "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
@@ -595,7 +598,8 @@
         "create": "B/L oluşturuldu",
         "update": "B/L düzenlendi",
         "void": "B/L iptal edildi",
-        "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı"
+        "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
+        "overrides": "B/L ayar istisnaları değişti"
       },
       "payment": {
         "create": "Depozito ödemesi kaydedildi",
@@ -608,6 +612,9 @@
       "form": {
         "generate": "Ön doldurulmuş form oluşturuldu",
         "upload": "İmzalı form yüklendi"
+      },
+      "request": {
+        "portal": "Portal talebi kaydedildi"
       }
     },
     "system": "Sistem",
@@ -640,5 +647,61 @@
       "unknownPlaceholders": "Şablonda tanınmayan alanlar var: {list}",
       "noTemplate": "{agency} için form şablonu yüklenmemiş."
     }
+  },
+  "requests": {
+    "title": "Zamanı gelen talepler",
+    "tabs": {
+      "DUE": "Zamanı gelen",
+      "UPCOMING": "Yaklaşan",
+      "FAILED": "Gönderilemeyen"
+    },
+    "empty": {
+      "DUE": "Bugün zamanı gelen talep yok.",
+      "UPCOMING": "Yaklaşan talep yok.",
+      "FAILED": "Gönderilemeyen talep yok."
+    },
+    "kinds": {
+      "FIRST": "İlk talep",
+      "FOLLOW_UP": "Takip"
+    },
+    "batch": "Toplu e-posta",
+    "single": "B/L başına e-posta",
+    "portal": "Portal",
+    "blCount": "{count} B/L",
+    "attempt": "Talep no",
+    "dueDate": "Vade",
+    "amount": "Tutar",
+    "form": "Form",
+    "noForm": "Form yok",
+    "formRequiredHint": "Formu yüklenmemiş B/L seçilemez.",
+    "openPortal": "Portalda aç",
+    "recordPortal": "Portal talebini kaydet",
+    "recordPortalTitle": "Portal talebi – {bl}",
+    "recordPortalText": "Talebi acentenin portalına girdikten sonra kaydedin. 1. talep sayılır ve takip süresi bu tarihten başlar.",
+    "requestedOn": "Portala giriş tarihi",
+    "portalRef": "Portal referans no (isteğe bağlı)",
+    "portalRecorded": "Portal talebi kaydedildi.",
+    "selectedTotal": "{count} B/L seçili",
+    "errors": {
+      "notPortal": "Bu acente talepleri portal üzerinden almıyor.",
+      "notDue": "Bu B/L için şu anda talep yapılamaz.",
+      "futureDate": "Tarih ileri bir gün olamaz.",
+      "beforePayment": "Tarih depozito ödemesinden önce olamaz.",
+      "formMissing": "{bl} için imzalı form yüklenmemiş."
+    }
+  },
+  "overrides": {
+    "blTitle": "B/L ayar istisnaları",
+    "blHint": "Boş bırakılan alan acentenin, o da boşsa genel ayarın değerini kullanır.",
+    "inherited": "Devralınan: {value}",
+    "save": "İstisnaları kaydet",
+    "saved": "B/L ayar istisnaları kaydedildi."
+  },
+  "impact": {
+    "title": "Etki önizlemesi",
+    "loading": "Etki hesaplanıyor…",
+    "none": "Bu değişiklik talep listelerini etkilemiyor.",
+    "DUE": "Zamanı gelen: {before} → {after} B/L ({entering} girer, {leaving} çıkar)",
+    "UPCOMING": "Yaklaşan: {before} → {after} B/L ({entering} girer, {leaving} çıkar)"
   }
 }

@@ -1,0 +1,162 @@
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it } from "vitest";
+import { updateAgencyOverrides } from "@/server/agencies";
+import type { AuthUser } from "@/server/auth/types";
+import { listAllBls } from "@/server/bl-overview";
+import { voidBl } from "@/server/bls";
+import type { Db } from "@/server/db/client";
+import { auditLog, billsOfLading } from "@/server/db/schema";
+import { ForbiddenError } from "@/server/errors";
+import { storeUpload } from "@/server/files";
+import { uploadBlForm } from "@/server/forms";
+import { listDueRequests, previewDueImpact, recordPortalRequest, updateBlOverrides } from "@/server/requests";
+import { getSetting, updateSettings } from "@/server/settings";
+import { createTestDb, makeUser } from "../support/db";
+import { makeAgency, makeBl, NO_OVERRIDES, PDF } from "../support/records";
+
+// Thursday 22 Oct 2026, 12:00 Istanbul. No holidays in the test calendar.
+const NOW = new Date("2026-10-22T09:00:00Z");
+
+let db: Db;
+let admin: AuthUser;
+let acc: AuthUser;
+let ops: AuthUser;
+let msc: number;
+let portal: number;
+
+const bl = (agencyId: number, blNo: string, paidAt: string, currency = "USD", amountMinor = 100000) =>
+  makeBl(db, { acc, ops }, { agencyId, blNo, paidAt, currency, amountMinor }, NOW).blId;
+const attachForm = (blId: number) =>
+  uploadBlForm(db, ops, { blId, documentId: storeUpload(db, ops, { originalName: "form.pdf", content: PDF, kind: "FORM" }, NOW).id }, NOW);
+const rows = (list: "DUE" | "UPCOMING", now = NOW) => listDueRequests(db, ops, now)[list].flatMap((g) => g.rows.map((r) => r.blNo));
+
+beforeEach(async () => {
+  db = createTestDb();
+  admin = await makeUser(db, "admin", ["ADMIN"]);
+  acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
+  ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  msc = makeAgency(db, ops, "MSC", { batchSending: true });
+  portal = makeAgency(db, ops, "CMA Portal", { requestChannel: "PORTAL", portalUrl: "https://portal.example" });
+});
+
+describe("due-requests list", () => {
+  it("lists due and upcoming first requests by agency, oldest due first, with totals per currency", () => {
+    bl(msc, "MEDU0000003", "2026-10-15"); // due Mon 26 Oct: 2 business days left → upcoming
+    bl(msc, "MEDU0000002", "2026-10-02", "EUR", 50000); // due 13 Oct
+    bl(msc, "MEDU0000001", "2026-10-01"); // due 12 Oct
+    bl(msc, "MEDU0000004", "2026-10-20"); // due Thu 29 Oct: not yet listed
+    bl(portal, "CMAU0000001", "2026-10-05");
+
+    const lists = listDueRequests(db, ops, NOW);
+    expect(lists.formRequired).toBe(true);
+    expect(lists.DUE.map((g) => [g.agencyName, g.rows.map((r) => r.blNo)])).toEqual([
+      ["MSC", ["MEDU0000001", "MEDU0000002"]],
+      ["CMA Portal", ["CMAU0000001"]],
+    ]);
+    expect(lists.DUE[0]).toMatchObject({
+      batchSending: true,
+      totals: [
+        { currency: "USD", amountMinor: 100000 },
+        { currency: "EUR", amountMinor: 50000 },
+      ],
+    });
+    expect(lists.DUE[0].rows[0]).toMatchObject({ kind: "FIRST", attemptNo: 1, dueDate: "2026-10-12", daysWaiting: 15, channel: "EMAIL", form: null });
+    expect(lists.DUE[1].rows[0]).toMatchObject({ channel: "PORTAL" });
+    expect(rows("UPCOMING")).toEqual(["MEDU0000003"]);
+    expect(() => listDueRequests(db, acc, NOW)).toThrow(ForbiddenError);
+  });
+
+  it("shows the uploaded form and leaves voided B/Ls out", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-01");
+    const b = bl(msc, "MEDU0000002", "2026-10-01");
+    attachForm(a);
+    voidBl(db, ops, { id: b, reason: "Yanlış kayıt" }, NOW);
+    const [row] = listDueRequests(db, ops, NOW).DUE[0].rows;
+    expect(row).toMatchObject({ blNo: "MEDU0000001", form: { originalName: "form.pdf" } });
+    expect(rows("DUE")).toEqual(["MEDU0000001"]);
+  });
+
+  it("applies agency and B/L overrides of the request timing", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-20");
+    expect(rows("DUE")).toEqual([]);
+    updateAgencyOverrides(db, admin, { agencyId: msc, overrides: { ...NO_OVERRIDES, "durations.firstRequestDueDays": 2 }, reason: null }, NOW);
+    expect(rows("DUE")).toEqual(["MEDU0000001"]);
+
+    expect(() => updateBlOverrides(db, ops, { blId: a, overrides: NO_OVERRIDES, reason: null }, NOW)).toThrow(ForbiddenError);
+    updateBlOverrides(db, admin, { blId: a, overrides: { ...NO_OVERRIDES, "durations.firstRequestDueDays": 10 }, reason: "Acente geç iade ediyor" }, NOW);
+    expect(rows("DUE")).toEqual([]);
+    expect(getSetting("durations.firstRequestDueDays", { blId: a }, db)).toBe(10);
+    expect(getSetting("durations.followUpDays", { blId: a }, db)).toBe(5);
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "bl.overrides")).get()).toMatchObject({ roleUsed: "ADMIN", reason: "Acente geç iade ediyor" });
+  });
+});
+
+describe("portal requests", () => {
+  let blId: number;
+  beforeEach(() => {
+    blId = bl(portal, "CMAU0000001", "2026-10-05");
+  });
+
+  it("are recorded after filing: attempt 1, REQUESTED, follow-up clock from the filing date", () => {
+    attachForm(blId);
+    expect(() => recordPortalRequest(db, acc, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toThrow(ForbiddenError);
+    recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: "CMA-77" }, NOW);
+
+    expect(db.select().from(billsOfLading).where(eq(billsOfLading.id, blId)).get()?.status).toBe("REQUESTED");
+    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ status: "REQUESTED", attempts: 1, lastRequestOn: "2026-10-21" });
+    expect(rows("DUE")).toEqual([]);
+    // Wed 21 Oct + 5 business days = Wed 28 Oct; the follow-up then goes by email.
+    const later = listDueRequests(db, ops, new Date("2026-10-28T09:00:00Z")).DUE[0].rows[0];
+    expect(later).toMatchObject({ kind: "FOLLOW_UP", attemptNo: 2, dueDate: "2026-10-28", channel: "EMAIL" });
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "request.portal")).get()).toMatchObject({ roleUsed: "OPERATIONS" });
+  });
+
+  it("need the uploaded form while the rule is on", () => {
+    expect(() => recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "requests.errors.formMissing" }),
+    );
+    updateSettings(db, admin, { changes: [{ key: "rules.blockSendingWithoutForm", value: false }] }, NOW);
+    expect(recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toBeGreaterThan(0);
+  });
+
+  it("reject dates in the future or before payment, email agencies, and a second first request", () => {
+    attachForm(blId);
+    const record = (requestedOn: string, id = blId) => () => recordPortalRequest(db, ops, { blId: id, requestedOn, portalRef: null }, NOW);
+    expect(record("2026-10-23")).toThrow(expect.objectContaining({ messageKey: "requests.errors.futureDate" }));
+    expect(record("2026-10-04")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforePayment" }));
+    const emailBl = bl(msc, "MEDU0000001", "2026-10-01");
+    attachForm(emailBl);
+    expect(record("2026-10-21", emailBl)).toThrow(expect.objectContaining({ messageKey: "requests.errors.notPortal" }));
+    record("2026-10-21")();
+    expect(record("2026-10-22")).toThrow(expect.objectContaining({ messageKey: "requests.errors.notDue" }));
+  });
+
+  it("are not accepted before the B/L is due or upcoming", () => {
+    const fresh = bl(portal, "CMAU0000002", "2026-10-22");
+    attachForm(fresh);
+    expect(() => recordPortalRequest(db, ops, { blId: fresh, requestedOn: "2026-10-22", portalRef: null }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "requests.errors.notDue" }),
+    );
+  });
+});
+
+describe("impact preview", () => {
+  it("counts B/Ls entering and leaving the lists under an unsaved change", () => {
+    bl(msc, "MEDU0000001", "2026-10-01"); // due
+    bl(msc, "MEDU0000002", "2026-10-15"); // upcoming
+    bl(msc, "MEDU0000003", "2026-10-20"); // neither
+
+    expect(previewDueImpact(db, admin, { settings: { "durations.firstRequestDueDays": 2 } }, NOW)).toEqual({
+      DUE: { before: 1, after: 3, entering: 2, leaving: 0 },
+      UPCOMING: { before: 1, after: 0, entering: 0, leaving: 1 },
+    });
+    // A Friday–Saturday weekend is evaluated too; here it leaves the due list unchanged.
+    expect(previewDueImpact(db, admin, { settings: { "calendar.weekendDays": [5, 6] } }, NOW).DUE).toMatchObject({ before: 1, after: 1 });
+    expect(
+      previewDueImpact(db, admin, { agency: { agencyId: msc, overrides: { ...NO_OVERRIDES, "durations.upcomingDays": 0 } } }, NOW).UPCOMING,
+    ).toEqual({ before: 1, after: 0, entering: 0, leaving: 1 });
+    // Nothing was saved.
+    expect(rows("DUE")).toEqual(["MEDU0000001"]);
+    expect(() => previewDueImpact(db, ops, { settings: { "durations.firstRequestDueDays": 2 } }, NOW)).toThrow(ForbiddenError);
+  });
+});

@@ -15,9 +15,9 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { getDb, type Db, type DbOrTx } from "./db/client";
-import { agencies, settings, settingsHistory, users } from "./db/schema";
+import { agencies, billsOfLading, settings, settingsHistory, users } from "./db/schema";
 import { DomainError } from "./errors";
-import { agencyOverrideColumns } from "./agency-overrides";
+import { agencyOverrideColumns, blOverrideColumns } from "./agency-overrides";
 
 export const SEED_FILE = path.join(process.cwd(), "seed", "settings.json");
 
@@ -31,20 +31,32 @@ function readGlobal<K extends SettingKey>(db: DbOrTx, key: K): SettingValue<K> {
 
 /**
  * The only way code reads business values. Resolution: B/L override → agency override → global;
- * null inherits. B/L overrides arrive with the B/L table (build step 3).
+ * null inherits. With a B/L scope the agency is the B/L's own agency.
  */
 export function getSetting<K extends SettingKey>(
   key: K,
   scope: SettingScope = {},
   db: DbOrTx = getDb(),
 ): SettingValue<K> {
-  if (scope.blId !== undefined) throw new Error("B/L setting overrides are not available before build step 3");
   const global = readGlobal(db, key);
-  if (scope.agencyId === undefined || !isOverridableSettingKey(key)) return global;
-  const column = agencyOverrideColumns[key];
-  const row = db.select({ value: column }).from(agencies).where(eq(agencies.id, scope.agencyId)).get();
-  if (!row) throw new Error(`Agency ${scope.agencyId} not found`);
-  return resolveSetting<SettingValue<K>>({ global, agency: row.value as SettingValue<K> | null });
+  if ((scope.agencyId === undefined && scope.blId === undefined) || !isOverridableSettingKey(key)) return global;
+
+  let agencyId = scope.agencyId;
+  let blValue: SettingValue<K> | null = null;
+  if (scope.blId !== undefined) {
+    const bl = db
+      .select({ agencyId: billsOfLading.agencyId, value: blOverrideColumns[key] })
+      .from(billsOfLading)
+      .where(eq(billsOfLading.id, scope.blId))
+      .get();
+    if (!bl) throw new Error(`B/L ${scope.blId} not found`);
+    if (agencyId !== undefined && agencyId !== bl.agencyId) throw new Error(`B/L ${scope.blId} is not under agency ${agencyId}`);
+    agencyId = bl.agencyId;
+    blValue = bl.value as SettingValue<K> | null;
+  }
+  const row = db.select({ value: agencyOverrideColumns[key] }).from(agencies).where(eq(agencies.id, agencyId!)).get();
+  if (!row) throw new Error(`Agency ${agencyId} not found`);
+  return resolveSetting<SettingValue<K>>({ global, agency: row.value as SettingValue<K> | null, bl: blValue });
 }
 
 export type SettingListItem = {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { BlStatusBadge } from "@/components/bl-status-badge";
+import { OverridesEditor } from "@/components/overrides-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { isTranslationKey, t } from "@/i18n";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { BlDetail } from "@/server/bl-overview";
 import { BalanceStrip } from "../balance-strip";
 import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
+import { updateBlOverridesAction } from "../../requests/actions";
 import { FormSection } from "../form-section";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -30,7 +32,7 @@ const actionLabel = (action: string) => {
   return isTranslationKey(key) ? t(key) : action;
 };
 
-export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean };
+export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean; overrides: boolean };
 
 export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetailPermissions }) {
   const router = useRouter();
@@ -79,6 +81,11 @@ export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetai
             <dd>{formatBusinessDate(bl.paidAt)}</dd>
             <dt className="text-muted-foreground">{t("bls.daysWaiting")}</dt>
             <dd>{bl.daysWaiting ?? t("common.none")}</dd>
+            <dt className="text-muted-foreground">{t("bls.attempts")}</dt>
+            <dd>
+              {bl.attempts}
+              {bl.lastRequestOn && <span className="text-muted-foreground"> · {t("bls.lastRequestOn")}: {formatBusinessDate(bl.lastRequestOn)}</span>}
+            </dd>
             <dt className="text-muted-foreground">{t("bls.containers")}</dt>
             <dd className="font-mono text-xs">{bl.containers.length ? bl.containers.join(", ") : t("bls.noContainers")}</dd>
             <dt className="text-muted-foreground">{t("bls.sourcePayment")}</dt>
@@ -143,6 +150,22 @@ export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetai
             </ol>
           )}
         </Section>
+
+        <section className="rounded-md border p-4">
+          <OverridesEditor
+            idPrefix="bl-override"
+            title={t("overrides.blTitle")}
+            hint={t("overrides.blHint")}
+            values={detail.overrides.values}
+            inherited={detail.overrides.inherited}
+            inheritedLabel={(value) => t("overrides.inherited", { value })}
+            editable={can.overrides && !bl.voidedAt}
+            hypothesisOf={(overrides) => ({ bl: { blId: bl.id, overrides } })}
+            onSave={(overrides, reason) => updateBlOverridesAction({ blId: bl.id, overrides, reason })}
+            saveLabel={t("overrides.save")}
+            savedMessage={t("overrides.saved")}
+          />
+        </section>
 
         <Section title={t("bls.detail.ledger")}>
           <table className="tabular w-full">

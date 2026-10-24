@@ -55,6 +55,15 @@ const columns = col.columns([
     sortFn: "basic",
     cell: ({ row }) => formatAmount(row.original.collectedMinor),
   }),
+  col.accessor("attempts", { meta: { label: "bls.attempts", align: "end", searchable: false }, sortFn: "basic" }),
+  col.accessor("lastRequestOn", {
+    meta: { label: "bls.lastRequestOn", toText: (v) => (v ? formatBusinessDate(v as string) : "") },
+    sortFn: "basic",
+    cell: ({ getValue }) => {
+      const value = getValue();
+      return value ? formatBusinessDate(value) : t("common.none");
+    },
+  }),
   col.accessor("daysWaiting", {
     meta: { label: "bls.daysWaiting", align: "end", searchable: false },
     sortFn: "basic",

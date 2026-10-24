@@ -1,4 +1,5 @@
 import { addBusinessDays, type BusinessCalendar, type IsoDate } from "./business-days";
+import type { StoredBlStatus } from "./bl-lifecycle";
 import type { BlStatus } from "./records";
 
 /** The date the first refund request becomes due: payment date + the first-request duration. */
@@ -11,7 +12,7 @@ export function firstRequestDueDate(paidAt: IsoDate, firstRequestDueDays: number
  * its first-request due date has been reached under the current settings.
  */
 export function displayStatus(
-  bl: { status: Exclude<BlStatus, "DUE">; paidAt: IsoDate; firstRequestDueDays: number },
+  bl: { status: StoredBlStatus; paidAt: IsoDate; firstRequestDueDays: number },
   today: IsoDate,
   calendar: BusinessCalendar,
 ): BlStatus {

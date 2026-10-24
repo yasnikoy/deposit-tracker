@@ -3,8 +3,12 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
+import type { StoredBlStatus } from "@/domain/bl-lifecycle";
 import type { BlStatus, LedgerType, PaymentKind } from "@/domain/records";
+import { OVERRIDABLE_SETTING_KEYS, type OverridableSettingKey } from "@/domain/settings/definitions";
 import { matchBl, parseBlSearch, type BlMatchField } from "@/lib/bl-search";
+import type { AgencyOverrides } from "@/lib/schemas/agencies";
+import { agencyOverrideFields } from "./agency-overrides";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
@@ -12,6 +16,7 @@ import type { DbOrTx } from "./db/client";
 import { agencies, auditLog, billsOfLading, containers, depositPayments, documents, ledgerEntries, users } from "./db/schema";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
+import { refundRequestStats, timingResolver } from "./requests";
 import { getSetting } from "./settings";
 
 export type BlOverview = BlBalance & {
@@ -26,6 +31,9 @@ export type BlOverview = BlBalance & {
   containers: string[];
   /** Business days since payment while the B/L is open; null once collected or voided. */
   daysWaiting: number | null;
+  /** Refund requests sent or recorded on a portal. */
+  attempts: number;
+  lastRequestOn: string | null;
   depositPaymentId: number | null;
   createdAt: string;
   voidedAt: string | null;
@@ -39,11 +47,9 @@ function toOverviews(db: DbOrTx, rows: BlRow[], now: Date): BlOverview[] {
   const ids = rows.map((row) => row.id);
   const calendar: BusinessCalendar = loadCalendar(db);
   const today = istanbulToday(now);
-  const dueDays = new Map<number, number>();
-  const firstRequestDueDays = (agencyId: number) => {
-    if (!dueDays.has(agencyId)) dueDays.set(agencyId, getSetting("durations.firstRequestDueDays", { agencyId }, db));
-    return dueDays.get(agencyId)!;
-  };
+  const timing = timingResolver(db);
+  const agencyRows = new Map(db.select().from(agencies).all().map((a) => [a.id, a]));
+  const stats = refundRequestStats(db, ids);
 
   const entries = db
     .select({ blId: ledgerEntries.blId, type: ledgerEntries.type, amountMinor: ledgerEntries.amountMinor, currency: ledgerEntries.currency })
@@ -54,7 +60,7 @@ function toOverviews(db: DbOrTx, rows: BlRow[], now: Date): BlOverview[] {
 
   return rows.map((row) => {
     const status = displayStatus(
-      { status: row.status as Exclude<BlStatus, "DUE">, paidAt: row.paidAt, firstRequestDueDays: firstRequestDueDays(row.agencyId) },
+      { status: row.status as StoredBlStatus, paidAt: row.paidAt, firstRequestDueDays: timing(row, agencyRows.get(row.agencyId)!).firstRequestDueDays },
       today,
       calendar,
     );
@@ -73,6 +79,8 @@ function toOverviews(db: DbOrTx, rows: BlRow[], now: Date): BlOverview[] {
       currency: row.currency,
       containers: containerRows.filter((c) => c.blId === row.id).map((c) => c.containerNo),
       daysWaiting: open ? Math.max(0, businessDaysBetween(row.paidAt, today, calendar)) : null,
+      attempts: stats.get(row.id)?.attempts ?? 0,
+      lastRequestOn: stats.get(row.id)?.lastRequestOn ?? null,
       depositPaymentId: row.depositPaymentId,
       createdAt: row.createdAt,
       voidedAt: row.voidedAt,
@@ -168,6 +176,8 @@ export type BlDetail = {
   ledger: BlLedgerLine[];
   documents: BlDocument[];
   timeline: TimelineEvent[];
+  /** Request-timing overrides of this B/L, and what each falls back to (agency, then global). */
+  overrides: { values: AgencyOverrides; inherited: Record<OverridableSettingKey, number> };
   form: {
     /** Whether the agency has a template, so a prefilled form can be downloaded. */
     templateAvailable: boolean;
@@ -260,5 +270,12 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     current: current ? { id: current.id, originalName: current.originalName, uploadedAt: current.uploadedAt } : null,
   };
 
-  return { bl, payment, ledger, documents: blDocuments, timeline, form };
+  const overrides = {
+    values: Object.fromEntries(OVERRIDABLE_SETTING_KEYS.map((key) => [key, found.bl[agencyOverrideFields[key]]])) as AgencyOverrides,
+    inherited: Object.fromEntries(
+      OVERRIDABLE_SETTING_KEYS.map((key) => [key, getSetting(key, { agencyId: found.bl.agencyId }, db)]),
+    ) as Record<OverridableSettingKey, number>,
+  };
+
+  return { bl, payment, ledger, documents: blDocuments, timeline, overrides, form };
 }
