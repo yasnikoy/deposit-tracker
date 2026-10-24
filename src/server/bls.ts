@@ -1,12 +1,12 @@
 import "server-only";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { isTranslationKey, type TranslationKey } from "@/i18n";
 import { blRowSchema, type BlRowInput } from "@/lib/schemas/bls";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
-import { agencies, billsOfLading, containers, depositPayments } from "./db/schema";
+import { billsOfLading, containers, depositPayments } from "./db/schema";
 import { DomainError } from "./errors";
 import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
 
@@ -212,44 +212,4 @@ export function voidBl(db: Db, actor: AuthUser, input: { id: number; reason: str
       now,
     );
   });
-}
-
-export type BlListItem = {
-  id: number;
-  blNo: string;
-  agencyName: string;
-  depositAmountMinor: number;
-  currency: string;
-  paidAt: string;
-  status: string;
-  containers: string[];
-  depositPaymentId: number | null;
-  createdAt: string;
-  voidedAt: string | null;
-  voidReason: string | null;
-};
-
-/** Recently created B/Ls for the creation screen; the full All B/Ls screen comes in step 4. */
-export function listBls(db: Db, actor: AuthUser): BlListItem[] {
-  authorize(actor, "bl.view");
-  const rows = db
-    .select({
-      id: billsOfLading.id,
-      blNo: billsOfLading.blNo,
-      agencyName: agencies.name,
-      depositAmountMinor: billsOfLading.depositAmountMinor,
-      currency: billsOfLading.currency,
-      paidAt: billsOfLading.paidAt,
-      status: billsOfLading.status,
-      depositPaymentId: billsOfLading.depositPaymentId,
-      createdAt: billsOfLading.createdAt,
-      voidedAt: billsOfLading.voidedAt,
-      voidReason: billsOfLading.voidReason,
-    })
-    .from(billsOfLading)
-    .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
-    .orderBy(desc(billsOfLading.id))
-    .all();
-  const all = db.select().from(containers).orderBy(containers.id).all();
-  return rows.map((row) => ({ ...row, containers: all.filter((c) => c.blId === row.id).map((c) => c.containerNo) }));
 }

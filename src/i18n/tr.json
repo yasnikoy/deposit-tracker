@@ -40,7 +40,8 @@
     "agencies": "Acenteler",
     "accounting": "Muhasebe",
     "createBls": "B/L oluştur",
-    "lists": "Listeler"
+    "lists": "Listeler",
+    "allBls": "B/L'ler"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -142,7 +143,8 @@
     "closePanel": "Paneli kapat",
     "toggleRow": "Satırı seç / bırak",
     "focusSearch": "Tabloda ara",
-    "showHelp": "Bu listeyi göster"
+    "showHelp": "Bu listeyi göster",
+    "globalSearch": "B/L ara (her yerden)"
   },
   "detailPanel": {
     "close": "Paneli kapat"
@@ -494,8 +496,6 @@
   },
   "bls": {
     "createTitle": "B/L oluştur",
-    "awaitingTab": "B/L bekleyen ödemeler",
-    "createdTab": "Oluşturulan B/L'ler",
     "awaitingEmpty": "B/L bekleyen ödeme yok.",
     "blNo": "B/L no",
     "containers": "Konteynerler",
@@ -539,6 +539,76 @@
       "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
       "voided": "Bu B/L iptal edilmiş.",
       "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez."
+    },
+    "allTitle": "B/L'ler",
+    "currency": "Para birimi",
+    "expected": "Beklenen",
+    "collected": "Tahsil edilen",
+    "deductions": "Kesintiler",
+    "daysWaiting": "Bekleyen iş günü",
+    "openDetail": "Detayı aç",
+    "summary": "Özet",
+    "sourcePayment": "Kaynak ödeme",
+    "createdBy": "Oluşturan",
+    "noContainers": "Konteyner girilmemiş.",
+    "detail": {
+      "balance": "Bakiye",
+      "deposit": "Depozito",
+      "remaining": "Kalan",
+      "timeline": "Zaman çizelgesi",
+      "ledger": "Hesap hareketleri",
+      "documents": "Belgeler",
+      "noDocuments": "Bu B/L'ye eklenmiş belge yok.",
+      "noTimeline": "Kayıtlı olay yok.",
+      "entryDate": "Tarih",
+      "entryType": "Hareket",
+      "amount": "Tutar",
+      "compensated": "Düzeltildi",
+      "compensates": "Düzeltme kaydı",
+      "voidedInfo": "Bu B/L {date} tarihinde iptal edildi. Neden: {reason}",
+      "back": "B/L listesine dön"
+    },
+    "ledgerTypes": {
+      "PAYMENT": "Depozito ödemesi",
+      "OFFSET": "Fatura mahsubu",
+      "DEDUCTION": "Kesinti",
+      "REFUND_ALLOCATION": "İade dağıtımı",
+      "OPENING_BALANCE": "Açılış bakiyesi"
+    }
+  },
+  "search": {
+    "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
+    "label": "B/L ara",
+    "noResults": "Eşleşen B/L yok.",
+    "notFound": "Bulunamadı: {list}",
+    "truncated": "İlk {count} sonuç gösteriliyor; aramayı daraltın.",
+    "matched": {
+      "blNo": "B/L no",
+      "container": "Konteyner",
+      "agency": "Acente",
+      "amount": "Tutar"
+    }
+  },
+  "timeline": {
+    "actions": {
+      "bl": {
+        "create": "B/L oluşturuldu",
+        "update": "B/L düzenlendi",
+        "void": "B/L iptal edildi",
+        "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı"
+      },
+      "payment": {
+        "create": "Depozito ödemesi kaydedildi",
+        "correct": "Ödeme düzeltildi",
+        "void": "Ödeme iptal edildi"
+      },
+      "document": {
+        "upload": "Belge yüklendi"
+      }
+    },
+    "system": "Sistem",
+    "notes": {
+      "duplicateConfirmed": "Mükerrer kayıt uyarısı onaylanarak kaydedildi"
     }
   }
 }

@@ -1,30 +1,25 @@
 import { Forbidden } from "@/components/forbidden";
 import { t } from "@/i18n";
-import { listAgencies } from "@/server/agencies";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
-import { listBls } from "@/server/bls";
+import { listAllBls } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
-import { listPaymentsAwaitingBl } from "@/server/payments";
 import { getTableLayout } from "@/server/preferences";
-import { BlsScreen, type BlsTab } from "./bls-screen";
+import { AllBlsScreen } from "./all-bls-screen";
 
-export default async function BlsPage({ searchParams }: PageProps<"/bls">) {
+export default async function AllBlsPage() {
   const { user } = await requireSession();
-  if (!can(user, "bl.create").allowed) return <Forbidden />;
+  if (!can(user, "bl.view").allowed) return <Forbidden />;
   const db = getDb();
-  const tab: BlsTab = (await searchParams).tab === "created" ? "created" : "awaiting";
-  const patterns = Object.fromEntries(listAgencies(db, user).map((a) => [a.id, a.blNumberPatterns]));
 
   return (
     <>
-      <h1 className="text-lg font-semibold">{t("bls.createTitle")}</h1>
-      <BlsScreen
-        tab={tab}
-        payments={listPaymentsAwaitingBl(db, user)}
-        bls={listBls(db, user)}
-        patterns={patterns}
-        layout={getTableLayout(db, user.id, "created-bls")}
+      <h1 className="text-lg font-semibold">{t("bls.allTitle")}</h1>
+      <AllBlsScreen
+        bls={listAllBls(db, user)}
+        layout={getTableLayout(db, user.id, "all-bls")}
+        canEdit={can(user, "bl.update").allowed}
+        canVoid={can(user, "bl.void").allowed}
       />
     </>
   );

@@ -156,8 +156,8 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
         action: "payment.create",
         entityType: "deposit_payment",
         entityId: row.id,
-        after: paymentSnapshot(row),
-        reason: input.confirmDuplicate ? "duplicate warning confirmed" : null,
+        // A confirmed duplicate warning is a flag, not a reason: reasons are user text.
+        after: input.confirmDuplicate ? { ...paymentSnapshot(row), duplicateConfirmed: true } : paymentSnapshot(row),
       },
       now,
     );

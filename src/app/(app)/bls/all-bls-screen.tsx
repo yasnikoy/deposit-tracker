@@ -1,0 +1,148 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { BlStatusBadge } from "@/components/bl-status-badge";
+import { DataTable } from "@/components/data-table/data-table";
+import { dataTableColumns } from "@/components/data-table/features";
+import { DetailPanel } from "@/components/detail-panel";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BL_STATUSES } from "@/domain/records";
+import { t } from "@/i18n";
+import { formatBusinessDate } from "@/lib/format";
+import { formatAmount } from "@/lib/money";
+import type { TableLayout } from "@/lib/schemas/table-layout";
+import type { BlOverview } from "@/server/bl-overview";
+import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
+import { BalanceStrip } from "./balance-strip";
+
+const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
+
+const col = dataTableColumns<BlOverview>();
+const columns = col.columns([
+  col.accessor("blNo", {
+    meta: { label: "bls.blNo", filter: "text" },
+    sortFn: "turkishText",
+    cell: ({ getValue }) => <span className="font-mono">{getValue()}</span>,
+  }),
+  col.accessor("agencyName", { meta: { label: "bls.agency", filter: "text" }, sortFn: "turkishText" }),
+  col.accessor("status", {
+    meta: { label: "bls.status", filter: { options: STATUS_OPTIONS }, toText: (v) => t(`bls.statuses.${v as BlOverview["status"]}`) },
+    filterFn: "oneOf",
+    sortFn: "turkishText",
+    cell: ({ row }) => <BlStatusBadge status={row.original.status} voided={!!row.original.voidedAt} voidReason={row.original.voidReason} />,
+  }),
+  col.accessor("paidAt", {
+    meta: { label: "bls.paidAt", toText: (v) => formatBusinessDate(v as string) },
+    sortFn: "basic",
+    cell: ({ getValue }) => formatBusinessDate(getValue()),
+  }),
+  col.accessor("depositMinor", {
+    meta: { label: "bls.deposit", align: "end", toText: (v) => formatAmount(v as number) },
+    sortFn: "basic",
+    cell: ({ row }) => formatAmount(row.original.depositMinor),
+  }),
+  col.accessor("currency", { meta: { label: "bls.currency", filter: "text" }, sortFn: "turkishText" }),
+  col.accessor("expectedMinor", {
+    meta: { label: "bls.expected", align: "end", toText: (v) => formatAmount(v as number) },
+    sortFn: "basic",
+    cell: ({ row }) => formatAmount(row.original.expectedMinor),
+  }),
+  col.accessor("collectedMinor", {
+    meta: { label: "bls.collected", align: "end", toText: (v) => formatAmount(v as number) },
+    sortFn: "basic",
+    cell: ({ row }) => formatAmount(row.original.collectedMinor),
+  }),
+  col.accessor("daysWaiting", {
+    meta: { label: "bls.daysWaiting", align: "end", searchable: false },
+    sortFn: "basic",
+    cell: ({ getValue }) => getValue() ?? t("common.none"),
+  }),
+  col.accessor((b) => b.containers.join(", "), { id: "containers", meta: { label: "bls.containers", filter: "text" } }),
+]);
+
+type Dialog = { kind: "edit" | "void"; bl: BlOverview } | null;
+
+/** Every B/L in one dense table; the row opens a summary panel with a link to the full detail. */
+export function AllBlsScreen({
+  bls,
+  layout,
+  canEdit,
+  canVoid,
+}: {
+  bls: BlOverview[];
+  layout: TableLayout | null;
+  canEdit: boolean;
+  canVoid: boolean;
+}) {
+  const router = useRouter();
+  const [showVoided, setShowVoided] = useState(false);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
+  const open = bls.find((b) => b.id === openId) ?? null;
+  const done = () => {
+    setDialog(null);
+    router.refresh();
+  };
+
+  return (
+    <div className="flex items-start gap-4">
+      <div className="min-w-0 flex-1">
+        <DataTable
+          tableId="all-bls"
+          data={shown}
+          columns={columns}
+          getRowId={(b) => String(b.id)}
+          initialLayout={layout}
+          onOpenRow={(b) => setOpenId(b.id)}
+          rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
+          toolbar={
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
+              {t("payments.showVoided")}
+            </label>
+          }
+        />
+      </div>
+      {open && (
+        <DetailPanel title={<span className="font-mono">{open.blNo}</span>} onClose={() => setOpenId(null)}>
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center gap-2">
+              <BlStatusBadge status={open.status} voided={!!open.voidedAt} voidReason={open.voidReason} />
+              <span>{open.agencyName}</span>
+            </div>
+            <BalanceStrip bl={open} />
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+              <dt className="text-muted-foreground">{t("bls.paidAt")}</dt>
+              <dd>{formatBusinessDate(open.paidAt)}</dd>
+              <dt className="text-muted-foreground">{t("bls.daysWaiting")}</dt>
+              <dd>{open.daysWaiting ?? t("common.none")}</dd>
+              <dt className="text-muted-foreground">{t("bls.containers")}</dt>
+              <dd className="font-mono text-xs">{open.containers.length ? open.containers.join(", ") : t("bls.noContainers")}</dd>
+            </dl>
+            <div className="flex flex-wrap gap-2">
+              <Button asChild size="sm">
+                <Link href={`/bls/${open.id}`}>{t("bls.openDetail")}</Link>
+              </Button>
+              {canEdit && !open.voidedAt && (
+                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "edit", bl: open })}>
+                  {t("bls.edit")}
+                </Button>
+              )}
+              {canVoid && !open.voidedAt && (
+                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "void", bl: open })}>
+                  {t("bls.void")}
+                </Button>
+              )}
+            </div>
+          </div>
+        </DetailPanel>
+      )}
+      {dialog?.kind === "edit" && <EditBlDialog bl={dialog.bl} onCancel={() => setDialog(null)} onSaved={done} />}
+      {dialog?.kind === "void" && <VoidBlDialog bl={dialog.bl} onCancel={() => setDialog(null)} onVoided={done} />}
+    </div>
+  );
+}

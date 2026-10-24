@@ -41,3 +41,6 @@ export const updateBlSchema = z.object({
   blNo: blNumberSchema,
   containers: containerListSchema,
 });
+
+/** Header search; a pasted column of numbers may be long. */
+export const blSearchSchema = z.object({ query: z.string().max(20_000) });

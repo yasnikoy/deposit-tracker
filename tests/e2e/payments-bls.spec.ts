@@ -143,17 +143,28 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   await expect(page.getByText("2 B/L oluşturuldu.")).toBeVisible();
   await expect(page.getByText(tr.bls.awaitingEmpty)).toBeVisible();
 
-  // Voiding a B/L returns its payment to the work list.
-  await page.getByRole("link", { name: tr.bls.createdTab }).click();
-  const row = page.getByRole("row").filter({ hasText: "211111111" });
-  await row.getByRole("button", { name: tr.common.actions }).click();
-  await page.getByRole("menuitem", { name: tr.bls.void }).click();
+  // All B/Ls: the global search finds a B/L by container, Enter opens its detail.
+  await page.getByRole("combobox", { name: tr.search.label }).fill("2456789");
+  await expect(page.getByRole("option").filter({ hasText: "245678901" })).toBeVisible();
+  await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+  await expect(page.getByRole("heading", { name: "245678901" })).toBeVisible();
+  await expect(page.getByText(tr.timeline.actions.bl.create, { exact: true })).toBeVisible();
+  await expect(page.getByText("CSQU3054383")).toBeVisible();
+
+  // Voiding a B/L from the list panel returns its payment to the work list.
+  await page.getByRole("link", { name: tr.nav.allBls, exact: true }).click();
+  await page.getByRole("row").filter({ hasText: "211111111" }).click();
+  const panel = page.getByRole("complementary");
+  await panel.getByRole("button", { name: tr.bls.void }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("button", { name: tr.bls.void })).toBeDisabled();
   await dialog.getByLabel(tr.common.reasonRequired).fill("Yanlış ödemeye bağlandı");
   await dialog.getByRole("button", { name: tr.bls.void }).click();
   await expect(page.getByText(tr.bls.voided)).toBeVisible();
-  await page.getByRole("link", { name: new RegExp(tr.bls.awaitingTab) }).click();
+  await expect(page.getByRole("row").filter({ hasText: "211111111" })).toHaveCount(0);
+  await page.getByLabel(tr.payments.showVoided).check();
+  await expect(page.getByRole("row").filter({ hasText: "211111111" })).toContainText(tr.bls.voidedBadge);
+  await page.getByRole("link", { name: tr.nav.createBls }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
 });
 

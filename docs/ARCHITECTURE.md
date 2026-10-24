@@ -126,7 +126,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
-| `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
+| `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_at, reply\_type\_id, replied\_at, attempt\_no, send\_status |
@@ -376,7 +376,7 @@ Desktop-only, dense tables with a wide right-side detail panel. There is no per-
 | Screen | Role | Contents |
 | --- | --- | --- |
 | Dashboard | Operations | Top: open balance per currency and collected this month. Three columns with counts that open filtered lists: today's work (due and follow-up requests), pending matches (payments without B/L, refunds to allocate, unprocessed replies, unallocated amounts, write-offs awaiting approval), problem B/Ls (deduction open, disputed) |
-| All B/Ls | All (accountant read-only) | One dense table of every B/L: B/L no, agency, status, paid date, deposit, currency, expected amount, collected, attempts, last reply, business days waiting. Filter and sort on every column, "show voided" filter, CSV download and copy, detail panel on the right |
+| All B/Ls | All (accountant read-only) | One dense table of every B/L: B/L no, agency, status, paid date, deposit, currency, expected amount, collected, attempts, last reply, business days waiting (since payment, while the B/L is open). Filter and sort on every column, "show voided" filter, CSV download and copy, detail panel on the right |
 | Due requests | Operations | Tabs: due (today and overdue), upcoming, failed to send. Grouped by agency with batch type, channel, B/L count and totals per currency. Rows: select, B/L no, paid date, business days waiting, attempt no, last reply, amount, form status with "download prefilled form" and drag-and-drop upload; a B/L without form cannot be selected. Request type badge. Actions: prepare email, record portal request, record reply |
 | B/L detail | Operations | Header: B/L no, agency, status, balance strip (deposit, collected, deductions, remaining). Sections: summary with containers and source payment, timeline, email threads, documents, ledger, notes with @mentions, setting overrides. Actions: download prefilled form, record reply, add deduction from statement, mark dispute, propose write-off, link email from mailbox, void B/L |
 | Create B/Ls | Operations | Table of payments without a B/L, prefilled with agency, amount, currency and B/L number candidates; type or paste B/L numbers and containers; save all valid rows at once |
@@ -432,6 +432,16 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 24, 2026 — build step 4 (B/L screens, forms, requests, email)**
+
+- Routes: `/bls` is the All B/Ls screen, `/bls/new` creates B/Ls, `/bls/<id>` is the B/L detail. The temporary "created B/Ls" tab of step 3 is gone; edit and void live on All B/Ls and the detail.
+- Ledger amounts are positive for every type; only compensating entries are negative. Entries left in an old currency by a currency correction must cancel out exactly.
+- "Business days waiting" counts business days since payment while the B/L is open.
+- A system note such as a confirmed duplicate warning is stored as a flag in the audit row, not as a reason; reasons are user text.
+- A `REQUESTED` B/L with no recorded reply becomes due for a follow-up once the follow-up interval has passed since the last request.
+- Batched follow-ups reply in the existing thread when all selected B/Ls share it; otherwise one reply is sent per thread.
+- Standing documents are attached to every request by default (rule setting, seed on).
 
 **Oct 24, 2026 — form filling decisions**
 

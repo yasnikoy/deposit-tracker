@@ -9,7 +9,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
   const items: (NavItem & { visible: boolean })[] = [
     { href: "/", label: "nav.dashboard", visible: true },
     { href: "/accounting", label: "nav.accounting", visible: can(user, "payment.create").allowed },
-    { href: "/bls", label: "nav.createBls", visible: can(user, "bl.create").allowed },
+    { href: "/bls", label: "nav.allBls", visible: can(user, "bl.view").allowed },
+    { href: "/bls/new", label: "nav.createBls", visible: can(user, "bl.create").allowed },
     { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },
     { href: "/admin/settings", label: "nav.settings", visible: can(user, "settings.view").allowed },
     { href: "/admin/holidays", label: "nav.holidays", visible: can(user, "holiday.manage").allowed },

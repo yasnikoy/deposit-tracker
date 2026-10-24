@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { agencyInputSchema } from "@/lib/schemas/agencies";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
-import { createBls, listBls, updateBl, voidBl } from "@/server/bls";
+import { listAllBls } from "@/server/bl-overview";
+import { createBls, updateBl, voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
 import { auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
@@ -169,8 +170,8 @@ describe("B/L creation", () => {
       { index: 3, field: "blNo", message: "bls.errors.blNo" },
     ]);
 
-    const bl = listBls(db, ops)[0];
-    expect(bl).toMatchObject({ blNo: "MEDU1234567", status: "PAID", containers: ["CSQU3054383"], depositAmountMinor: 300000 });
+    const bl = listAllBls(db, ops, NOW)[0];
+    expect(bl).toMatchObject({ blNo: "MEDU1234567", status: "DUE", containers: ["CSQU3054383"], depositMinor: 300000 });
     expect(ledgerDeposit(db, bl.id)).toBe(300000);
     expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p2, p3, p4]);
     expect(() => createBls(db, acc, [{ paymentId: p2, blNo: "MEDU0000001", containers: [] }])).toThrow(ForbiddenError);
@@ -182,7 +183,7 @@ describe("B/L creation", () => {
     expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU9999999", containers: [] }]).errors[0].message).toBe(
       "bls.errors.paymentUnavailable",
     );
-    const [bl] = listBls(db, ops);
+    const [bl] = listAllBls(db, ops, NOW);
     voidBl(db, ops, { id: bl.id, reason: "Yanlış B/L numarası" });
     expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p1]);
     expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]).created).toHaveLength(1);
@@ -191,9 +192,9 @@ describe("B/L creation", () => {
   it("edits number and containers while no request has been sent", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
-    const [bl] = listBls(db, ops);
+    const [bl] = listAllBls(db, ops, NOW);
     updateBl(db, ops, { id: bl.id, blNo: "MEDU1234568", containers: ["CSQU3054383"] });
-    expect(listBls(db, ops)[0]).toMatchObject({ blNo: "MEDU1234568", containers: ["CSQU3054383"] });
+    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ blNo: "MEDU1234568", containers: ["CSQU3054383"] });
     db.update(billsOfLading).set({ status: "REQUESTED" }).where(eq(billsOfLading.id, bl.id)).run();
     expect(() => updateBl(db, ops, { id: bl.id, blNo: "MEDU1234569", containers: [] })).toThrow(
       expect.objectContaining({ messageKey: "bls.errors.blNoLocked" }),
@@ -205,14 +206,14 @@ describe("corrections and voiding", () => {
   it("lets only the creating accountant correct, with a reason; the B/L and ledger follow", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
-    const [bl] = listBls(db, ops);
+    const [bl] = listAllBls(db, ops, NOW);
     const correction = { id: p1, agencyId, amountMinor: 250000, currency: "USD", paidAt: "2026-10-19", reason: "Dekont tutarı hatalı girildi" };
 
     expect(() => correctPayment(db, acc2, correction)).toThrow(ForbiddenError);
     expect(() => correctPayment(db, ops, correction)).toThrow(ForbiddenError);
     correctPayment(db, acc, correction, NOW);
 
-    expect(listBls(db, ops)[0]).toMatchObject({ depositAmountMinor: 250000, paidAt: "2026-10-19" });
+    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ depositMinor: 250000, paidAt: "2026-10-19" });
     expect(ledgerDeposit(db, bl.id)).toBe(250000);
     const entries = db.select().from(ledgerEntries).where(eq(ledgerEntries.blId, bl.id)).all();
     expect(entries.map((e) => e.amountMinor)).toEqual([300000, -300000, 250000]);
@@ -224,22 +225,22 @@ describe("corrections and voiding", () => {
   it("moves the whole B/L to the new currency on a currency correction", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
-    const [bl] = listBls(db, ops);
+    const [bl] = listAllBls(db, ops, NOW);
     correctPayment(db, acc, { id: p1, agencyId, amountMinor: 280000, currency: "EUR", paidAt: "2026-10-20", reason: "Para birimi EUR" }, NOW);
-    expect(listBls(db, ops)[0]).toMatchObject({ currency: "EUR", depositAmountMinor: 280000 });
+    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ currency: "EUR", depositMinor: 280000 });
     expect(ledgerDeposit(db, bl.id)).toBe(280000);
   });
 
   it("voids a payment only after its B/L is voided, and freezes records with a confirmed allocation", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
-    const [bl] = listBls(db, ops);
+    const [bl] = listAllBls(db, ops, NOW);
     expect(() => voidPayment(db, acc, { id: p1, reason: "Mükerrer" })).toThrow(
       expect.objectContaining({ messageKey: "payments.errors.voidBlFirst" }),
     );
 
     // A confirmed refund allocation freezes both records (rules 13 and 15).
-    addLedgerEntry(db, { blId: bl.id, type: "REFUND_ALLOCATION", amountMinor: -300000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
+    addLedgerEntry(db, { blId: bl.id, type: "REFUND_ALLOCATION", amountMinor: 300000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
     expect(() => voidBl(db, ops, { id: bl.id, reason: "x" })).toThrow(expect.objectContaining({ messageKey: "bls.errors.allocated" }));
     expect(() =>
       correctPayment(db, acc, { id: p1, agencyId, amountMinor: 1, currency: "USD", paidAt: "2026-10-20", reason: "x" }),
@@ -249,7 +250,7 @@ describe("corrections and voiding", () => {
   it("voids after the B/L is voided; voided payments leave the work lists", () => {
     const p1 = created(pay());
     createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
-    voidBl(db, ops, { id: listBls(db, ops)[0].id, reason: "Yanlış kayıt" });
+    voidBl(db, ops, { id: listAllBls(db, ops, NOW)[0].id, reason: "Yanlış kayıt" });
     voidPayment(db, acc, { id: p1, reason: "Mükerrer kayıt" });
     expect(listPaymentsAwaitingBl(db, ops)).toEqual([]);
     expect(listOwnPayments(db, acc)[0]).toMatchObject({ voidReason: "Mükerrer kayıt" });

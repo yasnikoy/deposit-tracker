@@ -9,6 +9,7 @@ const SHORTCUTS: { keys: string[]; label: TranslationKey }[] = [
   { keys: ["Enter"], label: "shortcuts.openRow" },
   { keys: ["Space"], label: "shortcuts.toggleRow" },
   { keys: ["Esc"], label: "shortcuts.closePanel" },
+  { keys: ["/", "Ctrl+K"], label: "shortcuts.globalSearch" },
   { keys: ["?"], label: "shortcuts.showHelp" },
 ];
 

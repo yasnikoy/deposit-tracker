@@ -16,12 +16,16 @@ import {
 import type { Role } from "@/domain/roles";
 import { t, type TranslationKey } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { GlobalSearch } from "./global-search";
 
 export type NavItem = { href: string; label: TranslationKey };
 
 export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: string; roles: Role[] } }) {
   const pathname = usePathname();
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  // The most specific matching item is active, so "/bls/new" does not also light up "/bls".
+  const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
+  const activeHref = nav.filter((item) => matches(item.href)).sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <header className="bg-background sticky top-0 z-20 flex h-11 items-center gap-4 border-b px-4">
@@ -43,7 +47,8 @@ export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: 
           </Link>
         ))}
       </nav>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        <GlobalSearch />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">
