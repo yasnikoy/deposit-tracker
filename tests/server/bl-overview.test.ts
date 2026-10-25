@@ -95,7 +95,7 @@ describe("getBlDetail", () => {
 
     const detail = getBlDetail(db, ops, a.blId, NOW);
     expect(detail.bl).toMatchObject({ blNo: "MEDU1000001", depositMinor: 310000 });
-    expect(detail.payment).toMatchObject({ id: a.paymentId, kind: "BANK", evidenceName: "dekont.pdf", createdByName: "ACC" });
+    expect(detail.payment).toMatchObject({ id: a.paymentId, kind: "BANK", evidenceName: "Dekont MEDU1000001.pdf", createdByName: "ACC" });
     expect(detail.ledger.map((l) => [l.amountMinor, l.compensated])).toEqual([
       [300000, true],
       [-300000, false],

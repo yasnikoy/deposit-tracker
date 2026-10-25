@@ -60,7 +60,7 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 
 | Role | Can do | Cannot do |
 | --- | --- | --- |
-| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
+| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
 | Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, undo own recent actions. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
@@ -143,7 +143,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
-| `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, BATCH, BATCH\_LINE), subject, body with placeholders and section blocks |
+| `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, BATCH, BATCH\_LINE, REPLY\_QUOTE), subject, body with placeholders and section blocks |
 | `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order |
 | `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
 | `sessions` | Login sessions | id (SHA-256 of the cookie token), user\_id, created\_at, last\_seen\_at, revoked\_at |
@@ -383,9 +383,9 @@ Desktop-only, dense tables with a wide right-side detail panel. There is no per-
 | --- | --- | --- |
 | Dashboard | Operations | Top: open balance per currency and collected this month. Three columns with counts that open filtered lists: today's work (due and follow-up requests), pending matches (payments without B/L, refunds to allocate, unprocessed replies, unallocated amounts, write-offs awaiting approval), problem B/Ls (deduction open, disputed) |
 | All B/Ls | All (accountant read-only) | One dense table of every B/L: B/L no, agency, status, paid date, deposit, currency, expected amount, collected, attempts, last reply, business days waiting (since payment, while the B/L is open). Filter and sort on every column, "show voided" filter, CSV download and copy, detail panel on the right |
-| Due requests | Operations | Tabs: due (today and overdue), upcoming, failed to send. Grouped by agency with batch type, channel, B/L count and totals per currency. Rows: select, B/L no, paid date, business days waiting, attempt no, last reply, amount, form status with "download prefilled form" and drag-and-drop upload; a B/L without form cannot be selected. Request type badge. Actions: prepare email, record portal request, record reply |
+| Due requests | Operations (accountant read-only) | Tabs: due (today and overdue), upcoming, failed to send. Grouped by agency with batch type, channel, B/L count and totals per currency. Rows: select, B/L no, paid date, business days waiting, attempt no, last reply, amount, form status with "download prefilled form" and drag-and-drop upload; a B/L without form cannot be selected. Request type badge. Actions: prepare email, record portal request, record reply |
 | B/L detail | Operations | Header: B/L no, agency, status, balance strip (deposit, collected, deductions, remaining). Sections: summary with containers and source payment, timeline, email threads, documents, ledger, notes with @mentions, setting overrides. Actions: download prefilled form, record reply, add deduction from statement, mark dispute, propose write-off, link email from mailbox, void B/L |
-| Create B/Ls | Operations | Table of payments without a B/L, prefilled with agency, amount, currency and B/L number candidates; type or paste B/L numbers and containers; save all valid rows at once |
+| Create B/Ls | Operations (accountant sees the payments awaiting a B/L, read-only) | Table of payments without a B/L, prefilled with agency, amount, currency and B/L number candidates; type or paste B/L numbers and containers; save all valid rows at once |
 | Refund allocation | Operations | Left: refunds awaiting allocation. Right: suggestion cards (exact subset, FIFO) with their difference; chosen suggestion opens an editable allocation table with running total and remainder; difference row assigns B/L and type. Confirm only when remainder is zero or left unallocated with a reason |
 | Replies | Operations | Tabs: to process, possible matches, processed. Full message with attachments and its linked B/Ls; quick reply-type buttons per B/L and "apply to all"; enter deductions from a statement; save attachments as B/L documents |
 | Agencies | Operations | Card: name, bank sender aliases, B/L number patterns (with a test field), one recipient list, batch/single sending, request channel and portal link, form template (admin uploads, shows placeholder check), setting overrides with impact preview, open B/Ls, scorecard summary, notes |
@@ -438,6 +438,13 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 25, 2026 — test feedback on build step 4**
+
+- Accountants see the due-requests list and the payments awaiting a B/L read-only; sending, forms, portal records and B/L creation stay with operations.
+- A B/L's own files are named after it: the uploaded signed form becomes "İade formu <B/L>.<ext>" and its payment's receipt or invoice "Dekont <B/L>" / "Fatura <B/L>", also when the B/L number is corrected later. Agencies receive these names; the uploaded name stays in the audit log. Generated forms are named "İade formu <B/L>.docx". The name prefixes live in the locale file.
+- The `PAID` status is shown as "Depozito yatırıldı" (was "Ödendi", which read like a refund paid to us).
+- Follow-ups keep replying in the thread of the earlier request email (confirmed), and now quote it below the new text the way Outlook does on "Reply all": a REPLY\_QUOTE header (Özgün İleti, Kimden, Gönderildi, Kime, Bilgi, Konu; editable template) followed by the earlier email's text, which carries its own quotes, so the whole chain is readable in each follow-up. The quote is part of the editable preview and of the stored body.
 
 **Oct 24, 2026 — build step 4 (B/L screens, forms, requests, email)**
 

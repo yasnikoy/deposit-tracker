@@ -94,7 +94,7 @@ export function DueRequestsScreen({
       {tab !== "FAILED" && (
         <div className="flex items-center gap-3">
           <p className="text-muted-foreground text-xs">
-            {t("requests.selectHint")} {lists.formRequired && t("requests.formRequiredHint")}
+            {canSend && t("requests.selectHint")} {canSend && lists.formRequired && t("requests.formRequiredHint")}
           </p>
           {canSend && (
             <div className="ml-auto flex items-center gap-2">

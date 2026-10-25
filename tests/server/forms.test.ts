@@ -152,4 +152,17 @@ describe("uploaded form", () => {
     // Containers can still be edited after a form exists.
     updateBl(db, ops, { id: blId, blNo: "MEDU1000001", containers: [] }, NOW);
   });
+
+  it("names the signed form and the deposit receipt after the B/L, also when its number is corrected", () => {
+    const upload = uploadAs(ops, "FORM", "FİLM LİSTESİ GÜNCEL.pdf", PDF);
+    uploadBlForm(db, ops, { blId, documentId: upload.id }, NOW);
+    expect(currentBlForm(db, blId)?.originalName).toBe("İade formu MEDU1000001.pdf");
+    const audit = db.select().from(auditLog).where(eq(auditLog.action, "form.upload")).get();
+    expect(audit?.after).toMatchObject({ uploadedName: "FİLM LİSTESİ GÜNCEL.pdf" });
+    expect(getBlDetail(db, ops, blId, NOW).payment?.evidenceName).toBe("Dekont MEDU1000001.pdf");
+
+    updateBl(db, ops, { id: blId, blNo: "MEDU1000009", containers: [] }, NOW);
+    expect(currentBlForm(db, blId)?.originalName).toBe("İade formu MEDU1000009.pdf");
+    expect(getBlDetail(db, ops, blId, NOW).payment?.evidenceName).toBe("Dekont MEDU1000009.pdf");
+  });
 });

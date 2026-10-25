@@ -11,6 +11,7 @@ import type { Db, DbOrTx } from "./db/client";
 import { documents } from "./db/schema";
 import { getEnv } from "./env";
 import { DomainError } from "./errors";
+import { t } from "@/i18n";
 import { getSetting } from "./settings";
 
 export type StoredDocument = typeof documents.$inferSelect;
@@ -155,6 +156,43 @@ export function storeGeneratedDocument(
     fs.rmSync(target, { force: true });
     throw error;
   }
+}
+
+/** "İade formu MEDU1000001.pdf", "Dekont MEDU1000001.pdf", …: files of a B/L carry its number. */
+export function blFileName(kind: "FORM" | "RECEIPT" | "INVOICE", blNo: string, fileName: string): string {
+  return `${t(`files.blNames.${kind}`, { bl: blNo })}.${extensionOf(fileName)}`;
+}
+
+export type DocumentRename = { documentId: number; from: string; to: string };
+
+/**
+ * Names a B/L's own files after its number: its signed forms and the receipt or invoice of
+ * its payment, so they reach the agency as e.g. "Dekont MEDU1000001.pdf". Generated forms
+ * keep the name they were created with (their content has the number of that time).
+ * The caller records the returned renames in its audit row.
+ */
+export function nameBlDocuments(tx: DbOrTx, bl: { id: number; blNo: string; depositPaymentId: number | null }): DocumentRename[] {
+  const forms = tx
+    .select()
+    .from(documents)
+    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), eq(documents.kind, "FORM")))
+    .all();
+  const evidence = bl.depositPaymentId
+    ? tx
+        .select()
+        .from(documents)
+        .where(and(eq(documents.ownerType, "deposit_payment"), eq(documents.ownerId, bl.depositPaymentId)))
+        .all()
+        .filter((doc) => doc.kind === "RECEIPT" || doc.kind === "INVOICE")
+    : [];
+  const renames: DocumentRename[] = [];
+  for (const doc of [...forms, ...evidence]) {
+    const name = blFileName(doc.kind as "FORM" | "RECEIPT" | "INVOICE", bl.blNo, doc.originalName);
+    if (name === doc.originalName) continue;
+    tx.update(documents).set({ originalName: name }).where(eq(documents.id, doc.id)).run();
+    renames.push({ documentId: doc.id, from: doc.originalName, to: name });
+  }
+  return renames;
 }
 
 /** Reads a stored document's bytes. */

@@ -118,8 +118,8 @@ describe("preparing request emails", () => {
     expect(draft.body).toContain("3.000,00 USD");
     expect(draft.body).toContain("Firma A.Ş. Operasyon");
     expect(draft.attachments.map((x) => [x.kind, x.originalName])).toEqual([
-      ["FORM", "imzali-form.pdf"],
-      ["RECEIPT", "dekont.pdf"],
+      ["FORM", "İade formu MEDU1000001.pdf"],
+      ["RECEIPT", "Dekont MEDU1000001.pdf"],
       ["STANDING", "imza-sirkuleri.pdf"],
     ]);
   });
@@ -168,7 +168,12 @@ describe("preparing request emails", () => {
     expect(drafts[0].body).toContain("Aşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n• MAEU1000001 – MSCU1234565 – 3.000,00 USD\n• MAEU1000002 –  – 3.000,00 USD");
     // The empty deduction-statement section is left out with its intro line.
     expect(drafts[0].body).not.toContain("kesinti dökümünü");
-    expect(drafts[0].attachments.map((x) => x.originalName)).toEqual(["form-a.pdf", "dekont.pdf", "form-b.pdf", "dekont.pdf"]);
+    expect(drafts[0].attachments.map((x) => x.originalName)).toEqual([
+      "İade formu MAEU1000001.pdf",
+      "Dekont MAEU1000001.pdf",
+      "İade formu MAEU1000002.pdf",
+      "Dekont MAEU1000002.pdf",
+    ]);
     // A non-batch agency gets one email per B/L.
     const c = bl(msc, "MEDU1000003");
     const d = bl(msc, "MEDU1000004");
@@ -197,8 +202,9 @@ describe("sending", () => {
     // Encoded and folded: "Depozito İade Talebi – B/L MEDU1000001 (acil)".
     expect(sent[0].raw).toContain("Subject: =?UTF-8?Q?Depozito_=C4=B0ade_Talebi_=E2=80=93_B/L_?=");
     expect(sent[0].raw).toContain("=?UTF-8?Q?MEDU1000001_=28acil=29?=");
-    expect(sent[0].raw).toContain("filename=dekont.pdf");
-    expect(sent[0].raw).not.toContain("imzali-form.pdf");
+    expect(sent[0].raw).toContain('filename="Dekont MEDU1000001.pdf"');
+    // Only the receipt was kept in the preview.
+    expect(sent[0].raw.match(/Content-Disposition: attachment/g)).toHaveLength(1);
     expect(sent[0].raw).not.toContain("arsiv@firma.com.tr"); // BCC is not a header
     expect(appended).toEqual([sent[0].raw]);
 
@@ -286,6 +292,21 @@ describe("follow-ups", () => {
       thread: { messageId: first.messageId },
     });
     expect(draft.body).toContain("2. kez yazıyoruz");
+    // Like Outlook's "Reply all": the earlier email below the new text.
+    const [newText, quoted] = draft.body.split("-----Özgün İleti-----");
+    expect(newText).toContain("2. kez yazıyoruz");
+    expect(quoted).toBe(
+      [
+        "",
+        "Kimden: Firma Depozito <depozito@firma.com.tr>",
+        "Gönderildi: 22.10.2026 12:00",
+        "Kime: iade@msc.example",
+        "Bilgi: muhasebe@msc.example",
+        "Konu: Depozito İade Talebi – B/L MEDU1000001",
+        "",
+        first.bodyText,
+      ].join("\n"),
+    );
     queueRequestEmail(db, ops, { blIds: [a], to: draft.to, cc: draft.cc, bcc: draft.bcc, subject: draft.subject, body: draft.body, documentIds: [] }, later);
     const { transport, sent } = fakeTransport();
     await runJobs(transport, later);
@@ -306,6 +327,8 @@ describe("follow-ups", () => {
     expect(drafts.map((d) => d.items.map((i) => i.blNo))).toEqual([["MAEU1000001", "MAEU1000002"], ["MAEU1000003"]]);
     expect(drafts[0].subject).toBe("Re: Depozito Talepleri – B/L MAEU1000001, MAEU1000002");
     expect(drafts[1].subject).toBe("Re: Depozito İade Talebi – B/L MAEU1000003");
+    // The earlier batch email had no CC, so the quote header leaves the line out.
+    expect(drafts[0].body).toContain("Kime: refund@maersk.example\nKonu: Depozito Talepleri – B/L MAEU1000001, MAEU1000002");
   });
 
   it("of a portal agency go as a new email with the portal reference when no email is linked", () => {

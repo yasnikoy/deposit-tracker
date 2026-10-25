@@ -16,8 +16,16 @@ import { blCandidatesOf, blRowWarnings } from "../bl-warnings";
 
 type RowInput = { blNo: string; containers: string };
 
-/** Payments without a B/L in one editable grid; valid rows are saved together. */
-export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListItem[]; patterns: Record<number, string[]> }) {
+/** Payments without a B/L in one editable grid; valid rows are saved together. Read-only for accountants. */
+export function CreateBlsScreen({
+  payments,
+  patterns,
+  readOnly,
+}: {
+  payments: PaymentListItem[];
+  patterns: Record<number, string[]>;
+  readOnly: boolean;
+}) {
   const router = useRouter();
   const [inputs, setInputs] = useState<Record<number, RowInput>>(() =>
     Object.fromEntries(
@@ -72,7 +80,7 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-muted-foreground text-xs">{t("bls.pasteHint")}</p>
+      {!readOnly && <p className="text-muted-foreground text-xs">{t("bls.pasteHint")}</p>}
       <div className="overflow-auto rounded-md border">
         <table className="tabular w-full border-collapse">
           <thead className="bg-muted/60">
@@ -81,8 +89,8 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
               <th className="px-2 py-1 font-medium">{t("bls.agency")}</th>
               <th className="px-2 py-1 text-right font-medium">{t("bls.deposit")}</th>
               <th className="px-2 py-1 font-medium">{t("bls.candidates")}</th>
-              <th className="px-2 py-1 font-medium">{t("bls.blNo")}</th>
-              <th className="px-2 py-1 font-medium">{t("bls.containers")}</th>
+              {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.blNo")}</th>}
+              {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.containers")}</th>}
             </tr>
           </thead>
           <tbody>
@@ -97,7 +105,12 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
                   <td className="px-2 py-1 text-right whitespace-nowrap">{formatMoney(payment.amountMinor, payment.currency)}</td>
                   <td className="px-2 py-1">
                     <div className="flex flex-wrap gap-1">
-                      {blCandidatesOf(payment).map((candidate) => (
+                      {blCandidatesOf(payment).map((candidate) =>
+                        readOnly ? (
+                          <span key={candidate} className="bg-muted rounded px-1.5 font-mono text-xs">
+                            {candidate}
+                          </span>
+                        ) : (
                         <button
                           key={candidate}
                           type="button"
@@ -107,9 +120,11 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
                         >
                           {candidate}
                         </button>
-                      ))}
+                        ),
+                      )}
                     </div>
                   </td>
+                  {!readOnly && (
                   <td className="w-48 px-2 py-1">
                     <Input
                       aria-label={`${t("bls.blNo")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
@@ -119,6 +134,8 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
                       onPaste={(event) => onPaste(index, event)}
                     />
                   </td>
+                  )}
+                  {!readOnly && (
                   <td className="w-80 px-2 py-1">
                     <Input
                       aria-label={`${t("bls.containers")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
@@ -138,17 +155,20 @@ export function CreateBlsScreen({ payments, patterns }: { payments: PaymentListI
                       </p>
                     ))}
                   </td>
+                  )}
                 </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <div className="flex justify-end">
-        <Button onClick={save} disabled={busy}>
-          {t("bls.saveAll")}
-        </Button>
-      </div>
+      {!readOnly && (
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={busy}>
+            {t("bls.saveAll")}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

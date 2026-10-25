@@ -8,6 +8,7 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
 import { billsOfLading, containers, depositPayments } from "./db/schema";
 import { DomainError } from "./errors";
+import { nameBlDocuments, type DocumentRename } from "./files";
 import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
 
 export type BlRowError = {
@@ -74,7 +75,13 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
       action: "bl.create",
       entityType: "bill_of_lading",
       entityId: bl.id,
-      after: { blNo: bl.blNo, depositPaymentId: payment.id, containers: row.containers, status: bl.status },
+      after: {
+        blNo: bl.blNo,
+        depositPaymentId: payment.id,
+        containers: row.containers,
+        status: bl.status,
+        renamed: nameBlDocuments(tx, bl),
+      },
     },
     now,
   );
@@ -160,10 +167,12 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
     const bl = requireBl(tx, input.id);
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     const beforeContainers = containerNumbers(tx, bl.id);
+    let renamed: DocumentRename[] = [];
     if (input.blNo !== bl.blNo) {
       if (bl.status !== "PAID") throw new DomainError("bls.errors.blNoLocked");
       if (blNoTaken(tx, input.blNo, bl.id)) throw new DomainError("bls.errors.blNoTaken");
       tx.update(billsOfLading).set({ blNo: input.blNo, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+      renamed = nameBlDocuments(tx, { ...bl, blNo: input.blNo });
     }
     if (JSON.stringify(beforeContainers) !== JSON.stringify(input.containers)) {
       tx.delete(containers).where(eq(containers.blId, bl.id)).run();
@@ -180,7 +189,7 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
         entityType: "bill_of_lading",
         entityId: bl.id,
         before: { blNo: bl.blNo, containers: beforeContainers },
-        after: { blNo: input.blNo, containers: input.containers },
+        after: { blNo: input.blNo, containers: input.containers, ...(renamed.length ? { renamed } : {}) },
       },
       now,
     );

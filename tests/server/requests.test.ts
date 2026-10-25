@@ -63,7 +63,8 @@ describe("due-requests list", () => {
     expect(lists.DUE[0].rows[0]).toMatchObject({ kind: "FIRST", attemptNo: 1, dueDate: "2026-10-12", daysWaiting: 15, channel: "EMAIL", form: null });
     expect(lists.DUE[1].rows[0]).toMatchObject({ channel: "PORTAL" });
     expect(rows("UPCOMING")).toEqual(["MEDU0000003"]);
-    expect(() => listDueRequests(db, acc, NOW)).toThrow(ForbiddenError);
+    // Accountants follow the list read-only (sending and recording stay with operations).
+    expect(listDueRequests(db, acc, NOW).DUE).toHaveLength(2);
   });
 
   it("shows the uploaded form and leaves voided B/Ls out", () => {
@@ -72,7 +73,7 @@ describe("due-requests list", () => {
     attachForm(a);
     voidBl(db, ops, { id: b, reason: "Yanlış kayıt" }, NOW);
     const [row] = listDueRequests(db, ops, NOW).DUE[0].rows;
-    expect(row).toMatchObject({ blNo: "MEDU0000001", form: { originalName: "form.pdf" } });
+    expect(row).toMatchObject({ blNo: "MEDU0000001", form: { originalName: "İade formu MEDU0000001.pdf" } });
     expect(rows("DUE")).toEqual(["MEDU0000001"]);
   });
 

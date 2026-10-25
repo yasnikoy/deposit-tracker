@@ -3,6 +3,7 @@ import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { blBalance } from "@/domain/balances";
 import { renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import type { RequestKind } from "@/domain/due-requests";
+import { formatTimestamp } from "@/lib/format";
 import { formatAmount } from "@/lib/money";
 import { authorize } from "../auth/can";
 import type { AuthUser } from "../auth/types";
@@ -30,6 +31,8 @@ export type DraftItem = { blId: number; blNo: string; kind: RequestKind; attempt
 /** Follow-ups reply in the thread of the earlier request email. */
 export type DraftThread = { emailId: number; messageId: string; references: string[]; subject: string };
 
+type ThreadEmail = DraftThread & { fromAddress: string; to: string[]; cc: string[]; bodyText: string; sentAt: string | null };
+
 export type EmailDraft = {
   agencyId: number;
   agencyName: string;
@@ -45,9 +48,19 @@ export type EmailDraft = {
 };
 
 /** The last sent email of a B/L's refund request chain, to reply to. */
-function lastThread(tx: DbOrTx, blId: number): DraftThread | null {
+function lastThread(tx: DbOrTx, blId: number): ThreadEmail | null {
   const row = tx
-    .select({ emailId: emails.id, messageId: emails.messageId, references: emails.references, subject: emails.subject })
+    .select({
+      emailId: emails.id,
+      messageId: emails.messageId,
+      references: emails.references,
+      subject: emails.subject,
+      fromAddress: emails.fromAddress,
+      to: emails.to,
+      cc: emails.cc,
+      bodyText: emails.bodyText,
+      sentAt: emails.sentAt,
+    })
     .from(requests)
     .innerJoin(emails, eq(emails.id, requests.emailId))
     .where(and(eq(requests.blId, blId), eq(requests.type, "REFUND"), eq(requests.sendStatus, "SENT"), isNotNull(requests.emailId)))
@@ -88,7 +101,7 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   }
 
   // Group: agency → (first requests | thread of the follow-up), or one group per B/L.
-  const groups = new Map<string, { entries: DueEntry[]; thread: DraftThread | null }>();
+  const groups = new Map<string, { entries: DueEntry[]; thread: ThreadEmail | null }>();
   for (const entry of entries.sort((a, b) => a.bl.paidAt.localeCompare(b.bl.paidAt) || a.bl.id - b.bl.id)) {
     const thread = entry.state.kind === "FOLLOW_UP" ? lastThread(tx, entry.bl.id) : null;
     const key = entry.agency.batchSending
@@ -137,12 +150,28 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       cc: [...new Set([...agency.ccRecipients, ...defaultCc])],
       bcc: defaultBcc,
       subject: thread ? replySubject(thread.subject) : renderTemplate(template.subject, values),
-      body: renderTemplate(template.body, values),
-      thread,
+      body: renderTemplate(template.body, values) + (thread ? quoteOf(tx, thread) : ""),
+      thread: thread && { emailId: thread.emailId, messageId: thread.messageId, references: thread.references, subject: thread.subject },
       attachments,
       maxAttachmentBytes,
     };
   });
+}
+
+/**
+ * The earlier email below the new text, the way Outlook quotes on "Reply all". Its own text
+ * already holds the quotes before it, so the whole chain stays readable in each follow-up.
+ */
+function quoteOf(tx: DbOrTx, thread: ThreadEmail): string {
+  const fromName = getSetting("email.fromName", {}, tx);
+  const header = renderTemplate(getEmailTemplate(tx, "REPLY_QUOTE").body, {
+    from: fromName ? `${fromName} <${thread.fromAddress}>` : thread.fromAddress,
+    sent_at: thread.sentAt ? formatTimestamp(thread.sentAt) : "",
+    to: thread.to.join("; "),
+    cc_section: thread.cc.join("; "),
+    subject: thread.subject,
+  });
+  return header + thread.bodyText;
 }
 
 function blValues(tx: DbOrTx, entry: DueEntry): Record<string, string> {

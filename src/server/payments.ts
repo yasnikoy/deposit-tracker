@@ -401,7 +401,7 @@ export function listOwnPayments(db: Db, actor: AuthUser): PaymentListItem[] {
 
 /** Payments without an active B/L, oldest first (operations work list). */
 export function listPaymentsAwaitingBl(db: DbOrTx, actor: AuthUser): PaymentListItem[] {
-  authorize(actor, "bl.create");
+  authorize(actor, "bl.viewAwaiting");
   return paymentListQuery(db)
     .where(and(isNull(depositPayments.voidedAt), isNull(billsOfLading.id)))
     .orderBy(depositPayments.paidAt, depositPayments.id)

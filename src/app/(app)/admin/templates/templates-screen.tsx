@@ -22,6 +22,11 @@ const SAMPLE: Record<string, string> = {
   attempt_no: "2",
   portal_ref: "PRT-1001",
   deduction_amount: "700,00",
+  from: "Örnek Lojistik Depozito <depozito@ornek-lojistik.com.tr>",
+  sent_at: "16.10.2026 10:30",
+  to: "iade@ornek-denizcilik.com",
+  cc_section: "muhasebe@ornek-denizcilik.com",
+  subject: "Depozito İade Talebi – B/L MEDU1000001",
 };
 
 function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {
@@ -74,7 +79,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-3">
-          {key !== "BATCH_LINE" && (
+          {key !== "BATCH_LINE" && key !== "REPLY_QUOTE" && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`${key}-subject`}>{t("templates.subject")}</Label>
               <Input id={`${key}-subject`} className="h-8" value={subject} onChange={(event) => setSubject(event.target.value)} />
@@ -84,7 +89,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
             <Label htmlFor={`${key}-body`}>{t("templates.body")}</Label>
             <textarea
               id={`${key}-body`}
-              rows={key === "BATCH_LINE" ? 2 : 12}
+              rows={key === "BATCH_LINE" ? 2 : key === "REPLY_QUOTE" ? 9 : 12}
               className="border-input bg-background rounded-md border px-2 py-1 font-mono text-xs"
               value={body}
               onChange={(event) => setBody(event.target.value)}
@@ -94,6 +99,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
             {t("templates.placeholders")} {EMAIL_TEMPLATE_PLACEHOLDERS[key].map((p) => `{${p}}`).join(" ")}
           </p>
           {key === "BATCH" && <p className="text-muted-foreground text-xs">{t("templates.sectionsHint")}</p>}
+          {key === "REPLY_QUOTE" && <p className="text-muted-foreground text-xs">{t("templates.quoteHint")}</p>}
           <div className="flex items-center gap-2">
             <Input
               value={reason}
@@ -110,7 +116,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
         <div className="flex flex-col gap-1.5">
           <span className="text-muted-foreground text-xs">{t("templates.preview")}</span>
           <div className="bg-muted/40 rounded-md border p-3 text-sm whitespace-pre-wrap" data-testid={`template-preview-${key}`}>
-            {key !== "BATCH_LINE" && <div className="mb-2 font-medium">{renderTemplate(subject, values)}</div>}
+            {key !== "BATCH_LINE" && key !== "REPLY_QUOTE" && <div className="mb-2 font-medium">{renderTemplate(subject, values)}</div>}
             {renderTemplate(body, values)}
           </div>
         </div>

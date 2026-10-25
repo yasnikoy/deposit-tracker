@@ -85,6 +85,10 @@
     "BATCH_LINE": {
       "subject": "",
       "body": "• {bl_no} – {containers} – {amount} {currency}"
+    },
+    "REPLY_QUOTE": {
+      "subject": "",
+      "body": "\n\n-----Özgün İleti-----\nKimden: {from}\nGönderildi: {sent_at}\nKime: {to}\n[[cc]]\nBilgi: {cc_section}\n[[/cc]]\nKonu: {subject}\n\n"
     }
   }
 }

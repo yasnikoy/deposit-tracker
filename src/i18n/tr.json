@@ -483,6 +483,11 @@
       "content": "Dosyanın içeriği uzantısıyla uyuşmuyor.",
       "evidence": "Belge bu kayda eklenemez; lütfen dosyayı yeniden yükleyin.",
       "upload": "Dosya yüklenemedi."
+    },
+    "blNames": {
+      "FORM": "İade formu {bl}",
+      "RECEIPT": "Dekont {bl}",
+      "INVOICE": "Fatura {bl}"
     }
   },
   "lists": {
@@ -591,7 +596,7 @@
     "checkDigitWarning": "Kontrol hanesi tutmuyor: {list}",
     "status": "Durum",
     "statuses": {
-      "PAID": "Ödendi",
+      "PAID": "Depozito yatırıldı",
       "DUE": "Talep zamanı",
       "REQUESTED": "Talep edildi",
       "AWAITING_RETURN": "İade bekleniyor",
@@ -840,14 +845,17 @@
       "REFUND_REQUEST": "İade talebi (ilk talep)",
       "FOLLOW_UP": "Takip talebi",
       "BATCH": "Toplu e-posta",
-      "BATCH_LINE": "Toplu e-posta satırı"
+      "BATCH_LINE": "Toplu e-posta satırı",
+      "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)"
     },
     "help": {
       "REFUND_REQUEST": "Tek B/L için ilk talep.",
       "FOLLOW_UP": "Önceki e-postaya yanıt olarak gider (konu \"Re: …\"). Konu yalnızca yanıtlanacak e-posta yoksa (portal acenteleri) kullanılır.",
       "BATCH": "Toplu gönderim yapan acentelerde birden fazla B/L tek e-postada.",
-      "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz."
-    }
+      "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
+      "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz."
+    },
+    "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
   },
   "standing": {
     "title": "Sabit belgeler",

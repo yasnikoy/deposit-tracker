@@ -99,7 +99,8 @@ test("operations downloads the prefilled form and uploads the signed scan", asyn
 
   await page.getByLabel(tr.forms.uploadForm).setInputFiles(pdf("imzali-form.pdf"));
   await expect(page.getByText(tr.forms.formUploaded)).toBeVisible();
-  await expect(page.getByRole("link", { name: "imzali-form.pdf" }).first()).toBeVisible();
+  // The scan is renamed after the B/L, the way agencies receive it.
+  await expect(page.getByRole("link", { name: `İade formu ${BL_NO}.pdf` }).first()).toBeVisible();
   await expect(page.getByText(tr.timeline.actions.form.upload)).toBeVisible();
 });
 
@@ -107,7 +108,7 @@ test("the due list groups B/Ls by agency; a portal request is recorded once the 
   await login(page, OPS.username, OPS.final);
   await page.getByRole("link", { name: tr.nav.dueRequests }).click();
   const hapag = page.getByRole("region", { name: AGENCY });
-  await expect(hapag.getByTestId(`due-row-${BL_NO}`)).toContainText("imzali-form.pdf");
+  await expect(hapag.getByTestId(`due-row-${BL_NO}`)).toContainText(`İade formu ${BL_NO}.pdf`);
   await expect(hapag).toContainText("2.500,00 USD");
 
   const portalGroup = page.getByRole("region", { name: PORTAL_AGENCY });
@@ -171,7 +172,7 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   await expect(dialog.getByLabel(tr.requests.subject)).toHaveValue(`Depozito İade Talebi – B/L ${BL_NO}`);
   await expect(dialog.getByLabel(tr.requests.to)).toHaveValue("iade@example.com");
   await expect(dialog.getByLabel(tr.requests.body)).toHaveValue(/2\.500,00 USD tutarındaki depozitonun iadesini/);
-  for (const name of ["imzali-form.pdf", `${BL_NO}-dekont.pdf`, "imza-sirkuleri.pdf"]) {
+  for (const name of [`İade formu ${BL_NO}.pdf`, `Dekont ${BL_NO}.pdf`, "imza-sirkuleri.pdf"]) {
     await expect(dialog.getByRole("link", { name })).toBeVisible();
   }
   await dialog.getByLabel(tr.requests.cc).fill("bilgi@firma.example");

@@ -13,7 +13,7 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { agencies, bankAccounts, billsOfLading, containers, documents, ledgerEntries } from "./db/schema";
 import { DomainError } from "./errors";
-import { attachDocument, extensionOf, readDocument, storeGeneratedDocument, type StoredDocument } from "./files";
+import { attachDocument, blFileName, extensionOf, nameBlDocuments, readDocument, storeGeneratedDocument, type StoredDocument } from "./files";
 
 function openTemplate(content: Buffer): Docxtemplater {
   try {
@@ -131,7 +131,7 @@ export function generateBlForm(db: Db, actor: AuthUser, input: { blId: number },
       tx,
       {
         kind: "GENERATED_FORM",
-        originalName: `İade formu ${bl.blNo}.docx`,
+        originalName: blFileName("FORM", bl.blNo, "form.docx"),
         content: fillTemplate(readDocument(template), values),
         createdBy: actor.id,
         ownerType: "bill_of_lading",
@@ -167,6 +167,7 @@ export function uploadBlForm(db: Db, actor: AuthUser, input: { blId: number; doc
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     const previous = currentBlForm(tx, bl.id);
     const doc = attachDocument(tx, actor, { documentId: input.documentId, kind: "FORM", ownerType: "bill_of_lading", ownerId: bl.id });
+    const renames = nameBlDocuments(tx, bl);
     writeAudit(
       tx,
       {
@@ -176,7 +177,7 @@ export function uploadBlForm(db: Db, actor: AuthUser, input: { blId: number; doc
         entityType: "bill_of_lading",
         entityId: bl.id,
         before: previous ? { documentId: previous.id, originalName: previous.originalName } : null,
-        after: { documentId: doc.id, originalName: doc.originalName },
+        after: { documentId: doc.id, uploadedName: doc.originalName, renamed: renames },
       },
       now,
     );

@@ -42,13 +42,15 @@ const rules = {
   // B/Ls are created from payments by operations.
   "bl.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),
+  // Accountants follow the Operations work lists read-only.
+  "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),
   "bl.update": only("OPERATIONS"),
   "bl.void": only("OPERATIONS", "ADMIN"),
   "bl.generateForm": only("OPERATIONS"),
   "bl.uploadForm": only("OPERATIONS"),
   // B/L setting overrides are settings, like agency overrides.
   "bl.updateOverrides": only("ADMIN"),
-  "request.view": only("OPERATIONS"),
+  "request.view": only("OPERATIONS", "ACCOUNTANT"),
   "request.recordPortal": only("OPERATIONS"),
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),
