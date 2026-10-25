@@ -23,3 +23,4 @@ next-env.d.ts
 # logs
 *.log
 /data-e2e/
+/data-test/

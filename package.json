@@ -13,7 +13,8 @@
     "test:e2e": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:prepare": "tsx --conditions=react-server scripts/prepare-db.ts",
-    "create-admin": "tsx --conditions=react-server scripts/create-admin.ts"
+    "create-admin": "tsx --conditions=react-server scripts/create-admin.ts",
+    "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.0",
