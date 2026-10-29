@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { BlStatusBadge } from "@/components/bl-status-badge";
 import { DataTable } from "@/components/data-table/data-table";
 import { dataTableColumns } from "@/components/data-table/features";
-import { DetailPanel } from "@/components/detail-panel";
+import { DetailDialog, detailNavigation } from "@/components/detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -75,6 +75,11 @@ const columns = col.columns([
       return value ? formatBusinessDate(value) : t("common.none");
     },
   }),
+  col.accessor((b) => (b.lastReply ? `${b.lastReply.typeName} · ${formatBusinessDate(b.lastReply.repliedOn)}` : ""), {
+    id: "lastReply",
+    meta: { label: "bls.lastReply", filter: "text" },
+    cell: ({ getValue }) => getValue() || t("common.none"),
+  }),
   col.accessor("daysWaiting", {
     meta: { label: "bls.daysWaiting", align: "end", searchable: false },
     sortFn: "basic",
@@ -100,6 +105,8 @@ export function AllBlsScreen({
   const router = useRouter();
   const [showVoided, setShowVoided] = useState(false);
   const [openId, setOpenId] = useState<number | null>(null);
+  // The table's order when the row was opened, for previous/next.
+  const [order, setOrder] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
   const open = bls.find((b) => b.id === openId) ?? null;
@@ -109,26 +116,31 @@ export function AllBlsScreen({
   };
 
   return (
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1">
-        <DataTable
-          tableId="all-bls"
-          data={shown}
-          columns={columns}
-          getRowId={(b) => String(b.id)}
-          initialLayout={layout}
-          onOpenRow={(b) => setOpenId(b.id)}
-          rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
-          toolbar={
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
-              {t("payments.showVoided")}
-            </label>
-          }
-        />
-      </div>
+    <>
+      <DataTable
+        tableId="all-bls"
+        data={shown}
+        columns={columns}
+        getRowId={(b) => String(b.id)}
+        initialLayout={layout}
+        onOpenRow={(b, visible) => {
+          setOrder(visible.map((v) => String(v.id)));
+          setOpenId(b.id);
+        }}
+        rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
+        toolbar={
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
+            {t("payments.showVoided")}
+          </label>
+        }
+      />
       {open && (
-        <DetailPanel title={<span className="font-mono">{open.blNo}</span>} onClose={() => setOpenId(null)}>
+        <DetailDialog
+          title={<span className="font-mono">{open.blNo}</span>}
+          navigation={detailNavigation(order, String(open.id), (id) => setOpenId(Number(id)))}
+          onClose={() => setOpenId(null)}
+        >
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <BlStatusBadge status={open.status} voided={!!open.voidedAt} voidReason={open.voidReason} />
@@ -159,10 +171,20 @@ export function AllBlsScreen({
               )}
             </div>
           </div>
-        </DetailPanel>
+        </DetailDialog>
       )}
       {dialog?.kind === "edit" && <EditBlDialog bl={dialog.bl} onCancel={() => setDialog(null)} onSaved={done} />}
-      {dialog?.kind === "void" && <VoidBlDialog bl={dialog.bl} onCancel={() => setDialog(null)} onVoided={done} />}
-    </div>
+      {dialog?.kind === "void" && (
+        <VoidBlDialog
+          bl={dialog.bl}
+          onCancel={() => setDialog(null)}
+          onVoided={() => {
+            // A voided B/L leaves the list, so its detail closes too.
+            setOpenId(null);
+            done();
+          }}
+        />
+      )}
+    </>
   );
 }

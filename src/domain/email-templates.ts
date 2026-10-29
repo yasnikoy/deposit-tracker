@@ -4,7 +4,7 @@
  * so a batched email leaves out an empty request-type section with its intro line.
  */
 
-export const EMAIL_TEMPLATE_KEYS = ["REFUND_REQUEST", "FOLLOW_UP", "BATCH", "BATCH_LINE", "REPLY_QUOTE"] as const;
+export const EMAIL_TEMPLATE_KEYS = ["REFUND_REQUEST", "FOLLOW_UP", "BATCH", "BATCH_LINE", "REPLY_QUOTE", "DAILY_UNPROCESSED"] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
 /** Placeholders each template may use; shown next to the editor. */
@@ -15,6 +15,8 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   BATCH_LINE: ["bl_no", "containers", "amount", "currency", "attempt_no"],
   // Header above the quoted earlier email in a reply; the earlier text follows it.
   REPLY_QUOTE: ["from", "sent_at", "to", "cc_section", "subject"],
+  // Internal reminder to our own team; never sent to agencies.
+  DAILY_UNPROCESSED: ["count", "warning_days", "agency_lines", "link"],
 };
 
 /** Section blocks of the batched template; `[[refund]]` depends on `{refund_section}`. */

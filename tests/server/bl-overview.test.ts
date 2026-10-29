@@ -96,19 +96,20 @@ describe("getBlDetail", () => {
     const detail = getBlDetail(db, ops, a.blId, NOW);
     expect(detail.bl).toMatchObject({ blNo: "MEDU1000001", depositMinor: 310000 });
     expect(detail.payment).toMatchObject({ id: a.paymentId, kind: "BANK", evidenceName: "Dekont MEDU1000001.pdf", createdByName: "ACC" });
+    // Histories are newest first.
     expect(detail.ledger.map((l) => [l.amountMinor, l.compensated])).toEqual([
-      [300000, true],
-      [-300000, false],
       [310000, false],
+      [-300000, false],
+      [300000, true],
     ]);
     expect(detail.timeline.map((e) => e.action)).toEqual([
-      "document.upload",
-      "payment.create",
-      "bl.create",
-      "payment.correct",
       "bl.followPaymentCorrection",
+      "payment.correct",
+      "bl.create",
+      "payment.create",
+      "document.upload",
     ]);
-    expect(detail.timeline[3]).toMatchObject({ actorName: "ACC", reason: "Tutar hatalı" });
+    expect(detail.timeline[1]).toMatchObject({ actorName: "ACC", reason: "Tutar hatalı" });
     expect(() => getBlDetail(db, ops, 9999, NOW)).toThrow(expect.objectContaining({ messageKey: "errors.notFound" }));
   });
 });

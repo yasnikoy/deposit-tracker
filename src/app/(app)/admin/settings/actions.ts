@@ -11,6 +11,7 @@ import { sendTestEmailSchema, setStandingDocumentSchema, updateEmailTemplateSche
 import { sendTestEmail } from "@/server/email/send";
 import { updateEmailTemplate } from "@/server/email/templates";
 import { mailTransport } from "@/server/email/transport";
+import { scheduleDailyEmail } from "@/server/recurring-jobs";
 import { setStandingDocument } from "@/server/standing-documents";
 
 // Each value is validated against its own schema in the setting registry by updateSettings.
@@ -21,7 +22,13 @@ const updateSettingsSchema = z.object({
 
 export async function updateSettingsAction(input: unknown): Promise<ActionResult<string[]>> {
   const { user } = await requireSession();
-  return runAction(updateSettingsSchema, input, (data) => updateSettings(getDb(), user, data));
+  return runAction(updateSettingsSchema, input, (data) => {
+    const db = getDb();
+    const changed = updateSettings(db, user, data);
+    // The pending daily email moves to the new time of its day.
+    if (changed.includes("notifications.dailyUnprocessedTime")) scheduleDailyEmail(db);
+    return changed;
+  });
 }
 
 export async function sendTestEmailAction(input: unknown): Promise<ActionResult<{ dryRun: boolean }>> {

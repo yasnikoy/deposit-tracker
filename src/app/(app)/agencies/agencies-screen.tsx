@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { DataTable } from "@/components/data-table/data-table";
 import { dataTableColumns } from "@/components/data-table/features";
-import { DetailPanel } from "@/components/detail-panel";
+import { DetailDialog, detailNavigation } from "@/components/detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { REQUEST_CHANNELS } from "@/domain/agency";
@@ -30,6 +30,8 @@ export function AgenciesScreen({
   permissions: AgencyPermissions;
 }) {
   const [selected, setSelected] = useState<number | "new" | null>(null);
+  // The table's order when the row was opened, for previous/next.
+  const [order, setOrder] = useState<string[]>([]);
   const close = useCallback(() => setSelected(null), []);
   const agency = typeof selected === "number" ? agencies.find((a) => a.id === selected) : undefined;
 
@@ -81,27 +83,32 @@ export function AgenciesScreen({
   }, []);
 
   return (
-    <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1">
-        <DataTable
-          tableId="agencies"
-          data={agencies}
-          columns={columns}
-          getRowId={(a) => String(a.id)}
-          initialLayout={layout}
-          onOpenRow={(a) => setSelected(a.id)}
-          rowClassName={(a) => (a.active ? undefined : "text-muted-foreground")}
-          toolbar={
-            permissions.create && (
-              <Button size="sm" onClick={() => setSelected("new")}>
-                <Plus /> {t("agencies.new")}
-              </Button>
-            )
-          }
-        />
-      </div>
+    <>
+      <DataTable
+        tableId="agencies"
+        data={agencies}
+        columns={columns}
+        getRowId={(a) => String(a.id)}
+        initialLayout={layout}
+        onOpenRow={(a, visible) => {
+          setOrder(visible.map((v) => String(v.id)));
+          setSelected(a.id);
+        }}
+        rowClassName={(a) => (a.active ? undefined : "text-muted-foreground")}
+        toolbar={
+          permissions.create && (
+            <Button size="sm" onClick={() => setSelected("new")}>
+              <Plus /> {t("agencies.new")}
+            </Button>
+          )
+        }
+      />
       {selected !== null && (selected === "new" || agency) && (
-        <DetailPanel title={agency ? agency.name : t("agencies.new")} onClose={close}>
+        <DetailDialog
+          title={agency ? agency.name : t("agencies.new")}
+          navigation={agency ? detailNavigation(order, String(agency.id), (id) => setSelected(Number(id))) : null}
+          onClose={close}
+        >
           <div className="flex flex-col gap-6">
             <AgencyForm
               key={selected}
@@ -114,8 +121,8 @@ export function AgenciesScreen({
               <OverridesForm key={`${agency.id}:${JSON.stringify(agency.overrides)}`} agency={agency} globals={globals} editable={permissions.updateOverrides} />
             )}
           </div>
-        </DetailPanel>
+        </DetailDialog>
       )}
-    </div>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { formatTimestamp } from "@/lib/format";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { getEnv } from "@/server/env";
+import { unprocessedSummary } from "@/server/replies";
 import { mailOutages } from "@/server/service-status";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/", label: "nav.dashboard", visible: true },
     { href: "/accounting", label: "nav.accounting", visible: can(user, "payment.create").allowed },
     { href: "/requests", label: "nav.dueRequests", visible: can(user, "request.view").allowed },
+    { href: "/replies", label: "nav.replies", visible: can(user, "reply.view").allowed },
     { href: "/bls", label: "nav.allBls", visible: can(user, "bl.view").allowed },
     { href: "/bls/new", label: "nav.createBls", visible: can(user, "bl.viewAwaiting").allowed },
     { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },
@@ -24,8 +26,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/admin/lists", label: "nav.lists", visible: can(user, "lists.manage").allowed },
     { href: "/admin/users", label: "nav.users", visible: can(user, "user.list").allowed },
   ];
-  const nav: NavItem[] = items.filter((item) => item.visible).map(({ href, label }) => ({ href, label }));
-  const outages = mailOutages(getDb());
+  const db = getDb();
+  const unprocessed = can(user, "reply.view").allowed ? unprocessedSummary(db) : null;
+  const nav: NavItem[] = items
+    .filter((item) => item.visible)
+    .map(({ href, label }) =>
+      href === "/replies" && unprocessed ? { href, label, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0 } } : { href, label },
+    );
+  const outages = mailOutages(db);
   const dryRun = getEnv().EMAIL_MODE !== "live";
 
   return (

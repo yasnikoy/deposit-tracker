@@ -212,7 +212,7 @@ describe("sending", () => {
     expect(email).toMatchObject({ sendStatus: "SENT", dryRun: false, subject: `${draft.subject} (acil)` });
     expect(email.copiedToSentAt).not.toBeNull();
     expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ status: "REQUESTED", attempts: 1, lastRequestOn: "2026-10-22" });
-    expect(getBlDetail(db, ops, a, NOW).timeline.map((e) => e.action).slice(-2)).toEqual(["request.queue", "request.sent"]);
+    expect(getBlDetail(db, ops, a, NOW).timeline.map((e) => e.action).slice(0, 2)).toEqual(["request.sent", "request.queue"]);
     expect(db.select().from(auditLog).where(eq(auditLog.action, "request.sent")).get()).toMatchObject({ actorUserId: ops.id, roleUsed: "OPERATIONS" });
   });
 

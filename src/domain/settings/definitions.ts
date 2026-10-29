@@ -6,7 +6,7 @@ import { z } from "zod";
  * Groups for email, templates, notifications and lists arrive with the features that use them.
  */
 
-export const SETTING_GROUPS = ["calendar", "durations", "rules", "email", "reconciliation", "users", "backups"] as const;
+export const SETTING_GROUPS = ["calendar", "durations", "rules", "email", "notifications", "reconciliation", "users", "backups"] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 /** Editor and unit of a value. Every duration declares its day type through its kind. */
@@ -113,11 +113,17 @@ export const settingDefinitions = {
   "email.fromAddress": { group: "email", kind: "text", schema: z.union([z.literal(""), emailAddress]) },
   "email.fromName": { group: "email", kind: "text", schema: z.string().trim().max(100) },
   "email.sentFolder": { group: "email", kind: "text", schema: z.string().trim().min(1).max(100) },
+  /** The folder the poller reads agency replies from, read-only (rule 12). */
+  "email.inboxFolder": { group: "email", kind: "text", schema: z.string().trim().min(1).max(100) },
   "email.pollIntervalMinutes": { group: "email", kind: "minutes", schema: int(1, 1440) },
   "email.defaultCc": { group: "email", kind: "emailList", schema: emailList },
   "email.defaultBcc": { group: "email", kind: "emailList", schema: emailList },
   "email.signature": { group: "email", kind: "longText", schema: z.string().max(2000) },
   "email.maxAttachmentMb": { group: "email", kind: "megabytes", schema: int(1, 100) },
+
+  "notifications.dailyUnprocessedEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.dailyUnprocessedTime": { group: "notifications", kind: "time", schema: time },
+  "notifications.dailyUnprocessedRecipients": { group: "notifications", kind: "emailList", schema: emailList },
 
   "reconciliation.alternativeSuggestions": { group: "reconciliation", kind: "count", schema: int(1, 10) },
 

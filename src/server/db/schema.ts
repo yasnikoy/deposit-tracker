@@ -12,10 +12,12 @@ import {
 import { REQUEST_CHANNELS } from "../../domain/agency";
 import { HOLIDAY_KINDS } from "../../domain/business-days";
 import { EMAIL_TEMPLATE_KEYS } from "../../domain/email-templates";
+import { REPLY_TYPE_CODES } from "../../domain/replies";
 import {
   BL_STATUSES,
   DOCUMENT_KINDS,
   EMAIL_DIRECTIONS,
+  EMAIL_LINK_SOURCES,
   JOB_KINDS,
   JOB_STATUSES,
   LEDGER_TYPES,
@@ -24,6 +26,7 @@ import {
   REQUEST_TYPES,
   SEND_STATUSES,
   STANDING_DOCUMENT_SLOTS,
+  SUGGESTION_STATES,
 } from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
@@ -260,9 +263,8 @@ export const documents = sqliteTable(
     mimeType: text("mime_type").notNull(),
     sizeBytes: integer("size_bytes").notNull(),
     sha256: text("sha256").notNull(),
-    uploadedBy: integer("uploaded_by")
-      .notNull()
-      .references(() => users.id),
+    // Null for files the app imported from the mailbox (email attachments, raw messages).
+    uploadedBy: integer("uploaded_by").references(() => users.id),
     uploadedAt: timestamp("uploaded_at").notNull(),
   },
   (t) => [
@@ -515,11 +517,14 @@ export const emails = sqliteTable(
     sentAt: timestamp("sent_at"),
     copiedToSentAt: timestamp("copied_to_sent_at"),
     rawDocumentId: integer("raw_document_id").references(() => documents.id),
+    // Incoming only: when the mailbox received the message.
+    receivedAt: timestamp("received_at"),
     createdAt: timestamp("created_at").notNull(),
   },
   (t) => [
     check("emails_direction", sql`${t.direction} IN ('OUT', 'IN')`),
     check("emails_send_status", sql`(${t.direction} = 'OUT') = (${t.sendStatus} IS NOT NULL)`),
+    check("emails_received_at", sql`(${t.direction} = 'IN') = (${t.receivedAt} IS NOT NULL)`),
     uniqueIndex("emails_message_id_unique").on(t.messageId),
     index("emails_in_reply_to").on(t.inReplyTo),
   ],
@@ -591,3 +596,114 @@ export const serviceStatus = sqliteTable(
   },
   (t) => [check("service_status_service", sql`${t.service} IN (${sqlList(MAIL_SERVICES)})`)],
 );
+
+// ---- Build step 5: agency replies ----
+
+/** Configurable reply types; the system ones (with a code) can be renamed but not removed. */
+export const replyTypes = sqliteTable(
+  "reply_types",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    code: text("code", { enum: REPLY_TYPE_CODES }),
+    name: text("name").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check("reply_types_code", sql`${t.code} IS NULL OR ${t.code} IN (${sqlList(REPLY_TYPE_CODES)})`),
+    // System types stay usable.
+    check("reply_types_system_active", sql`${t.code} IS NULL OR ${t.active} = 1`),
+    uniqueIndex("reply_types_code_unique").on(t.code).where(sql`${t.code} IS NOT NULL`),
+    uniqueIndex("reply_types_name_unique").on(sql`lower(${t.name})`),
+  ],
+);
+
+/** Incoming emails and the B/Ls they concern (outgoing emails reach their B/Ls through requests). */
+export const emailBlLinks = sqliteTable(
+  "email_bl_links",
+  {
+    emailId: integer("email_id")
+      .notNull()
+      .references(() => emails.id),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    linkedBy: text("linked_by", { enum: EMAIL_LINK_SOURCES }).notNull(),
+    // Null for thread links, which the mailbox poller makes.
+    linkedByUser: integer("linked_by_user").references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.emailId, t.blId] }),
+    check("email_bl_links_linked_by", sql`${t.linkedBy} IN (${sqlList(EMAIL_LINK_SOURCES)})`),
+    check("email_bl_links_user", sql`(${t.linkedBy} = 'THREAD') = (${t.linkedByUser} IS NULL)`),
+    index("email_bl_links_bl").on(t.blId),
+  ],
+);
+
+/** An incoming email outside a known thread that names an open B/L; linked only on acceptance. */
+export const emailMatchSuggestions = sqliteTable(
+  "email_match_suggestions",
+  {
+    emailId: integer("email_id")
+      .notNull()
+      .references(() => emails.id),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    state: text("state", { enum: SUGGESTION_STATES }).notNull().default("OPEN"),
+    resolvedBy: integer("resolved_by").references(() => users.id),
+    resolvedAt: timestamp("resolved_at"),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.emailId, t.blId] }),
+    check("email_match_suggestions_state", sql`${t.state} IN (${sqlList(SUGGESTION_STATES)})`),
+    check(
+      "email_match_suggestions_resolved",
+      sql`(${t.state} = 'OPEN') = (${t.resolvedBy} IS NULL AND ${t.resolvedAt} IS NULL)`,
+    ),
+  ],
+);
+
+/**
+ * An agency's answer for one B/L, recorded by operations: from an incoming email (one per
+ * email and B/L), or without one, e.g. read on a portal.
+ */
+export const replies = sqliteTable(
+  "replies",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    replyTypeId: integer("reply_type_id")
+      .notNull()
+      .references(() => replyTypes.id),
+    // Business date of the answer: the day the email arrived, or the date the user gives.
+    repliedOn: text("replied_on").notNull(),
+    emailId: integer("email_id").references(() => emails.id),
+    note: text("note"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    roleUsed: text("role_used", { enum: ROLES }).notNull(),
+    createdAt: timestamp("created_at").notNull(),
+  },
+  (t) => [
+    check("replies_replied_on", sql`${t.repliedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+    check("replies_role_used", sql`${t.roleUsed} IN (${roleList})`),
+    uniqueIndex("replies_email_bl_unique").on(t.emailId, t.blId).where(sql`${t.emailId} IS NOT NULL`),
+    index("replies_bl").on(t.blId),
+  ],
+);
+
+/** How far the poller has read each folder; UIDs are only valid with their UIDVALIDITY. */
+export const mailboxState = sqliteTable("mailbox_state", {
+  folder: text("folder").primaryKey(),
+  uidValidity: text("uid_validity").notNull(),
+  lastUid: integer("last_uid").notNull(),
+  lastPolledAt: timestamp("last_polled_at").notNull(),
+});

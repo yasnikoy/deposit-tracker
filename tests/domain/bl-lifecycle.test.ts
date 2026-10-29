@@ -17,3 +17,16 @@ describe("refund request sent (email sent or portal request recorded)", () => {
     }
   });
 });
+
+describe("reply type 'container not yet returned' recorded", () => {
+  it("moves a requested B/L to awaiting return and keeps it there", () => {
+    expect(nextStatus("REQUESTED", "NOT_RETURNED_REPLY")).toBe("AWAITING_RETURN");
+    expect(nextStatus("AWAITING_RETURN", "NOT_RETURNED_REPLY")).toBe("AWAITING_RETURN");
+  });
+
+  it("is rejected before any request and after collection", () => {
+    for (const from of ["PAID", "COLLECTED", "DEDUCTION_OPEN", "DISPUTED"] as const) {
+      expect(() => nextStatus(from, "NOT_RETURNED_REPLY")).toThrow(InvalidTransitionError);
+    }
+  });
+});

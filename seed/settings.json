@@ -44,11 +44,15 @@
     "email.fromAddress": "",
     "email.fromName": "",
     "email.sentFolder": "Sent",
+    "email.inboxFolder": "INBOX",
     "email.pollIntervalMinutes": 5,
     "email.defaultCc": [],
     "email.defaultBcc": [],
     "email.signature": "",
     "email.maxAttachmentMb": 25,
+    "notifications.dailyUnprocessedEmail": false,
+    "notifications.dailyUnprocessedTime": "09:00",
+    "notifications.dailyUnprocessedRecipients": [],
     "reconciliation.alternativeSuggestions": 3,
     "auth.loginLockoutAttempts": 5,
     "auth.minPasswordLength": 8,
@@ -66,6 +70,24 @@
       {
         "code": "EUR",
         "name": "Euro"
+      }
+    ],
+    "replyTypes": [
+      {
+        "code": "NOT_RETURNED",
+        "name": "Konteyner henüz dönmedi"
+      },
+      {
+        "code": "APPROVED",
+        "name": "Onaylandı, ödeme yapılacak"
+      },
+      {
+        "code": "STATEMENT_RECEIVED",
+        "name": "Kesinti dökümü geldi"
+      },
+      {
+        "code": "INFO",
+        "name": "Bilgi / işlem gerekmez"
       }
     ]
   },
@@ -89,6 +111,10 @@
     "REPLY_QUOTE": {
       "subject": "",
       "body": "\n\n-----Özgün İleti-----\nKimden: {from}\nGönderildi: {sent_at}\nKime: {to}\n[[cc]]\nBilgi: {cc_section}\n[[/cc]]\nKonu: {subject}\n\n"
+    },
+    "DAILY_UNPROCESSED": {
+      "subject": "Depozito Takip – işlenmemiş {count} yanıt",
+      "body": "Merhaba,\n\nAşağıdaki acentelerden gelen ve {warning_days} iş gününden uzun süredir işlenmemiş yanıtlar var:\n{agency_lines}\n\nYanıtlar ekranı: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
     }
   }
 }

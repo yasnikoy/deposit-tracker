@@ -103,3 +103,21 @@ const istanbulDate = new Intl.DateTimeFormat("en-CA", {
 export function istanbulToday(now: Date = new Date()): IsoDate {
   return istanbulDate.format(now);
 }
+
+const istanbulWallClock = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Istanbul",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** The instant of a wall-clock time (HH:MM) on a business date in Europe/Istanbul. */
+export function istanbulInstant(date: IsoDate, time: string): Date {
+  const asUtc = new Date(`${date}T${time}:00Z`);
+  const parts = Object.fromEntries(istanbulWallClock.formatToParts(asUtc).map((p) => [p.type, p.value]));
+  const wall = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute));
+  return new Date(asUtc.getTime() - (wall - asUtc.getTime()));
+}

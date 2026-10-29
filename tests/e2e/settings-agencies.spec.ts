@@ -78,7 +78,7 @@ test("operations creates an agency; patterns are tested; only admins set overrid
 
   await page.getByRole("link", { name: tr.nav.agencies }).click();
   await page.getByRole("button", { name: tr.agencies.new }).click();
-  const panel = page.getByRole("complementary");
+  const panel = page.getByRole("dialog");
   await panel.getByLabel(tr.agencies.name).fill("MSC Türkiye");
   await panel.getByLabel(tr.agencies.toRecipients).fill("iade@msc.example\nhatali-adres");
   await panel.getByLabel(tr.agencies.patterns).fill("MEDU\\d{7}\n(A+)+");
@@ -92,7 +92,8 @@ test("operations creates an agency; patterns are tested; only admins set overrid
   await expect(panel.getByTestId("pattern-test-result")).toHaveText("Bulunan B/L numaraları: MEDU1234567, MEDU7654321");
   await panel.getByRole("button", { name: tr.common.save }).click();
   await expect(page.getByText(tr.agencies.toast.created)).toBeVisible();
-  await expect(page.getByRole("table").getByRole("cell", { name: "MSC Türkiye" })).toBeVisible();
+  // The detail stays open on the saved agency; the list behind it gets the new row.
+  await expect(page.getByRole("dialog", { name: "MSC Türkiye" })).toBeVisible();
 
   // Overrides (admin): empty inherits; the global value reflects the earlier settings change.
   await expect(panel.getByText("Genel: 10 iş günü")).toBeVisible();
@@ -101,6 +102,7 @@ test("operations creates an agency; patterns are tested; only admins set overrid
   await expect(page.getByText(tr.agencies.toast.overrides)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(panel).toHaveCount(0);
+  await expect(page.getByRole("table").getByRole("cell", { name: "MSC Türkiye" })).toBeVisible();
 
   // The accountant sees agencies read-only.
   await page.getByRole("button", { name: E2E_ADMIN.displayName }).click();

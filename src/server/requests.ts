@@ -18,6 +18,7 @@ import { agencies, billsOfLading, ledgerEntries, requests } from "./db/schema";
 import { DomainError } from "./errors";
 import { activeLockers } from "./draft-locks";
 import { currentBlForm } from "./forms";
+import { replyHistory } from "./reply-history";
 import { getSetting } from "./settings";
 
 const TIMING_KEYS = {
@@ -97,7 +98,14 @@ function calendarUnder(db: DbOrTx, hypothesis: SettingsHypothesis): BusinessCale
   };
 }
 
-export type DueEntry = { bl: BlRow; agency: AgencyRow; state: DueState; stats: RequestStats; calendar: BusinessCalendar };
+export type DueEntry = {
+  bl: BlRow;
+  agency: AgencyRow;
+  state: DueState;
+  stats: RequestStats;
+  calendar: BusinessCalendar;
+  lastReply: { typeName: string; repliedOn: string } | null;
+};
 
 /** The due state of every active B/L that can take a refund request (or of the given ones). */
 export function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis = {}, onlyBlIds?: number[]): DueEntry[] {
@@ -116,10 +124,9 @@ export function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis
       ),
     )
     .all();
-  const stats = refundRequestStats(
-    db,
-    rows.map((r) => r.bl.id),
-  );
+  const ids = rows.map((r) => r.bl.id);
+  const stats = refundRequestStats(db, ids);
+  const history = replyHistory(db, ids);
   const entries: DueEntry[] = [];
   for (const { bl, agency } of rows) {
     const s = stats.get(bl.id) ?? { attempts: 0, lastRequestOn: null, sending: false };
@@ -131,14 +138,13 @@ export function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis
         durations: timing(bl, agency),
         attempts: s.attempts,
         lastRequestOn: s.lastRequestOn,
-        // Replies are recorded from build step 5 on.
-        lastReplyOn: null,
+        lastReplyOn: history.get(bl.id)?.lastAnswerOn ?? null,
         sending: s.sending,
       },
       today,
       calendar,
     );
-    if (state) entries.push({ bl, agency, state, stats: s, calendar });
+    if (state) entries.push({ bl, agency, state, stats: s, calendar, lastReply: history.get(bl.id)?.last ?? null });
   }
   return entries;
 }
@@ -158,6 +164,8 @@ export type DueRow = {
   form: { id: number; originalName: string } | null;
   /** Another user is drafting a request email for this B/L. */
   lockedBy: string | null;
+  /** The last recorded agency reply. */
+  lastReply: { typeName: string; repliedOn: string } | null;
 };
 
 export type DueGroup = {
@@ -211,7 +219,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
     const inList = entries
       .filter((e) => e.state.list === list)
       .sort((a, b) => a.state.dueDate.localeCompare(b.state.dueDate) || a.bl.paidAt.localeCompare(b.bl.paidAt) || a.bl.id - b.bl.id);
-    for (const { bl, agency, state, calendar } of inList) {
+    for (const { bl, agency, state, calendar, lastReply } of inList) {
       const group = groups.get(agency.id) ?? {
         agencyId: agency.id,
         agencyName: agency.name,
@@ -238,6 +246,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
         channel: agency.requestChannel === "PORTAL" && state.kind === "FIRST" ? "PORTAL" : "EMAIL",
         form: form ? { id: form.id, originalName: form.originalName } : null,
         lockedBy: lockers.get(bl.id) ?? null,
+        lastReply,
       });
       const total = group.totals.find((t) => t.currency === bl.currency);
       if (total) total.amountMinor += depositMinor;

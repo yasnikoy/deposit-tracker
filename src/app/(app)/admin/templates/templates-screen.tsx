@@ -27,6 +27,10 @@ const SAMPLE: Record<string, string> = {
   to: "iade@ornek-denizcilik.com",
   cc_section: "muhasebe@ornek-denizcilik.com",
   subject: "Depozito İade Talebi – B/L MEDU1000001",
+  count: "3",
+  warning_days: "1",
+  agency_lines: "• Örnek Denizcilik: 2\n• Deniz Hatları: 1",
+  link: "http://DEPOZITO-PC:3000/replies",
 };
 
 function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {

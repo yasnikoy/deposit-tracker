@@ -24,3 +24,5 @@ next-env.d.ts
 *.log
 /data-e2e/
 /data-test/
+# dev agency simulator: which requests it has answered
+/agency-sim-state.json

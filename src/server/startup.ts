@@ -8,8 +8,10 @@ import { recoverInterruptedJobs, startScheduler } from "./jobs";
 import { enableFileLogging, logger } from "./logger";
 import { emailJobHandlers } from "./email/send";
 import { seedEmailTemplates } from "./email/templates";
+import { mailboxFromSettings } from "./email/mailbox";
 import { mailTransport } from "./email/transport";
-import { seedLists } from "./lists";
+import { ensureRecurringJobs, recurringJobHandlers } from "./recurring-jobs";
+import { seedLists, seedReplyTypes } from "./lists";
 import { resolveKeyFile } from "./secrets";
 import { seedSettings } from "./settings";
 
@@ -26,6 +28,8 @@ export async function prepareDatabase(): Promise<void> {
   if (seeded.length > 0) logger.info({ keys: seeded }, "settings seeded");
   const currencies = seedLists(db);
   if (currencies.length > 0) logger.info({ currencies }, "lists seeded");
+  const replyTypeCodes = seedReplyTypes(db);
+  if (replyTypeCodes.length > 0) logger.info({ replyTypes: replyTypeCodes }, "reply types seeded");
   const templates = seedEmailTemplates(db);
   if (templates.length > 0) logger.info({ templates }, "email templates seeded");
 }
@@ -40,6 +44,11 @@ export async function startServer(): Promise<void> {
   const db = getDb();
   const recovered = recoverInterruptedJobs(db);
   if (recovered > 0) logger.warn({ recovered }, "jobs interrupted by a restart will run again");
-  startScheduler(db, emailJobHandlers(db, () => mailTransport(db)));
+  ensureRecurringJobs(db);
+  const transport = () => mailTransport(db);
+  startScheduler(db, {
+    ...emailJobHandlers(db, transport),
+    ...recurringJobHandlers(db, { mailbox: () => mailboxFromSettings(db), transport }),
+  });
   logger.info({ dataDir: env.dataDir, emailMode: env.EMAIL_MODE }, "server started");
 }

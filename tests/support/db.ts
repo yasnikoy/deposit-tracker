@@ -4,7 +4,7 @@ import type { Role } from "@/domain/roles";
 import type { AuthUser } from "@/server/auth/types";
 import { openDatabase, type Db } from "@/server/db/client";
 import { seedEmailTemplates } from "@/server/email/templates";
-import { seedLists } from "@/server/lists";
+import { seedLists, seedReplyTypes } from "@/server/lists";
 import { seedSettings } from "@/server/settings";
 import { createUser } from "@/server/users";
 import { loadRoles } from "@/server/user-roles";
@@ -18,6 +18,7 @@ export function createTestDb(): Db {
   migrate(db, { migrationsFolder: MIGRATIONS });
   seedSettings(db, SEED_FILE);
   seedLists(db, SEED_FILE);
+  seedReplyTypes(db, SEED_FILE);
   seedEmailTemplates(db, SEED_FILE);
   return db;
 }

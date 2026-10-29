@@ -17,6 +17,8 @@ import { BalanceStrip } from "../balance-strip";
 import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
 import { updateBlOverridesAction } from "../../requests/actions";
 import { FormSection } from "../form-section";
+import type { ReplyTypeOption } from "../../replies/replies-screen";
+import { ReplySection } from "./reply-section";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -32,9 +34,19 @@ const actionLabel = (action: string) => {
   return isTranslationKey(key) ? t(key) : action;
 };
 
-export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean; overrides: boolean };
+export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean; overrides: boolean; recordReply: boolean; linkEmail: boolean };
 
-export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetailPermissions }) {
+export function BlDetailScreen({
+  detail,
+  can,
+  replyTypes,
+  today,
+}: {
+  detail: BlDetail;
+  can: BlDetailPermissions;
+  replyTypes: ReplyTypeOption[];
+  today: string;
+}) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"edit" | "void" | null>(null);
   const { bl, payment, ledger, documents, timeline } = detail;
@@ -86,6 +98,8 @@ export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetai
               {bl.attempts}
               {bl.lastRequestOn && <span className="text-muted-foreground"> · {t("bls.lastRequestOn")}: {formatBusinessDate(bl.lastRequestOn)}</span>}
             </dd>
+            <dt className="text-muted-foreground">{t("bls.lastReply")}</dt>
+            <dd>{bl.lastReply ? `${bl.lastReply.typeName} · ${formatBusinessDate(bl.lastReply.repliedOn)}` : t("common.none")}</dd>
             <dt className="text-muted-foreground">{t("bls.containers")}</dt>
             <dd className="font-mono text-xs">{bl.containers.length ? bl.containers.join(", ") : t("bls.noContainers")}</dd>
             <dt className="text-muted-foreground">{t("bls.sourcePayment")}</dt>
@@ -107,6 +121,17 @@ export function BlDetailScreen({ detail, can }: { detail: BlDetail; can: BlDetai
 
         <Section title={t("forms.sectionTitle")}>
           <FormSection blId={bl.id} form={detail.form} editable={can.forms && !bl.voidedAt} />
+        </Section>
+
+        <Section title={t("blReplies.sectionTitle")}>
+          <ReplySection
+            blId={bl.id}
+            detail={detail}
+            replyTypes={replyTypes}
+            today={today}
+            canRecord={can.recordReply && !bl.voidedAt}
+            canLink={can.linkEmail && !bl.voidedAt}
+          />
         </Section>
 
         <Section title={t("bls.detail.documents")}>

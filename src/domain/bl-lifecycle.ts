@@ -4,7 +4,7 @@ import type { BlStatus } from "./records";
 export type StoredBlStatus = Exclude<BlStatus, "DUE">;
 
 /** Events that move a B/L. Later build steps add replies, allocations, deductions and disputes. */
-export type BlEvent = "REFUND_REQUEST_SENT";
+export type BlEvent = "REFUND_REQUEST_SENT" | "NOT_RETURNED_REPLY";
 
 export class InvalidTransitionError extends Error {
   constructor(
@@ -23,6 +23,11 @@ const TRANSITIONS: Record<BlEvent, Partial<Record<StoredBlStatus, StoredBlStatus
     // A follow-up without a reply keeps the B/L requested.
     REQUESTED: "REQUESTED",
     AWAITING_RETURN: "REQUESTED",
+  },
+  // Reply type "container not yet returned"; a second one before the next follow-up changes nothing.
+  NOT_RETURNED_REPLY: {
+    REQUESTED: "AWAITING_RETURN",
+    AWAITING_RETURN: "AWAITING_RETURN",
   },
 };
 

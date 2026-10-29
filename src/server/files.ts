@@ -112,7 +112,17 @@ function writeDataFile(content: Buffer, extension: string, now: Date): { storedP
 
 function insertDocument(
   tx: DbOrTx,
-  input: { kind: DocumentKind; originalName: string; storedPath: string; extension: string; content: Buffer; uploadedBy: number; ownerType?: string; ownerId?: number },
+  input: {
+    kind: DocumentKind;
+    originalName: string;
+    storedPath: string;
+    extension: string;
+    content: Buffer;
+    uploadedBy: number | null;
+    ownerType?: string;
+    ownerId?: number;
+    mimeType?: string;
+  },
   now: Date,
 ): StoredDocument {
   return tx
@@ -123,7 +133,7 @@ function insertDocument(
       ownerId: input.ownerId ?? null,
       originalName: input.originalName,
       storedPath: input.storedPath,
-      mimeType: MIME_BY_EXTENSION[input.extension] ?? "application/octet-stream",
+      mimeType: input.mimeType ?? MIME_BY_EXTENSION[input.extension] ?? "application/octet-stream",
       sizeBytes: input.content.length,
       sha256: createHash("sha256").update(input.content).digest("hex"),
       uploadedBy: input.uploadedBy,
@@ -150,6 +160,31 @@ export function storeGeneratedDocument(
     return insertDocument(
       tx,
       { kind: input.kind, originalName, storedPath, extension, content: input.content, uploadedBy: input.createdBy, ownerType: input.ownerType, ownerId: input.ownerId },
+      now,
+    );
+  } catch (error) {
+    fs.rmSync(target, { force: true });
+    throw error;
+  }
+}
+
+/**
+ * Stores a file taken from the mailbox (a raw message or an email attachment), attached to
+ * its email. Nobody uploaded it, so it has no uploader; upload rules do not apply, since the
+ * file is only kept and shown, never sent on by the app. Call inside the import transaction.
+ */
+export function storeImportedDocument(
+  tx: DbOrTx,
+  input: { originalName: string; content: Buffer; mimeType: string; ownerType: string; ownerId: number },
+  now: Date = new Date(),
+): StoredDocument {
+  const originalName = cleanOriginalName(input.originalName);
+  const extension = /^[a-z0-9]{1,10}$/.test(extensionOf(originalName)) ? extensionOf(originalName) : "bin";
+  const { storedPath, target } = writeDataFile(input.content, extension, now);
+  try {
+    return insertDocument(
+      tx,
+      { kind: "OTHER", originalName, storedPath, extension, content: input.content, uploadedBy: null, ownerType: input.ownerType, ownerId: input.ownerId, mimeType: input.mimeType },
       now,
     );
   } catch (error) {

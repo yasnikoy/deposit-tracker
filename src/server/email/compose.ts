@@ -8,7 +8,7 @@ import { formatAmount } from "@/lib/money";
 import { authorize } from "../auth/can";
 import type { AuthUser } from "../auth/types";
 import type { Db, DbOrTx } from "../db/client";
-import { billsOfLading, containers, depositPayments, documents, emails, ledgerEntries, requests } from "../db/schema";
+import { billsOfLading, containers, depositPayments, documents, emailBlLinks, emails, ledgerEntries, requests } from "../db/schema";
 import { DomainError } from "../errors";
 import { currentBlForm } from "../forms";
 import { dueEntries, type DueEntry } from "../requests";
@@ -28,10 +28,10 @@ export type DraftAttachment = {
 
 export type DraftItem = { blId: number; blNo: string; kind: RequestKind; attemptNo: number };
 
-/** Follow-ups reply in the thread of the earlier request email. */
+/** Follow-ups reply to the latest message of the B/L's thread, ours or the agency's. */
 export type DraftThread = { emailId: number; messageId: string; references: string[]; subject: string };
 
-type ThreadEmail = DraftThread & { fromAddress: string; to: string[]; cc: string[]; bodyText: string; sentAt: string | null };
+type ThreadEmail = DraftThread & { fromAddress: string; to: string[]; cc: string[]; bodyText: string; sentAt: string | null; incoming: boolean };
 
 export type EmailDraft = {
   agencyId: number;
@@ -47,26 +47,43 @@ export type EmailDraft = {
   maxAttachmentBytes: number;
 };
 
-/** The last sent email of a B/L's refund request chain, to reply to. */
+/**
+ * The latest message of a B/L's request chain, to reply to: our last sent request email, or
+ * a later agency email linked to the B/L (for portal agencies, the one linked by hand).
+ */
 function lastThread(tx: DbOrTx, blId: number): ThreadEmail | null {
-  const row = tx
-    .select({
-      emailId: emails.id,
-      messageId: emails.messageId,
-      references: emails.references,
-      subject: emails.subject,
-      fromAddress: emails.fromAddress,
-      to: emails.to,
-      cc: emails.cc,
-      bodyText: emails.bodyText,
-      sentAt: emails.sentAt,
-    })
+  const fields = {
+    emailId: emails.id,
+    messageId: emails.messageId,
+    references: emails.references,
+    subject: emails.subject,
+    fromAddress: emails.fromAddress,
+    to: emails.to,
+    cc: emails.cc,
+    bodyText: emails.bodyText,
+    sentAt: emails.sentAt,
+    receivedAt: emails.receivedAt,
+  };
+  const sent = tx
+    .select(fields)
     .from(requests)
     .innerJoin(emails, eq(emails.id, requests.emailId))
     .where(and(eq(requests.blId, blId), eq(requests.type, "REFUND"), eq(requests.sendStatus, "SENT"), isNotNull(requests.emailId)))
     .orderBy(desc(requests.id))
     .get();
-  return row ?? null;
+  const received = tx
+    .select(fields)
+    .from(emailBlLinks)
+    .innerJoin(emails, eq(emails.id, emailBlLinks.emailId))
+    .where(and(eq(emailBlLinks.blId, blId), eq(emails.direction, "IN")))
+    .orderBy(desc(emails.receivedAt), desc(emails.id))
+    .get();
+  const latest = [sent, received]
+    .filter((e) => e !== undefined)
+    .sort((a, b) => (b.receivedAt ?? b.sentAt ?? "").localeCompare(a.receivedAt ?? a.sentAt ?? ""))[0];
+  if (!latest) return null;
+  const { receivedAt, ...thread } = latest;
+  return { ...thread, sentAt: receivedAt ?? thread.sentAt, incoming: receivedAt !== null };
 }
 
 function lastPortalRef(tx: DbOrTx, blId: number): string {
@@ -165,7 +182,7 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
 function quoteOf(tx: DbOrTx, thread: ThreadEmail): string {
   const fromName = getSetting("email.fromName", {}, tx);
   const header = renderTemplate(getEmailTemplate(tx, "REPLY_QUOTE").body, {
-    from: fromName ? `${fromName} <${thread.fromAddress}>` : thread.fromAddress,
+    from: fromName && !thread.incoming ? `${fromName} <${thread.fromAddress}>` : thread.fromAddress,
     sent_at: thread.sentAt ? formatTimestamp(thread.sentAt) : "",
     to: thread.to.join("; "),
     cc_section: thread.cc.join("; "),

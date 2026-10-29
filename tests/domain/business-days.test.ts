@@ -3,6 +3,7 @@ import {
   addBusinessDays,
   businessDaysBetween,
   isBusinessDay,
+  istanbulInstant,
   istanbulToday,
   type BusinessCalendar,
 } from "@/domain/business-days";
@@ -107,5 +108,12 @@ describe("istanbulToday", () => {
   it("uses the Europe/Istanbul date, not UTC", () => {
     expect(istanbulToday(new Date("2026-10-22T20:59:59Z"))).toBe("2026-10-22");
     expect(istanbulToday(new Date("2026-10-22T21:00:00Z"))).toBe("2026-10-23");
+  });
+});
+
+describe("Istanbul wall-clock times", () => {
+  it("turns a date and HH:MM in Istanbul into the UTC instant", () => {
+    expect(istanbulInstant("2026-10-29", "09:00").toISOString()).toBe("2026-10-29T06:00:00.000Z");
+    expect(istanbulInstant("2026-01-01", "00:30").toISOString()).toBe("2025-12-31T21:30:00.000Z");
   });
 });

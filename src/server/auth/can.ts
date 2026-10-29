@@ -56,6 +56,11 @@ const rules = {
   "request.prepareEmail": only("OPERATIONS"),
   "request.sendEmail": only("OPERATIONS"),
   "email.sendTest": only("ADMIN"),
+  // Agency replies are read and recorded by operations (the Replies screen).
+  "reply.view": only("OPERATIONS"),
+  "reply.record": only("OPERATIONS"),
+  // Accepting or dismissing a match suggestion, and linking a mailbox message by hand.
+  "email.link": only("OPERATIONS"),
   "standingDocument.view": ALL_ROLES,
   "standingDocument.manage": only("ADMIN"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",

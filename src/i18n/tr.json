@@ -43,7 +43,9 @@
     "lists": "Listeler",
     "allBls": "B/L'ler",
     "dueRequests": "Talepler",
-    "templates": "E-posta şablonları"
+    "templates": "E-posta şablonları",
+    "replies": "Yanıtlar",
+    "unprocessedBadge": "{count} işlenmemiş yanıt"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -142,14 +144,12 @@
     "title": "Klavye kısayolları",
     "moveRows": "Satırlar arasında gezin",
     "openRow": "Seçili satırı aç",
-    "closePanel": "Paneli kapat",
+    "previousNext": "Ayrıntıda önceki / sonraki kayıt",
+    "closeDetail": "Ayrıntıyı kapat",
     "toggleRow": "Satırı seç / bırak",
     "focusSearch": "Tabloda ara",
     "showHelp": "Bu listeyi göster",
     "globalSearch": "B/L ara (her yerden)"
-  },
-  "detailPanel": {
-    "close": "Paneli kapat"
   },
   "weekdays": {
     "1": "Pzt",
@@ -178,7 +178,8 @@
       "reconciliation": "Mutabakat",
       "users": "Kullanıcı güvenliği",
       "backups": "Yedekleme",
-      "email": "E-posta sunucusu"
+      "email": "E-posta sunucusu",
+      "notifications": "Bildirimler"
     },
     "units": {
       "businessDays": "iş günü",
@@ -355,6 +356,24 @@
         "maxAttachmentMb": {
           "label": "En büyük ek toplamı",
           "help": "Bir e-postadaki eklerin toplam üst sınırı."
+        },
+        "inboxFolder": {
+          "label": "Gelen kutusu klasörü",
+          "help": "Acente yanıtları bu klasörden yalnızca okunur; uygulama hiçbir iletiyi taşımaz, silmez veya okundu işaretlemez."
+        }
+      },
+      "notifications": {
+        "dailyUnprocessedEmail": {
+          "label": "Günlük işlenmemiş yanıt e-postası",
+          "help": "Açıkken, uyarı süresini geçmiş işlenmemiş yanıt varsa aşağıdaki alıcılara her gün kısa bir özet gönderilir."
+        },
+        "dailyUnprocessedTime": {
+          "label": "Günlük e-posta saati",
+          "help": "Bilgisayar bu saatte kapalıysa e-posta açılışta gönderilir."
+        },
+        "dailyUnprocessedRecipients": {
+          "label": "Günlük e-posta alıcıları",
+          "help": "Yalnızca şirket içi adresler."
         }
       }
     },
@@ -511,9 +530,23 @@
     "errors": {
       "ibanTaken": "Bu IBAN başka bir hesapta kayıtlı.",
       "iban": "Geçersiz IBAN.",
-      "code": "Kod üç büyük harf olmalı (ör. GBP)."
+      "code": "Kod üç büyük harf olmalı (ör. GBP).",
+      "replyTypeTaken": "Bu adda bir yanıt türü zaten var.",
+      "systemReplyType": "Sistem yanıt türleri pasif yapılamaz; yalnızca adı değiştirilebilir."
     },
-    "bankAccountsHint": "Acente iade formlarındaki banka adı ve IBAN alanları buradan doldurulur. Muhasebe kayıtlarında hesap seçilmez."
+    "bankAccountsHint": "Acente iade formlarındaki banka adı ve IBAN alanları buradan doldurulur. Muhasebe kayıtlarında hesap seçilmez.",
+    "replyTypes": "Yanıt türleri",
+    "addReplyType": "Yanıt türü ekle",
+    "replyTypeName": "Ad",
+    "sortOrder": "Sıra",
+    "replyTypesHint": "Acente yanıtları bu türlerle kaydedilir. Sistem türleri yalnızca yeniden adlandırılabilir; eklenen türler yalnızca yanıtı belgeler, durumu değiştirmez.",
+    "customReplyType": "Eklenen tür: durumu değiştirmez, takip süresini yeniden başlatır",
+    "replyTypeEffects": {
+      "NOT_RETURNED": "Sistem: B/L \"Konteyner dönüşü bekleniyor\" durumuna geçer; takip süresi sonunda talep listesine yeniden gelir",
+      "APPROVED": "Sistem: durum değişmez, takip süresi yeniden başlar",
+      "STATEMENT_RECEIVED": "Sistem: durum değişmez; kesinti girişi 6. adımda",
+      "INFO": "Sistem: yanıt işlenmiş sayılır, takip süresi yeniden başlamaz"
+    }
   },
   "payments": {
     "kinds": {
@@ -599,7 +632,7 @@
       "PAID": "Depozito yatırıldı",
       "DUE": "Talep zamanı",
       "REQUESTED": "Talep edildi",
-      "AWAITING_RETURN": "İade bekleniyor",
+      "AWAITING_RETURN": "Konteyner dönüşü bekleniyor",
       "DEDUCTION_OPEN": "Kesinti açık",
       "DISPUTED": "İtirazlı",
       "COLLECTED": "Tahsil edildi"
@@ -662,7 +695,8 @@
       "OPENING_BALANCE": "Açılış bakiyesi"
     },
     "attempts": "Talep sayısı",
-    "lastRequestOn": "Son talep"
+    "lastRequestOn": "Son talep",
+    "lastReply": "Son yanıt"
   },
   "search": {
     "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
@@ -703,6 +737,13 @@
         "queue": "Talep e-postası kuyruğa alındı",
         "sent": "Talep e-postası gönderildi",
         "failed": "Talep e-postası gönderilemedi"
+      },
+      "email": {
+        "received": "Acente e-postası alındı",
+        "link": "E-posta B/L'ye bağlandı"
+      },
+      "reply": {
+        "record": "Acente yanıtı kaydedildi"
       }
     },
     "system": "Sistem",
@@ -846,14 +887,16 @@
       "FOLLOW_UP": "Takip talebi",
       "BATCH": "Toplu e-posta",
       "BATCH_LINE": "Toplu e-posta satırı",
-      "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)"
+      "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)",
+      "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası"
     },
     "help": {
       "REFUND_REQUEST": "Tek B/L için ilk talep.",
       "FOLLOW_UP": "Önceki e-postaya yanıt olarak gider (konu \"Re: …\"). Konu yalnızca yanıtlanacak e-posta yoksa (portal acenteleri) kullanılır.",
       "BATCH": "Toplu gönderim yapan acentelerde birden fazla B/L tek e-postada.",
       "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
-      "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz."
+      "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
+      "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur."
     },
     "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
   },
@@ -874,5 +917,101 @@
       "IMAP": "Gelen posta sunucusuna {since} tarihinden beri ulaşılamıyor."
     },
     "dryRunBanner": "Deneme modu: e-postalar kaydedilir ama gönderilmez."
+  },
+  "replies": {
+    "errors": {
+      "voided": "B/L {bl} iptal edilmiş.",
+      "suggestionGone": "Bu öneri artık açık değil; liste yenilendi.",
+      "replyType": "Yanıt türü bulunamadı veya pasif.",
+      "noRequest": "B/L {bl} için henüz talep gönderilmedi; yanıt kaydedilemez.",
+      "notReturnedStatus": "B/L {bl} bu durumda \"konteyner henüz dönmedi\" yanıtı alamaz.",
+      "notLinked": "E-posta bu B/L'ye bağlı değil.",
+      "alreadyRecorded": "B/L {bl} için bu e-postanın yanıt türü zaten kaydedilmiş.",
+      "futureDate": "Yanıt tarihi ileri bir tarih olamaz.",
+      "beforePayment": "Yanıt tarihi ödeme tarihinden önce olamaz.",
+      "noMailbox": "Posta kutusu ayarlanmamış (e-posta ayarlarında IMAP sunucusu, kullanıcı ve şifre).",
+      "messageGone": "İleti posta kutusunda artık bulunamadı; aramayı yenileyin.",
+      "ownEmail": "Bu, uygulamanın gönderdiği bir e-posta; zaten ilgili B/L'lere bağlı."
+    },
+    "title": "Acente yanıtları",
+    "tabs": {
+      "TO_PROCESS": "İşlenecek",
+      "MATCHES": "Olası eşleşmeler",
+      "PROCESSED": "İşlenmiş"
+    },
+    "hints": {
+      "TO_PROCESS": "Bilinen bir talep zincirindeki veya bir B/L'ye bağlanan yanıtlar. Her B/L için yanıt türünü kaydedin; uygulama yanıtı yorumlamaz.",
+      "MATCHES": "Bilinen bir zincirde olmayan ama açık bir B/L numarası geçen e-postalar. Yalnızca onayladığınızda bağlanır.",
+      "PROCESSED": "Bağlı tüm B/L'leri için yanıt türü kaydedilmiş e-postalar."
+    },
+    "empty": {
+      "TO_PROCESS": "İşlenecek yanıt yok.",
+      "MATCHES": "Olası eşleşme yok.",
+      "PROCESSED": "Henüz işlenmiş yanıt yok."
+    },
+    "receivedAt": "Alındı",
+    "agency": "Acente",
+    "from": "Kimden",
+    "to": "Kime",
+    "cc": "Bilgi",
+    "subject": "Konu",
+    "bls": "B/L'ler",
+    "noSubject": "(konu yok)",
+    "noText": "(metin yok)",
+    "hasAttachments": "Ekli",
+    "overdue": "Gecikmiş",
+    "linkedBls": "Bağlı B/L'ler",
+    "linkedBy": {
+      "THREAD": "talep zincirinden",
+      "SUGGESTION": "öneri onaylandı",
+      "MANUAL": "elle bağlandı"
+    },
+    "applyToAll": "Tümüne uygula:",
+    "bulkRecord": "Seçili yanıtların bekleyen B/L'lerine:",
+    "confirmTitle": "Yanıt türü kaydedilsin mi: {type}",
+    "confirmDescription": "{count} B/L için bu yanıt türü kaydedilecek.",
+    "confirmRecord": "Kaydet",
+    "recorded": "{count} B/L için yanıt kaydedildi.",
+    "suggestions": "Olası eşleşmeler",
+    "suggestionsHint": "E-postada bu açık B/L numaraları geçiyor. Doğruysa bağlayın; değilse reddedin.",
+    "accept": "Bağla",
+    "dismiss": "Reddet",
+    "linked": "E-posta B/L'ye bağlandı.",
+    "dismissed": "Öneri reddedildi.",
+    "attachments": "Ekler",
+    "downloadEml": "Özgün iletiyi indir (.eml)",
+    "message": "İleti",
+    "allProcessed": "İşlenecek yanıt kalmadı."
+  },
+  "blReplies": {
+    "sectionTitle": "E-postalar ve yanıtlar",
+    "record": "Yanıt kaydet",
+    "recordHint": "E-postayla gelmeyen bir yanıt (ör. portalda görülen durum). E-postayla gelen yanıtlar Yanıtlar ekranından işlenir.",
+    "type": "Yanıt türü",
+    "chooseType": "Bir yanıt türü seçin.",
+    "date": "Yanıt tarihi",
+    "note": "Not",
+    "notePlaceholder": "Nereden öğrenildi? (isteğe bağlı)",
+    "recorded": "Yanıt kaydedildi.",
+    "linkFromMailbox": "Posta kutusundan bağla",
+    "linkHint": "Ortak posta kutusunda gönderen ve konuya göre arayın, bu B/L ile ilgili e-postayı bağlayın. Sonraki yanıtları otomatik alınır.",
+    "search": "Ara",
+    "noResults": "Eşleşen ileti bulunamadı.",
+    "alreadyLinked": "Bağlı",
+    "emails": "E-postalar",
+    "noEmails": "Henüz e-posta yok.",
+    "sent": "Gönderilen",
+    "received": "Gelen",
+    "replies": "Kaydedilen yanıtlar",
+    "noReplies": "Henüz yanıt kaydedilmedi.",
+    "byEmail": "e-postadan",
+    "withoutEmail": "e-posta olmadan"
+  },
+  "detailDialog": {
+    "description": "Seçili kaydın ayrıntıları",
+    "previous": "Önceki",
+    "next": "Sonraki",
+    "position": "{index} / {count}",
+    "keys": "← / → ile geçiş, Esc ile kapat"
   }
 }

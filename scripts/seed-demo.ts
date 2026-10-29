@@ -2,12 +2,15 @@
  * Fills an EMPTY data folder with realistic dummy records for a walk-through test:
  * users, agencies (single email, batch, portal, misconfigured, inactive), bank accounts with
  * valid IBANs, holidays, form templates, standing documents, payments with PDF receipts,
- * B/Ls in every request state, and one earlier request email so a follow-up thread exists.
+ * B/Ls in every request state, one earlier request email so a follow-up thread exists, and
+ * two imported agency emails (a reply in that thread and a possible match).
  * Dates are relative to today, so the due lists look the same whenever it runs.
  *
  * Usage: DATA_DIR=data-test KEY_FILE=test.key pnpm seed:demo [recipient-domain]
  * Refuses to run on a database that already has users. Never point it at the real data folder.
  */
+import { eq } from "drizzle-orm";
+import MailComposer from "nodemailer/lib/mail-composer";
 import PizZip from "pizzip";
 import { addCalendarDays, isBusinessDay, istanbulToday, type IsoDate } from "@/domain/business-days";
 import { checkContainerNumber } from "@/domain/containers";
@@ -17,8 +20,9 @@ import { createAgency } from "@/server/agencies";
 import { createBls, voidBl } from "@/server/bls";
 import { loadCalendar } from "@/server/calendar";
 import { getDb, type Db } from "@/server/db/client";
-import { users } from "@/server/db/schema";
+import { emails, users } from "@/server/db/schema";
 import { prepareRequestEmails } from "@/server/email/compose";
+import { importMessage, parseMessage } from "@/server/email/inbound";
 import { emailJobHandlers, queueRequestEmail } from "@/server/email/send";
 import { mailTransport } from "@/server/email/transport";
 import { getEnv } from "@/server/env";
@@ -350,7 +354,45 @@ async function seed(db: Db) {
   );
   await runDueJobs(db, emailJobHandlers(db, () => mailTransport(db)) as JobHandlers, () => sentOn);
 
+  // Agency emails as the mailbox poller would import them: a reply in MEDU1000004's thread
+  // (to process, past the warning), and a portal agency's email naming KZYU3000002 (possible match).
+  const sentMessageId = db.select({ messageId: emails.messageId }).from(emails).where(eq(emails.direction, "OUT")).get()!.messageId;
+  await importDemoEmail(db, {
+    from: `Akdeniz Iade <iade@${recipientDomain}>`,
+    subject: `RE: ${draft.subject}`,
+    text: "Merhaba,\n\nMEDU1000004 kapsamındaki konteyner henüz boş olarak teslim edilmedi. Teslim sonrası iade süreci başlatılacaktır.\n\nSaygılarımızla",
+    inReplyTo: sentMessageId,
+    receivedAt: new Date(`${businessDaysAgo(2)}T08:15:00Z`),
+    attachment: { filename: "konteyner-durum.pdf", content: pdf(["KONTEYNER DURUM RAPORU", "TGHU4000046: sahada"]) },
+  });
+  await importDemoEmail(db, {
+    from: `Kuzey Operasyon <ops@${recipientDomain}>`,
+    subject: "Depozito iade başvurusu KZYU3000002",
+    text: "Portal başvurunuz (KZ-2026-0815) incelemeye alınmıştır.",
+    receivedAt: new Date(`${businessDaysAgo(1)}T11:40:00Z`),
+  });
+
   return { users: ["yonetici", "muhasebe", "operasyon", "operasyon2", "cift"] };
+}
+
+async function importDemoEmail(
+  db: Db,
+  input: { from: string; subject: string; text: string; inReplyTo?: string; receivedAt: Date; attachment?: { filename: string; content: Buffer } },
+) {
+  const raw = await new MailComposer({
+    from: input.from,
+    to: "depozito@ornek-lojistik.test",
+    subject: input.subject,
+    text: input.text,
+    inReplyTo: input.inReplyTo,
+    references: input.inReplyTo ? [input.inReplyTo] : undefined,
+    date: input.receivedAt,
+    attachments: input.attachment ? [input.attachment] : undefined,
+  })
+    .compile()
+    .build();
+  const parsed = await parseMessage(raw);
+  db.transaction((tx) => importMessage(tx, parsed, { raw, receivedAt: input.receivedAt }, {}, input.receivedAt));
 }
 
 if (getEnv().EMAIL_MODE === "live") throw new Error("Run the demo seed in dry-run mode.");

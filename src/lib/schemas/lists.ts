@@ -25,3 +25,11 @@ export const bankAccountInputSchema = z.object({
   active: z.boolean(),
   reason: reasonSchema,
 });
+
+export const replyTypeInputSchema = z.object({
+  id: z.number().int().positive().optional(),
+  name: z.string().trim().min(1, msg("common.required")).max(100),
+  active: z.boolean(),
+  sortOrder: z.number().int().min(0).max(1000),
+  reason: reasonSchema,
+});

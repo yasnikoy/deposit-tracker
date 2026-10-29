@@ -43,8 +43,11 @@ export type DataTableProps<TData extends RowData> = {
   columns: ColumnDef<DataTableFeatures, TData, any>[];
   getRowId: (row: TData) => string;
   initialLayout: TableLayout | null;
-  /** Enter, or a click on a row, opens it (usually in the detail panel). */
-  onOpenRow?: (row: TData) => void;
+  /**
+   * Enter, or a click on a row, opens it (usually in the detail dialog). `visible` is every
+   * row as the table shows it now (sorted and filtered), for previous/next in the detail.
+   */
+  onOpenRow?: (row: TData, visible: TData[]) => void;
   /** Enables row selection; rendered in the bar shown while rows are selected. */
   bulkActions?: (selected: TData[], clearSelection: () => void) => ReactNode;
   /** Extra controls on the right of the toolbar, e.g. a "new" button. */
@@ -165,7 +168,7 @@ export function DataTable<TData extends RowData>({
         focusRow(rows.length - 1);
         break;
       case "Enter":
-        if (active && onOpenRow) onOpenRow(active.original);
+        if (active && onOpenRow) onOpenRow(active.original, rows.map((r) => r.original));
         break;
       case " ":
         if (active && selectable) active.toggleSelected();
@@ -363,7 +366,7 @@ export function DataTable<TData extends RowData>({
                 data-active={index === activeIndex || undefined}
                 onClick={() => {
                   setActiveIndex(index);
-                  onOpenRow?.(row.original);
+                  onOpenRow?.(row.original, rows.map((r) => r.original));
                 }}
                 className={cn(
                   "hover:bg-muted/50 border-b last:border-b-0",

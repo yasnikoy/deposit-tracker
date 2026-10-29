@@ -224,6 +224,7 @@ function AgencyGroup({
             <th className="px-3 py-1 font-normal">{t("bls.paidAt")}</th>
             <th className="px-3 py-1 font-normal">{t("requests.dueDate")}</th>
             <th className="px-3 py-1 text-right font-normal">{t("bls.daysWaiting")}</th>
+            <th className="px-3 py-1 font-normal">{t("bls.lastReply")}</th>
             <th className="px-3 py-1 text-right font-normal">{t("requests.amount")}</th>
             <th className="px-3 py-1 font-normal">{t("requests.form")}</th>
             <th className="px-3 py-1 font-normal">{t("common.actions")}</th>
@@ -258,6 +259,15 @@ function AgencyGroup({
               <td className="px-3 py-1.5">{formatBusinessDate(row.paidAt)}</td>
               <td className="px-3 py-1.5">{formatBusinessDate(row.dueDate)}</td>
               <td className="px-3 py-1.5 text-right">{row.daysWaiting}</td>
+              <td className="px-3 py-1.5">
+                {row.lastReply ? (
+                  <span className="whitespace-nowrap">
+                    {row.lastReply.typeName} <span className="text-muted-foreground text-xs">{formatBusinessDate(row.lastReply.repliedOn)}</span>
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{t("common.none")}</span>
+                )}
+              </td>
               <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatMoney(row.depositMinor, row.currency)}</td>
               <td className="px-3 py-1.5">
                 <FormCell row={row} formRequired={formRequired} editable={canForms} />

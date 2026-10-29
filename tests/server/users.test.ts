@@ -88,7 +88,11 @@ describe("user management", () => {
 
     setUserActive(db, admin, { userId: ops.id, active: true });
     expect((await attemptLogin(db, { username: "ops", password: TEST_PASSWORD })).ok).toBe(true);
-    const actions = db.select({ a: auditLog.action }).from(auditLog).where(eq(auditLog.entityId, String(ops.id))).all();
+    const actions = db
+      .select({ a: auditLog.action })
+      .from(auditLog)
+      .where(and(eq(auditLog.entityType, "user"), eq(auditLog.entityId, String(ops.id))))
+      .all();
     expect(actions.map((r) => r.a)).toEqual(["user.create", "user.deactivate", "user.reactivate"]);
   });
 

@@ -66,12 +66,14 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   // Operations part of the role: an agency with a B/L number pattern.
   await page.goto("/agencies");
   await page.getByRole("button", { name: tr.agencies.new }).click();
-  const panel = page.getByRole("complementary");
+  const panel = page.getByRole("dialog");
   await panel.getByLabel(tr.agencies.name).fill(AGENCY);
   await panel.getByLabel(tr.agencies.aliases).fill("MAERSK LINE");
   await panel.getByLabel(tr.agencies.patterns).fill(String.raw`\b2\d{8}\b`);
   await panel.getByRole("button", { name: tr.common.save }).click();
   await expect(page.getByText(tr.agencies.toast.created)).toBeVisible();
+  await panel.getByRole("button", { name: tr.common.close, exact: true }).click();
+  await expect(panel).toHaveCount(0);
 
   // Accountant part: a bank payment with its receipt.
   await page.getByRole("link", { name: tr.nav.accounting }).click();
@@ -151,12 +153,12 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   await expect(page.getByText(tr.timeline.actions.bl.create, { exact: true })).toBeVisible();
   await expect(page.getByText("CSQU3054383")).toBeVisible();
 
-  // Voiding a B/L from the list panel returns its payment to the work list.
+  // Voiding a B/L from its detail dialog returns its payment to the work list.
   await page.getByRole("link", { name: tr.nav.allBls, exact: true }).click();
   await page.getByRole("row").filter({ hasText: "211111111" }).click();
-  const panel = page.getByRole("complementary");
+  const panel = page.getByRole("dialog");
   await panel.getByRole("button", { name: tr.bls.void }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("dialog", { name: tr.bls.void });
   await expect(dialog.getByRole("button", { name: tr.bls.void })).toBeDisabled();
   await dialog.getByLabel(tr.common.reasonRequired).fill("Yanlış ödemeye bağlandı");
   await dialog.getByRole("button", { name: tr.bls.void }).click();

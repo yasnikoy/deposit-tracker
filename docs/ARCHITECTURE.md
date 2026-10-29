@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — Architecture
 
-Oct 20, 2026 · updated Oct 24, 2026 (see Change log)
+Oct 20, 2026 · updated Oct 29, 2026 (see Change log)
 
 ## Purpose and scope
 
@@ -129,14 +129,17 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
-| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, reply\_type\_id, replied\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
-| `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), processed\_at (step 5) |
+| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
+| `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), received\_at (incoming only). Whether an incoming email is processed is computed from `replies`, never stored |
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
 | `standing_documents` | Signature circular and power of attorney; the newest per slot is current | slot (SIGNATURE\_CIRCULAR, POWER\_OF\_ATTORNEY), document\_id, uploaded\_by |
 | `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, …), payload, run\_at, status, attempts, last\_error |
 | `service_status` | Mail server reachability for the outage banner | service (SMTP, IMAP), failing\_since, last\_error, last\_ok\_at |
-| `email_bl_links` | Many-to-many emails and B/Ls | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL) |
-| `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by |
+| `email_bl_links` | Incoming emails and the B/Ls they concern (outgoing emails reach their B/Ls through `requests`) | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL), linked\_by\_user (null for THREAD) |
+| `email_match_suggestions` | Possible matches: an incoming email outside a known thread that names an open B/L | email\_id, bl\_id, state (OPEN, ACCEPTED, DISMISSED), resolved\_by, resolved\_at |
+| `replies` | An agency answer for one B/L, recorded by operations | bl\_id, reply\_type\_id, replied\_on (business date: the day the email arrived, or the date the user gives), email\_id (null for a reply without email), note, created\_by, role\_used. One per email and B/L |
+| `mailbox_state` | How far the poller has read the inbox folder | folder, uid\_validity, last\_uid, last\_polled\_at |
+| `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by (null for files imported from the mailbox) |
 | `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
 | `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at |
 | `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
@@ -144,11 +147,11 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
 | `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, BATCH, BATCH\_LINE, REPLY\_QUOTE), subject, body with placeholders and section blocks |
-| `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order |
+| `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order; reply types also carry a system code (NOT\_RETURNED, APPROVED, STATEMENT\_RECEIVED, INFO; null for types an admin adds) |
 | `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
 | `sessions` | Login sessions | id (SHA-256 of the cookie token), user\_id, created\_at, last\_seen\_at, revoked\_at |
 
-`UNEXPLAINED` and `WRITE_OFF` are system deduction types: they can be relabelled but never deleted, and `UNEXPLAINED` can be replaced by a real type. Allocation suggestions are computed on screen and not stored; only confirmed allocations become rows. Seed reply types: *container not yet returned*, *approved, payment to follow*, *deduction statement received*.
+`UNEXPLAINED` and `WRITE_OFF` are system deduction types: they can be relabelled but never deleted, and `UNEXPLAINED` can be replaced by a real type. Allocation suggestions are computed on screen and not stored; only confirmed allocations become rows. Seed reply types: *container not yet returned*, *approved, payment to follow*, *deduction statement received*, *info only / no action*. They are system types: renamable and reorderable, never deactivated. Only *container not yet returned* changes the status; *info only* marks a reply processed without restarting the follow-up clock; every other type (including ones an admin adds) restarts the clock and changes nothing else.
 
 ## Settings system
 
@@ -168,8 +171,8 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | --- | --- |
 | Calendar | Weekend days; holiday list (date, name, full/half day); whether half days (arife) count as business days; bulk holiday entry per year |
 | Durations (business days) | Days after payment until first refund request is due; days in advance a B/L shows as "upcoming"; days between follow-ups after "not yet returned"; days after an unexplained deduction until the statement request is due; days between statement-request follow-ups; days before an unprocessed agency reply raises a warning; aging report bucket edges |
-| Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval); daily unprocessed-reply email on/off, time and recipients; weekly summary email on/off, its weekday, time and recipients |
-| Email server | SMTP/IMAP host, port, encryption, user, encrypted app password; sent-folder name; IMAP poll interval; sender display name; default CC/BCC; signature; max attachment size; send-test button |
+| Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval) (step 7); daily unprocessed-reply email on/off, time and recipients (step 5); weekly summary email on/off, its weekday, time and recipients |
+| Email server | SMTP/IMAP host, port, encryption, user, encrypted app password; sent-folder name; inbox folder the poller reads; IMAP poll interval; sender display name; default CC/BCC; signature; max attachment size; send-test button |
 | Templates (Turkish) | Refund request, follow-up, deduction statement request, daily unprocessed-reply email, weekly summary; batched template sections; placeholders; live preview |
 | Lists | Deduction types, reply types, active currencies, our bank accounts (used only to fill `{bank_name}` / `{iban}` in agency forms), status display labels and colours |
 | Reconciliation | Number of alternative suggestions shown |
@@ -197,7 +200,7 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 | Unprocessed reply warning | 1 business day |
 | Aging buckets | 0–20, 21–40, 41–60, 60+ business days |
 | Deduction types | Demurrage/detention, Other (plus the system types Unexplained and Write-off) |
-| Reply types | Container not yet returned; Approved, payment to follow; Deduction statement received |
+| Reply types | Container not yet returned; Approved, payment to follow; Deduction statement received; Info only / no action |
 | Currencies | USD, EUR |
 | Daily unprocessed-reply email | Off; 09:00 when on |
 | Weekly summary email | Off |
@@ -209,14 +212,14 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 | Allowed file types / max size | PDF, JPG/JPEG, PNG, EML, DOC/DOCX, XLS/XLSX / 10 MB |
 | Block sending without uploaded form | On |
 | Attach standing documents to every request | On |
-| Email server | smtp.yandex.com:465 and imap.yandex.com:993 (SSL/TLS), sent folder "Sent", poll every 5 minutes, attachments up to 25 MB in total; sender, user and password entered at setup |
+| Email server | smtp.yandex.com:465 and imap.yandex.com:993 (SSL/TLS), sent folder "Sent", inbox folder "INBOX", poll every 5 minutes, attachments up to 25 MB in total; sender, user and password entered at setup |
 | Duplicate-record warning | On |
 | Daily backup time | 12:30 |
 | Backup copies kept | 14 daily / 8 weekly |
 
 ### Email template drafts (Turkish)
 
-Starting texts; editable in settings. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{portal_ref}`, `{deduction_amount}`, `{signature}`.
+Starting texts; editable in settings. The daily unprocessed-reply email (internal, never to agencies) has its own template with `{count}`, `{warning_days}`, `{agency_lines}` and `{link}`. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{portal_ref}`, `{deduction_amount}`, `{signature}`.
 
 ```text
 [Refund request]
@@ -295,15 +298,15 @@ Agencies require the same supporting set with every request: the signature circu
 
 **Inbound (agency replies)**
 
-The IMAP poller reads new messages read-only and tracks processed UIDs in the database. Only replies in a known thread are imported: a message whose `In-Reply-To`/`References` points to a stored sent message, or to a manually linked message, is linked to that message's B/Ls with certainty. Everything else in the mailbox is ignored.
+The IMAP poller reads new messages of the inbox folder read-only (EXAMINE) and tracks the last read UID per folder, with its UIDVALIDITY, in the database; a message already stored (same Message-ID) is never imported twice. The first poll starts from the date of the first request the app recorded. Messages from our own sender address are skipped. Reading works the same in dry-run and live mode (only sending is held back), so a development install can read a test mailbox. Only replies in a known thread are imported: a message whose `In-Reply-To`/`References` points to a stored sent message, or to a manually linked message, is linked to that message's B/Ls with certainty. Everything else in the mailbox is ignored.
 
 - **Match suggestions:** a new message that is not in a known thread but contains the number of an open B/L in its subject or body is listed under "possible matches" with that B/L. It is linked only when a user accepts it with one click.
 - **Manual link:** when an agency answers with a new email that has no recognisable B/L number, a user can search the shared mailbox from the B/L detail (by sender and subject) and link the message by hand.
 - **Unprocessed warning:** a linked reply without a recorded reply type after the configured number of business days appears on the dashboard, in the menu badge, in the optional daily unprocessed-reply email and in the weekly summary.
 
-**Replies are read in the app.** The Replies screen shows the full message and its attachments, so the team reads agency replies there instead of in Outlook. The app never interprets the reply. An operations user records the reply type per linked B/L with quick buttons (one reply to a batched email may cover several B/Ls with different answers; one click can apply the same type to all). Attachments are saved as documents on the linked B/Ls. A reply of type *deduction statement received* lets the user record the deductions right away.
+**Replies are read in the app.** The Replies screen shows the full message and its attachments, so the team reads agency replies there instead of in Outlook. The app never interprets the reply. An operations user records the reply type per linked B/L with quick buttons (one reply to a batched email may cover several B/Ls with different answers; one click can apply the same type to all). Attachments (except inline images such as signature logos) are kept with the email, together with the raw `.eml`, and appear on the B/L detail of every linked B/L. A reply can also be recorded on the B/L detail without an email (e.g. read on the agency portal), with a date and an optional note; it counts like an emailed reply. The reply date of an emailed reply is the day it arrived. A reply of type *deduction statement received* lets the user record the deductions right away.
 
-**Daily unprocessed-reply email (optional):** when enabled, a short internal email at the configured time lists the number of unprocessed replies per agency with a link to the Replies screen. It is sent only to the configured internal recipients and only when there is at least one unprocessed reply.
+**Daily unprocessed-reply email (optional):** when enabled, a short internal email at the configured time lists the number of unprocessed replies past the warning per agency with a link to the Replies screen (the host PC's name, port 3000). If the PC was off at that time, it is sent once at the next start. It is sent only to the configured internal recipients and only when there is at least one unprocessed reply.
 
 ## Payments, deductions and refund reconciliation
 
@@ -368,12 +371,12 @@ The optional weekly summary email contains open balance per currency, B/Ls waiti
 
 ## Screens
 
-Desktop-only, dense tables with a wide right-side detail panel. There is no per-user assignment: operations works from a shared pool, and a B/L being drafted by one user shows a lock badge for others. A user with both roles sees both menus.
+Desktop-only, dense tables; a row opens its details in a large centered dialog over the full-width list, with previous/next through the list as sorted and filtered (← / →). There is no per-user assignment: operations works from a shared pool, and a B/L being drafted by one user shows a lock badge for others. A user with both roles sees both menus.
 
 **Everywhere**
 
 - **Global search** in the header (shortcut `/` or Ctrl+K): finds B/Ls by B/L number, container number, agency name or amount; pasting several B/L or container numbers lists all matches at once; Enter opens the B/L detail.
-- **Keyboard shortcuts:** arrow keys to move between rows, Enter to open detail, Esc to close the panel, `R` record reply, `N` add note, `/` search, `?` shows the shortcut list.
+- **Keyboard shortcuts:** arrow keys to move between rows, Enter to open the detail dialog, ← / → for the previous or next record in it, Esc to close it, `R` record reply, `N` add note, `/` search, `?` shows the shortcut list.
 - **Bulk actions** on every list: select rows, then record the same reply type, prepare sending, add a note or copy. Every bulk action shows a confirmation with the affected B/Ls before it runs.
 - **Inline editing** of permitted fields directly in table cells (B/L number before any request is sent, containers, notes, agency contact fields). Money fields and statuses are never inline-editable. Every inline edit goes through `can()`, validation and the audit log, and can be undone within the undo window.
 - **Personal table layout:** column choice, order, sort, filters and density are remembered per user and table.
@@ -438,6 +441,19 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 29, 2026 — build step 5 (agency replies)**
+
+- The poller reads the inbox folder (new setting, seed "INBOX") read-only over IMAP, every poll-interval minutes; a development install reads a test mailbox the same way, since reading never changes it and sending stays in dry-run. Messages are imported only when they reply in a known thread or name an open B/L; everything else is not stored.
+- Reply types carry a system code. A fourth seed type, *info only / no action* (Bilgi / işlem gerekmez), marks auto-replies and acknowledgements as processed without restarting the follow-up clock.
+- Replies are stored in their own `replies` table (one per email and B/L), not on `requests`; an email is processed when every linked active B/L has one. A reply can also be recorded without an email from the B/L detail; replies need at least one sent request on the B/L.
+- Follow-ups reply to the latest message of the B/L's thread — our last request or a later linked agency email — and quote it, like Reply all in Outlook.
+- A possible match can be dismissed. Accepting a match or linking a mailbox message by hand gives the email its agency.
+- The Replies menu badge counts unprocessed replies and turns red once any is past the warning days (seed 1 business day, counted from the day it arrived). The daily email lists only those past the warning.
+- Imported files (raw `.eml`, attachments) have no uploader; `documents.uploaded_by` is null for them.
+- List details open in a large centered dialog instead of a right-side panel that narrowed the table; previous/next (buttons or ← / →) follow the list's current order. On the Replies screen, the next unprocessed reply opens once the current one is fully processed.
+- Histories (B/L timeline, email thread, recorded replies, ledger, documents, the Replies screen) list the newest entry first. Work lists (due requests, payments awaiting a B/L, the receipt review queue) stay oldest first, since the oldest item is the most urgent.
+- `AWAITING_RETURN` is shown as "Konteyner dönüşü bekleniyor" (was "İade bekleniyor", which read like waiting for the refund). After a *not yet returned* reply the B/L returns to the due list once the follow-up interval has passed since the reply.
 
 **Oct 25, 2026 — test feedback on build step 4**
 

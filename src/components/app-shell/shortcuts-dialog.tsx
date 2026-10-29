@@ -8,7 +8,8 @@ const SHORTCUTS: { keys: string[]; label: TranslationKey }[] = [
   { keys: ["↑", "↓", "Home", "End"], label: "shortcuts.moveRows" },
   { keys: ["Enter"], label: "shortcuts.openRow" },
   { keys: ["Space"], label: "shortcuts.toggleRow" },
-  { keys: ["Esc"], label: "shortcuts.closePanel" },
+  { keys: ["←", "→"], label: "shortcuts.previousNext" },
+  { keys: ["Esc"], label: "shortcuts.closeDetail" },
   { keys: ["/", "Ctrl+K"], label: "shortcuts.globalSearch" },
   { keys: ["?"], label: "shortcuts.showHelp" },
 ];

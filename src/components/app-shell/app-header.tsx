@@ -18,7 +18,8 @@ import { t, type TranslationKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { GlobalSearch } from "./global-search";
 
-export type NavItem = { href: string; label: TranslationKey };
+/** A badge count on the item; `alert` marks it as needing attention (e.g. overdue replies). */
+export type NavItem = { href: string; label: TranslationKey; badge?: { count: number; alert: boolean } };
 
 export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: string; roles: Role[] } }) {
   const pathname = usePathname();
@@ -44,6 +45,17 @@ export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: 
             )}
           >
             {t(item.label)}
+            {item.badge && item.badge.count > 0 && (
+              <span
+                aria-label={t("nav.unprocessedBadge", { count: item.badge.count })}
+                className={cn(
+                  "ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-medium tabular-nums",
+                  item.badge.alert ? "bg-destructive text-white" : "bg-muted-foreground/20",
+                )}
+              >
+                {item.badge.count}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

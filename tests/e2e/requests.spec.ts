@@ -1,5 +1,8 @@
 import fs from "node:fs";
+import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import Database from "better-sqlite3";
+import { E2E_DATA_DIR } from "../../playwright.config";
 import tr from "../../src/i18n/tr.json";
 import { docxText, makeDocx } from "../support/docx";
 import { createUser, login, pdf, pickAgency, type E2eUser } from "./helpers";
@@ -33,7 +36,7 @@ function daysAgo(days: number): string {
 async function createAgency(page: Page, name: string, portalUrl?: string) {
   await page.goto("/agencies");
   await page.getByRole("button", { name: tr.agencies.new }).click();
-  const panel = page.getByRole("complementary");
+  const panel = page.getByRole("dialog");
   await panel.getByLabel(tr.agencies.name).fill(name);
   await panel.getByLabel(tr.agencies.toRecipients).fill("iade@example.com");
   if (portalUrl) {
@@ -71,7 +74,7 @@ test("an admin uploads the agency form template; unknown placeholders are refuse
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await page.goto("/agencies");
   await page.getByRole("row").filter({ hasText: AGENCY }).click();
-  const panel = page.getByRole("complementary");
+  const panel = page.getByRole("dialog");
   await expect(panel.getByText(tr.forms.noTemplateYet)).toBeVisible();
 
   const bad = { ...TEMPLATE, name: "hatali.docx", buffer: makeDocx(["{bl_no} {imza}"]) };
@@ -188,5 +191,56 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   await page.getByRole("row").filter({ hasText: BL_NO }).click();
   await page.getByRole("link", { name: tr.bls.openDetail }).click();
   await expect(page.getByText(tr.timeline.actions.request.sent, { exact: true })).toBeVisible();
-  await expect(page.getByText(tr.timeline.notes.dryRun)).toBeVisible();
+  await expect(page.locator("ol").getByText(tr.timeline.notes.dryRun)).toBeVisible();
+});
+
+/**
+ * Plays the mailbox poller: stores an agency reply in the B/L's thread, as an IMAP import
+ * would (there is no mailbox in e2e runs).
+ */
+function importReply(blNo: string, subject: string, text: string) {
+  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"));
+  try {
+    const bl = db.prepare("SELECT id, agency_id FROM bills_of_lading WHERE bl_no = ?").get(blNo) as { id: number; agency_id: number };
+    const at = new Date().toISOString();
+    const email = db
+      .prepare(
+        `INSERT INTO emails (direction, agency_id, message_id, from_address, "to", subject, body_text, received_at, created_at)
+         VALUES ('IN', ?, ?, 'iade@example.com', '["depozito@firma.example"]', ?, ?, ?, ?)`,
+      )
+      .run(bl.agency_id, `<e2e-${blNo}-${Date.now()}@example.com>`, subject, text, at, at);
+    db.prepare("INSERT INTO email_bl_links (email_id, bl_id, linked_by, created_at) VALUES (?, ?, 'THREAD', ?)").run(email.lastInsertRowid, bl.id, at);
+  } finally {
+    db.close();
+  }
+}
+
+test("bulk reply: two agency replies get 'container not yet returned' in one confirmed action", async ({ page }) => {
+  importReply(BL_NO, `RE: Depozito İade Talebi – B/L ${BL_NO}`, "Konteynerler henüz boş dönmedi.");
+  importReply(PORTAL_BL_NO, "Portal başvurunuz", "Konteyner sahada.");
+  await login(page, OPS.username, OPS.final);
+  const repliesLink = page.getByRole("link", { name: new RegExp(tr.nav.replies) });
+  await expect(repliesLink).toContainText("2");
+  await repliesLink.click();
+
+  await page.getByRole("row").filter({ hasText: "Portal başvurunuz" }).click();
+  await expect(page.getByRole("dialog")).toContainText("Konteyner sahada.");
+  await page.keyboard.press("Escape");
+
+  for (const blNo of [BL_NO, PORTAL_BL_NO]) {
+    await page.getByRole("row").filter({ hasText: blNo }).getByRole("checkbox").check();
+  }
+  const notReturned = "Konteyner henüz dönmedi";
+  await page.getByRole("button", { name: notReturned }).first().click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(BL_NO);
+  await expect(dialog).toContainText(PORTAL_BL_NO);
+  await dialog.getByRole("button", { name: tr.replies.confirmRecord }).click();
+  await expect(page.getByText("2 B/L için yanıt kaydedildi.")).toBeVisible();
+  await expect(page.getByText(tr.replies.empty.TO_PROCESS)).toBeVisible();
+
+  await page.goto("/bls");
+  for (const blNo of [BL_NO, PORTAL_BL_NO]) {
+    await expect(page.getByRole("row").filter({ hasText: blNo })).toContainText(tr.bls.statuses.AWAITING_RETURN);
+  }
 });

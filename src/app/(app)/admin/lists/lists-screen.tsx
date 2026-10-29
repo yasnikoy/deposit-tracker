@@ -19,12 +19,21 @@ import { Label } from "@/components/ui/label";
 import { isTranslationKey, t } from "@/i18n";
 import { bankAccountInputSchema, currencyInputSchema } from "@/lib/schemas/lists";
 import type { ActionResult } from "@/server/errors";
-import type { BankAccount, Currency } from "@/server/lists";
+import type { BankAccount, Currency, ReplyType } from "@/server/lists";
 import { saveBankAccountAction, saveCurrencyAction } from "./actions";
+import { ReplyTypesCard } from "./reply-types-card";
 
 type Editing = { kind: "currency"; currency: Currency | null } | { kind: "account"; account: BankAccount | null } | null;
 
-export function ListsScreen({ currencies, bankAccounts }: { currencies: Currency[]; bankAccounts: BankAccount[] }) {
+export function ListsScreen({
+  currencies,
+  bankAccounts,
+  replyTypes,
+}: {
+  currencies: Currency[];
+  bankAccounts: BankAccount[];
+  replyTypes: ReplyType[];
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState<Editing>(null);
   const done = (result: ActionResult<unknown>) => {
@@ -92,6 +101,8 @@ export function ListsScreen({ currencies, bankAccounts }: { currencies: Currency
           </table>
         </CardContent>
       </Card>
+
+      <ReplyTypesCard replyTypes={replyTypes} onDone={done} />
 
       {editing?.kind === "currency" && <CurrencyDialog currency={editing.currency} onCancel={() => setEditing(null)} onDone={done} />}
       {editing?.kind === "account" && (

@@ -13,10 +13,26 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
-import { agencies, auditLog, billsOfLading, containers, depositPayments, documents, ledgerEntries, users } from "./db/schema";
+import {
+  agencies,
+  auditLog,
+  billsOfLading,
+  containers,
+  depositPayments,
+  documents,
+  emailAttachments,
+  emailBlLinks,
+  emails,
+  ledgerEntries,
+  replies,
+  replyTypes,
+  requests,
+  users,
+} from "./db/schema";
 import { activeLockers } from "./draft-locks";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
+import { replyHistory } from "./reply-history";
 import { refundRequestStats, timingResolver } from "./requests";
 import { getSetting } from "./settings";
 
@@ -37,6 +53,8 @@ export type BlOverview = BlBalance & {
   /** Refund requests sent or recorded on a portal. */
   attempts: number;
   lastRequestOn: string | null;
+  /** The last recorded agency reply (any type). */
+  lastReply: { typeName: string; repliedOn: string } | null;
   depositPaymentId: number | null;
   createdAt: string;
   voidedAt: string | null;
@@ -54,6 +72,7 @@ function toOverviews(db: DbOrTx, viewer: AuthUser, rows: BlRow[], now: Date): Bl
   const timing = timingResolver(db);
   const agencyRows = new Map(db.select().from(agencies).all().map((a) => [a.id, a]));
   const stats = refundRequestStats(db, ids);
+  const history = replyHistory(db, ids);
 
   const entries = db
     .select({ blId: ledgerEntries.blId, type: ledgerEntries.type, amountMinor: ledgerEntries.amountMinor, currency: ledgerEntries.currency })
@@ -86,6 +105,7 @@ function toOverviews(db: DbOrTx, viewer: AuthUser, rows: BlRow[], now: Date): Bl
       lockedBy: lockers.get(row.id) ?? null,
       attempts: stats.get(row.id)?.attempts ?? 0,
       lastRequestOn: stats.get(row.id)?.lastRequestOn ?? null,
+      lastReply: history.get(row.id)?.last ?? null,
       depositPaymentId: row.depositPaymentId,
       createdAt: row.createdAt,
       voidedAt: row.voidedAt,
@@ -165,6 +185,20 @@ export type BlLedgerLine = {
 
 export type BlDocument = { id: number; kind: string; originalName: string; uploadedAt: string; uploadedByName: string };
 
+/** A message of the B/L's request chain: our sent requests and the agency emails linked to it. */
+export type BlEmail = {
+  id: number;
+  direction: "OUT" | "IN";
+  subject: string;
+  /** Sent or received. */
+  at: string;
+  from: string;
+  dryRun: boolean;
+  attachments: { id: number; originalName: string }[];
+};
+
+export type BlReply = { id: number; typeName: string; repliedOn: string; byName: string; emailId: number | null; note: string | null };
+
 export type TimelineEvent = {
   id: number;
   at: string;
@@ -180,6 +214,8 @@ export type BlDetail = {
   payment: { id: number; kind: PaymentKind; evidenceDocumentId: number; evidenceName: string; createdByName: string } | null;
   ledger: BlLedgerLine[];
   documents: BlDocument[];
+  emails: BlEmail[];
+  replies: BlReply[];
   timeline: TimelineEvent[];
   /** Request-timing overrides of this B/L, and what each falls back to (agency, then global). */
   overrides: { values: AgencyOverrides; inherited: Record<OverridableSettingKey, number> };
@@ -219,7 +255,8 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .from(ledgerEntries)
     .leftJoin(users, eq(users.id, ledgerEntries.createdBy))
     .where(eq(ledgerEntries.blId, id))
-    .orderBy(ledgerEntries.id)
+    // Newest first, like every history on the B/L detail.
+    .orderBy(desc(ledgerEntries.id))
     .all();
   const compensatedIds = new Set(ledgerRows.map((r) => r.entry.compensatesEntryId).filter((v) => v !== null));
   const ledger = ledgerRows.map(({ entry, createdByName }) => ({
@@ -261,7 +298,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .from(auditLog)
     .leftJoin(users, eq(users.id, auditLog.actorUserId))
     .where(or(...entityConditions))
-    .orderBy(auditLog.at, auditLog.id)
+    .orderBy(desc(auditLog.at), desc(auditLog.id))
     .all()
     .map(({ after, ...event }) => {
       const flags = (after ?? {}) as { duplicateConfirmed?: boolean; dryRun?: boolean };
@@ -285,5 +322,51 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     ) as Record<OverridableSettingKey, number>,
   };
 
-  return { bl, payment, ledger, documents: blDocuments, timeline, overrides, form };
+  return { bl, payment, ledger, documents: blDocuments, emails: blEmails(db, id), replies: blReplies(db, id), timeline, overrides, form };
+}
+
+function blEmails(db: DbOrTx, blId: number): BlEmail[] {
+  const sentIds = db
+    .select({ emailId: requests.emailId })
+    .from(requests)
+    .where(and(eq(requests.blId, blId), eq(requests.sendStatus, "SENT")))
+    .all()
+    .map((r) => r.emailId)
+    .filter((id): id is number => id !== null);
+  const linkedIds = db.select({ emailId: emailBlLinks.emailId }).from(emailBlLinks).where(eq(emailBlLinks.blId, blId)).all().map((l) => l.emailId);
+  const ids = [...new Set([...sentIds, ...linkedIds])];
+  if (ids.length === 0) return [];
+  const files = db
+    .select({ emailId: emailAttachments.emailId, id: documents.id, originalName: documents.originalName })
+    .from(emailAttachments)
+    .innerJoin(documents, eq(documents.id, emailAttachments.documentId))
+    .where(inArray(emailAttachments.emailId, ids))
+    .all();
+  return db
+    .select()
+    .from(emails)
+    .where(inArray(emails.id, ids))
+    .all()
+    .map((email) => ({
+      id: email.id,
+      direction: email.direction,
+      subject: email.subject,
+      at: email.receivedAt ?? email.sentAt ?? email.createdAt,
+      from: email.fromAddress,
+      dryRun: email.dryRun,
+      // Our own attachments are the B/L's documents already; the agency's are shown here.
+      attachments: email.direction === "IN" ? files.filter((f) => f.emailId === email.id).map(({ id, originalName }) => ({ id, originalName })) : [],
+    }))
+    .sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id);
+}
+
+function blReplies(db: DbOrTx, blId: number): BlReply[] {
+  return db
+    .select({ id: replies.id, typeName: replyTypes.name, repliedOn: replies.repliedOn, byName: users.displayName, emailId: replies.emailId, note: replies.note })
+    .from(replies)
+    .innerJoin(replyTypes, eq(replyTypes.id, replies.replyTypeId))
+    .innerJoin(users, eq(users.id, replies.createdBy))
+    .where(eq(replies.blId, blId))
+    .orderBy(desc(replies.repliedOn), desc(replies.id))
+    .all();
 }

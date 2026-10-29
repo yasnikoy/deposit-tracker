@@ -1,9 +1,11 @@
 import { notFound } from "next/navigation";
 import { Forbidden } from "@/components/forbidden";
+import { istanbulToday } from "@/domain/business-days";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getBlDetail } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
+import { listReplyTypes } from "@/server/lists";
 import { DomainError } from "@/server/errors";
 import { BlDetailScreen } from "./bl-detail-screen";
 
@@ -28,7 +30,13 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         void: can(user, "bl.void").allowed,
         forms: can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed,
         overrides: can(user, "bl.updateOverrides").allowed,
+        recordReply: can(user, "reply.record").allowed,
+        linkEmail: can(user, "email.link").allowed,
       }}
+      replyTypes={listReplyTypes(getDb(), user)
+        .filter((type) => type.active)
+        .map(({ id, name, code }) => ({ id, name, code }))}
+      today={istanbulToday()}
     />
   );
 }
