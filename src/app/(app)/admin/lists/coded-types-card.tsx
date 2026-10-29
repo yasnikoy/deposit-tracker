@@ -9,31 +9,53 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isTranslationKey, t } from "@/i18n";
-import { replyTypeInputSchema } from "@/lib/schemas/lists";
+import { typeInputSchema } from "@/lib/schemas/lists";
 import type { ActionResult } from "@/server/errors";
-import type { ReplyType } from "@/server/lists";
-import { saveReplyTypeAction } from "./actions";
 
-/** Reply types for recording agency answers; the system ones can only be renamed and reordered. */
-export function ReplyTypesCard({ replyTypes, onDone }: { replyTypes: ReplyType[]; onDone: (result: ActionResult<unknown>) => boolean }) {
-  const [editing, setEditing] = useState<{ type: ReplyType | null } | null>(null);
+/** A list row: system types carry a code with fixed behaviour; types an admin adds have none. */
+export type CodedType = { id: number; code: string | null; name: string; active: boolean; sortOrder: number };
+type SaveInput = { id?: number; name: string; active: boolean; sortOrder: number; reason: string };
+
+/**
+ * Reply types and deduction types: the system ones can only be renamed and reordered, the
+ * others also deactivated.
+ */
+export function CodedTypesCard({
+  title,
+  hint,
+  addLabel,
+  types,
+  effectOf,
+  save,
+  onDone,
+}: {
+  title: string;
+  hint: string;
+  addLabel: string;
+  types: CodedType[];
+  /** What a type does, shown next to it. */
+  effectOf: (code: string | null) => string;
+  save: (input: SaveInput) => Promise<ActionResult<number>>;
+  onDone: (result: ActionResult<unknown>) => boolean;
+}) {
+  const [editing, setEditing] = useState<{ type: CodedType | null } | null>(null);
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center">
-        <CardTitle>{t("lists.replyTypes")}</CardTitle>
+        <CardTitle>{title}</CardTitle>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => setEditing({ type: null })}>
-          <Plus /> {t("lists.addReplyType")}
+          <Plus /> {addLabel}
         </Button>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-2 text-xs">{t("lists.replyTypesHint")}</p>
+        <p className="text-muted-foreground mb-2 text-xs">{hint}</p>
         <table className="w-full">
           <tbody>
-            {replyTypes.map((type) => (
+            {types.map((type) => (
               <tr key={type.id} className="hover:bg-muted cursor-pointer border-t" onClick={() => setEditing({ type })}>
                 <td className="py-1">{type.name}</td>
-                <td className="text-muted-foreground py-1 text-xs">{type.code ? t(`lists.replyTypeEffects.${type.code}`) : t("lists.customReplyType")}</td>
+                <td className="text-muted-foreground py-1 text-xs">{effectOf(type.code)}</td>
                 <td className="text-muted-foreground py-1 text-right text-xs">{type.active ? t("lists.active") : t("lists.inactive")}</td>
               </tr>
             ))}
@@ -41,9 +63,12 @@ export function ReplyTypesCard({ replyTypes, onDone }: { replyTypes: ReplyType[]
         </table>
       </CardContent>
       {editing && (
-        <ReplyTypeDialog
+        <TypeDialog
           type={editing.type}
-          nextSortOrder={replyTypes.length}
+          addLabel={addLabel}
+          effectOf={effectOf}
+          save={save}
+          nextSortOrder={types.length}
           onCancel={() => setEditing(null)}
           onDone={(result) => {
             const ok = onDone(result);
@@ -56,13 +81,19 @@ export function ReplyTypesCard({ replyTypes, onDone }: { replyTypes: ReplyType[]
   );
 }
 
-function ReplyTypeDialog({
+function TypeDialog({
   type,
+  addLabel,
+  effectOf,
+  save: saveType,
   nextSortOrder,
   onCancel,
   onDone,
 }: {
-  type: ReplyType | null;
+  type: CodedType | null;
+  addLabel: string;
+  effectOf: (code: string | null) => string;
+  save: (input: SaveInput) => Promise<ActionResult<number>>;
   nextSortOrder: number;
   onCancel: () => void;
   onDone: (result: ActionResult<unknown>) => boolean;
@@ -71,12 +102,12 @@ function ReplyTypeDialog({
   const [error, setError] = useState<string | null>(null);
   const save = async () => {
     const input = { ...(type ? { id: type.id } : {}), ...values, reason: "" };
-    const parsed = replyTypeInputSchema.safeParse(input);
+    const parsed = typeInputSchema.safeParse(input);
     if (!parsed.success) {
       const key = parsed.error.issues[0]?.message;
       return setError(key && isTranslationKey(key) ? t(key) : t("errors.validation"));
     }
-    const result = await saveReplyTypeAction(input);
+    const result = await saveType(input);
     if (!onDone(result) && !result.ok) setError(t(result.error, result.params));
   };
 
@@ -84,17 +115,17 @@ function ReplyTypeDialog({
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{type ? type.name : t("lists.addReplyType")}</DialogTitle>
+          <DialogTitle>{type ? type.name : addLabel}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reply-type-name">{t("lists.replyTypeName")}</Label>
-            <Input id="reply-type-name" value={values.name} onChange={(e) => setValues({ ...values, name: e.target.value })} autoFocus />
+            <Label htmlFor="type-name">{t("lists.typeName")}</Label>
+            <Input id="type-name" value={values.name} onChange={(e) => setValues({ ...values, name: e.target.value })} autoFocus />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reply-type-order">{t("lists.sortOrder")}</Label>
+            <Label htmlFor="type-order">{t("lists.sortOrder")}</Label>
             <Input
-              id="reply-type-order"
+              id="type-order"
               type="number"
               min={0}
               className="w-24"
@@ -106,7 +137,7 @@ function ReplyTypeDialog({
             <Checkbox checked={values.active} disabled={!!type?.code} onCheckedChange={(checked) => setValues({ ...values, active: checked === true })} />
             {t("lists.active")}
           </label>
-          {type?.code && <p className="text-muted-foreground text-xs">{t(`lists.replyTypeEffects.${type.code}`)}</p>}
+          {type?.code && <p className="text-muted-foreground text-xs">{effectOf(type.code)}</p>}
           {error && (
             <p role="alert" className="text-destructive text-sm">
               {error}

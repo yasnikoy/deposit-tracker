@@ -39,6 +39,15 @@ const rules = {
   "payment.viewOwn": only("ACCOUNTANT"),
   "payment.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
   "payment.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],
+  // Incoming refunds and offsets are money records too (rule 7).
+  "refund.create": only("ACCOUNTANT"),
+  "refund.viewOwn": only("ACCOUNTANT"),
+  "refund.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
+  "refund.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],
+  // Money is attributed to B/Ls by operations; only an admin reverses a confirmed allocation (rule 8).
+  "allocation.view": only("OPERATIONS", "ADMIN"),
+  "allocation.confirm": only("OPERATIONS"),
+  "allocation.reverse": only("ADMIN"),
   // B/Ls are created from payments by operations.
   "bl.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),

@@ -244,3 +244,32 @@ test("bulk reply: two agency replies get 'container not yet returned' in one con
     await expect(page.getByRole("row").filter({ hasText: blNo })).toContainText(tr.bls.statuses.AWAITING_RETURN);
   }
 });
+
+test("allocate refund: the accountant enters a short refund; operations confirms FIFO with the difference as demurrage", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/accounting?tab=refund");
+  await page.getByLabel(tr.files.drop).setInputFiles(pdf("iade-dekontu.pdf"));
+  await expect(page.getByRole("link", { name: "iade-dekontu.pdf" })).toBeVisible();
+  await pickAgency(page, "hapag", AGENCY);
+  await page.getByLabel(tr.payments.amount).fill("2.400");
+  await page.getByRole("button", { name: tr.refunds.save }).click();
+  await expect(page.getByText(tr.refunds.saved)).toBeVisible();
+
+  await page.getByRole("link", { name: tr.nav.allocations }).click();
+  await page.getByRole("row").filter({ hasText: AGENCY }).click();
+  await expect(page.getByRole("heading", { name: `${AGENCY} · 2.400,00 USD` })).toBeVisible();
+  // 2,500 expected on the B/L: FIFO puts 2,400 on it and leaves a 100 difference.
+  await page.getByRole("button", { name: tr.allocations.review.use }).click();
+  await expect(page.getByText(`${BL_NO} için 100,00 USD fark`)).toBeVisible();
+  await expect(page.getByRole("button", { name: tr.allocations.review.confirm })).toBeDisabled();
+  await page.getByLabel(tr.allocations.review.deductionType).selectOption({ label: "Demuraj / detention" });
+  await page.getByRole("button", { name: tr.allocations.review.confirm }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText(`${BL_NO} · 2.400,00 USD`);
+  await dialog.getByRole("button", { name: tr.allocations.review.confirm }).click();
+  await expect(page.getByText("1 B/L'ye dağıtım onaylandı.")).toBeVisible();
+  await expect(page.getByText(tr.allocations.empty)).toBeVisible();
+
+  await page.goto("/bls");
+  await expect(page.getByRole("row").filter({ hasText: BL_NO })).toContainText(tr.bls.statuses.COLLECTED);
+});

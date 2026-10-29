@@ -4,6 +4,7 @@ import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail, listAllBls, searchBls } from "@/server/bl-overview";
 import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
+import { deductionTypes } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { addLedgerEntry } from "@/server/ledger";
 import { correctPayment } from "@/server/payments";
@@ -36,7 +37,16 @@ describe("listAllBls", () => {
   it("derives balances from the ledger and shows DUE from the current settings", () => {
     const a = bl({ agencyId: msc, blNo: "MEDU1000001", amountMinor: 300000, paidAt: "2026-10-01" });
     bl({ agencyId: maersk, blNo: "MAEU2000002", amountMinor: 150000, paidAt: "2026-10-20", currency: "EUR" });
-    addLedgerEntry(db, { blId: a.blId, type: "DEDUCTION", amountMinor: 70000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
+    const other = db.select().from(deductionTypes).all().find((d) => d.code === null)!;
+    addLedgerEntry(db, {
+      blId: a.blId,
+      type: "DEDUCTION",
+      amountMinor: 70000,
+      currency: "USD",
+      entryDate: "2026-10-21",
+      deduction: { typeId: other.id, source: "STATEMENT" },
+      createdBy: ops.id,
+    });
 
     const rows = listAllBls(db, acc, NOW);
     expect(rows.map((r) => r.blNo)).toEqual(["MAEU2000002", "MEDU1000001"]);

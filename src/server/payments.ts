@@ -82,8 +82,8 @@ function findDuplicates(
     .all();
 }
 
-/** Checks references shared by create and correct: agency, currency, date. */
-function validateReferences(
+/** Checks references shared by money records (payments and refunds): agency, currency, date. */
+export function validateReferences(
   tx: DbOrTx,
   input: { agencyId: number; currency: string; paidAt: string },
   now: Date,

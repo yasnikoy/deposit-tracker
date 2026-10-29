@@ -11,7 +11,7 @@ import { seedEmailTemplates } from "./email/templates";
 import { mailboxFromSettings } from "./email/mailbox";
 import { mailTransport } from "./email/transport";
 import { ensureRecurringJobs, recurringJobHandlers } from "./recurring-jobs";
-import { seedLists, seedReplyTypes } from "./lists";
+import { seedDeductionTypes, seedLists, seedReplyTypes } from "./lists";
 import { resolveKeyFile } from "./secrets";
 import { seedSettings } from "./settings";
 
@@ -30,6 +30,8 @@ export async function prepareDatabase(): Promise<void> {
   if (currencies.length > 0) logger.info({ currencies }, "lists seeded");
   const replyTypeCodes = seedReplyTypes(db);
   if (replyTypeCodes.length > 0) logger.info({ replyTypes: replyTypeCodes }, "reply types seeded");
+  const deductionTypeCodes = seedDeductionTypes(db);
+  if (deductionTypeCodes.length > 0) logger.info({ deductionTypes: deductionTypeCodes }, "deduction types seeded");
   const templates = seedEmailTemplates(db);
   if (templates.length > 0) logger.info({ templates }, "email templates seeded");
 }

@@ -27,6 +27,9 @@ import {
   SEND_STATUSES,
   STANDING_DOCUMENT_SLOTS,
   SUGGESTION_STATES,
+  ALLOCATION_STATES,
+  DEDUCTION_SOURCES,
+  DEDUCTION_TYPE_CODES,
 } from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
@@ -420,11 +423,21 @@ export const ledgerEntries = sqliteTable(
     entryDate: text("entry_date").notNull(),
     depositPaymentId: integer("deposit_payment_id").references(() => depositPayments.id),
     compensatesEntryId: integer("compensates_entry_id").references((): AnySQLiteColumn => ledgerEntries.id),
+    // REFUND_ALLOCATION entries, and the shortfall deduction confirmed with an allocation.
+    refundAllocationId: integer("refund_allocation_id").references((): AnySQLiteColumn => refundAllocations.id),
+    // DEDUCTION entries only.
+    deductionTypeId: integer("deduction_type_id").references((): AnySQLiteColumn => deductionTypes.id),
+    deductionSource: text("deduction_source", { enum: DEDUCTION_SOURCES }),
     createdBy: integer("created_by").references(() => users.id),
     createdAt: timestamp("created_at").notNull(),
   },
   (t) => [
     check("ledger_entries_type", sql`${t.type} IN (${sqlList(LEDGER_TYPES)})`),
+    check(
+      "ledger_entries_deduction",
+      sql`(${t.type} = 'DEDUCTION') = (${t.deductionTypeId} IS NOT NULL AND ${t.deductionSource} IN (${sqlList(DEDUCTION_SOURCES)}))`,
+    ),
+    check("ledger_entries_allocation", sql`${t.type} <> 'REFUND_ALLOCATION' OR ${t.refundAllocationId} IS NOT NULL`),
     check("ledger_entries_amount", sql`${t.amountMinor} <> 0`),
     // An entry is compensated at most once.
     uniqueIndex("ledger_entries_compensates_unique")
@@ -707,3 +720,102 @@ export const mailboxState = sqliteTable("mailbox_state", {
   lastUid: integer("last_uid").notNull(),
   lastPolledAt: timestamp("last_polled_at").notNull(),
 });
+
+// ---- Build step 6: refunds, allocations, deductions ----
+
+/** Configurable deduction types; the system ones (with a code) can be renamed but never removed. */
+export const deductionTypes = sqliteTable(
+  "deduction_types",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    code: text("code", { enum: DEDUCTION_TYPE_CODES }),
+    name: text("name").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check("deduction_types_code", sql`${t.code} IS NULL OR ${t.code} IN (${sqlList(DEDUCTION_TYPE_CODES)})`),
+    check("deduction_types_system_active", sql`${t.code} IS NULL OR ${t.active} = 1`),
+    uniqueIndex("deduction_types_code_unique").on(t.code).where(sql`${t.code} IS NOT NULL`),
+    uniqueIndex("deduction_types_name_unique").on(sql`lower(${t.name})`),
+  ],
+);
+
+/**
+ * Incoming money (accountant, rule 7) with its mandatory evidence (rule 12). Its status and
+ * unallocated remainder are computed from confirmed allocations, never stored (rule 3).
+ */
+export const refunds = sqliteTable(
+  "refunds",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    agencyId: integer("agency_id")
+      .notNull()
+      .references(() => agencies.id),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    valueDate: text("value_date").notNull(),
+    kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
+    evidenceDocumentId: integer("evidence_document_id")
+      .notNull()
+      .references(() => documents.id),
+    // Set when operations leaves the remainder unallocated on purpose (e.g. an overpayment).
+    unallocatedReason: text("unallocated_reason"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+    ...voidColumns(),
+  },
+  (t) => [
+    check("refunds_amount", sql`${t.amountMinor} > 0`),
+    check("refunds_kind", sql`${t.kind} IN ('BANK', 'OFFSET')`),
+    check("refunds_value_date", sql`${t.valueDate} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
+    check("refunds_unallocated_reason", sql`${t.unallocatedReason} IS NULL OR length(trim(${t.unallocatedReason})) > 0`),
+    voidCheck("refunds_void", t),
+    uniqueIndex("refunds_evidence_unique").on(t.evidenceDocumentId),
+    index("refunds_duplicate_lookup").on(t.agencyId, t.valueDate, t.amountMinor),
+  ],
+);
+
+/** A confirmed split of a refund over a B/L; its money also lands as a REFUND_ALLOCATION ledger entry. */
+export const refundAllocations = sqliteTable(
+  "refund_allocations",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    refundId: integer("refund_id")
+      .notNull()
+      .references(() => refunds.id),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    amountMinor: integer("amount_minor").notNull(),
+    state: text("state", { enum: ALLOCATION_STATES }).notNull().default("CONFIRMED"),
+    // The B/L status before this allocation, restored when an admin reverses it.
+    blStatusBefore: text("bl_status_before", { enum: BL_STATUSES }).notNull(),
+    confirmedBy: integer("confirmed_by")
+      .notNull()
+      .references(() => users.id),
+    roleUsed: text("role_used", { enum: ROLES }).notNull(),
+    confirmedAt: timestamp("confirmed_at").notNull(),
+    reversedBy: integer("reversed_by").references(() => users.id),
+    reversedAt: timestamp("reversed_at"),
+    reversalReason: text("reversal_reason"),
+  },
+  (t) => [
+    check("refund_allocations_amount", sql`${t.amountMinor} > 0`),
+    check("refund_allocations_state", sql`${t.state} IN (${sqlList(ALLOCATION_STATES)})`),
+    check(
+      "refund_allocations_reversal",
+      sql`(${t.state} = 'REVERSED') = (${t.reversedBy} IS NOT NULL AND ${t.reversedAt} IS NOT NULL AND length(trim(${t.reversalReason})) > 0)`,
+    ),
+    check("refund_allocations_role_used", sql`${t.roleUsed} IN (${roleList})`),
+    uniqueIndex("refund_allocations_confirmed_unique").on(t.refundId, t.blId).where(sql`${t.state} = 'CONFIRMED'`),
+    index("refund_allocations_bl").on(t.blId),
+  ],
+);

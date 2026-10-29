@@ -157,10 +157,10 @@ describe("reply types", () => {
     expect(() => saveReplyType(db, ops, { name: "Diğer", active: true, sortOrder: 9, reason: null }, NOW)).toThrow(ForbiddenError);
     saveReplyType(db, admin, { name: "Diğer", active: true, sortOrder: 9, reason: null }, NOW);
     expect(() => saveReplyType(db, admin, { name: "diğer", active: true, sortOrder: 10, reason: null }, NOW)).toThrow(
-      expect.objectContaining({ messageKey: "lists.errors.replyTypeTaken" }),
+      expect.objectContaining({ messageKey: "lists.errors.typeTaken" }),
     );
     expect(() => saveReplyType(db, admin, { id: typeId("INFO"), name: "Bilgi", active: false, sortOrder: 3, reason: null }, NOW)).toThrow(
-      expect.objectContaining({ messageKey: "lists.errors.systemReplyType" }),
+      expect.objectContaining({ messageKey: "lists.errors.systemType" }),
     );
   });
 });

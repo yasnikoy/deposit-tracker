@@ -3,7 +3,9 @@ import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { createBls } from "@/server/bls";
 import type { Db } from "@/server/db/client";
+import { refundAllocations, refunds } from "@/server/db/schema";
 import { storeUpload } from "@/server/files";
+import { addLedgerEntry } from "@/server/ledger";
 import { createPayment } from "@/server/payments";
 
 export const PDF = Buffer.from("%PDF-1.4\n% test receipt\n");
@@ -63,4 +65,30 @@ export function makeBl(
   const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, containers: input.containers ?? [] }], now).created[0];
   if (!created) throw new Error("B/L not created");
   return { paymentId: result.id, blId: created.blId };
+}
+
+/**
+ * A confirmed refund allocation written straight to the tables, for tests about what an
+ * allocation freezes; the allocation flow itself is tested in allocations.test.ts.
+ */
+export function confirmedAllocationFixture(
+  db: Db,
+  users: { acc: AuthUser; ops: AuthUser },
+  input: { blId: number; agencyId: number; amountMinor: number; currency?: string; now: Date },
+): number {
+  const at = input.now.toISOString();
+  const currency = input.currency ?? "USD";
+  const evidence = storeUpload(db, users.acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, input.now);
+  const refund = db
+    .insert(refunds)
+    .values({ agencyId: input.agencyId, amountMinor: input.amountMinor, currency, valueDate: at.slice(0, 10), kind: "BANK", evidenceDocumentId: evidence.id, createdBy: users.acc.id, createdAt: at, updatedAt: at })
+    .returning()
+    .get();
+  const allocation = db
+    .insert(refundAllocations)
+    .values({ refundId: refund.id, blId: input.blId, amountMinor: input.amountMinor, blStatusBefore: "REQUESTED", confirmedBy: users.ops.id, roleUsed: "OPERATIONS", confirmedAt: at })
+    .returning()
+    .get();
+  addLedgerEntry(db, { blId: input.blId, type: "REFUND_ALLOCATION", amountMinor: input.amountMinor, currency, entryDate: at.slice(0, 10), refundAllocationId: allocation.id, createdBy: users.ops.id }, input.now);
+  return allocation.id;
 }

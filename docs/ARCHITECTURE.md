@@ -127,8 +127,8 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
 | `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
-| `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason, void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
-| `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), confirmed\_by, reason |
+| `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason (set when operations leaves the remainder on purpose), void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
+| `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), bl\_status\_before (restored on reversal), confirmed\_by, role\_used, reversed\_by, reversed\_at, reversal\_reason. Each confirmed row also writes a REFUND\_ALLOCATION ledger entry; a shortfall deduction confirmed with it references the same allocation |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
 | `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), received\_at (incoming only). Whether an incoming email is processed is computed from `replies`, never stored |
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
@@ -441,6 +441,15 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 29, 2026 — build step 6a (refunds and allocation)**
+
+- Step 6 is built in parts: 6a refunds and allocation, 6b deductions from statements, disputes, write-offs and deduction-statement requests, 6c undo, 6d the opening-balance form.
+- Refunds are entered on the Accounting screen (new refund, my refunds) like payments: receipt or invoice mandatory, duplicate warning, correct or void own records only while nothing is allocated. Their status is computed: not allocated, partly allocated, allocated, or remainder left (with the reason operations gave).
+- Allocation candidates are B/Ls in `REQUESTED` or `AWAITING_RETURN` of the refund's agency and currency, with a request sent on or before the value date and something left to collect. The review is a page of its own (Refund allocation → a refund): suggestion cards fill an editable split.
+- A B/L is refunded in one go: on confirmation, each B/L's amount plus a difference it bears must equal its expected amount. One confirmation has at most one difference row; it becomes a `SHORTFALL` deduction of the chosen type. `UNEXPLAINED` leaves the B/L `DEDUCTION_OPEN`, any other type closes it. `WRITE_OFF` cannot be chosen as a difference (it needs its own admin approval, 6b). Money left over needs a reason.
+- An admin reversal compensates the allocation and the difference deduction confirmed with it, returns the B/L to its status before the allocation and reopens the refund's remainder.
+- Deduction types are a configurable list like reply types (seed: demurrage/detention, other, and the system types unexplained and write-off).
 
 **Oct 29, 2026 — build step 5 (agency replies)**
 

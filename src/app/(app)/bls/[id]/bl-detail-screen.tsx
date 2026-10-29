@@ -18,6 +18,7 @@ import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
 import { updateBlOverridesAction } from "../../requests/actions";
 import { FormSection } from "../form-section";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
+import { AllocationsSection } from "./allocations-section";
 import { ReplySection } from "./reply-section";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -34,7 +35,15 @@ const actionLabel = (action: string) => {
   return isTranslationKey(key) ? t(key) : action;
 };
 
-export type BlDetailPermissions = { edit: boolean; void: boolean; forms: boolean; overrides: boolean; recordReply: boolean; linkEmail: boolean };
+export type BlDetailPermissions = {
+  edit: boolean;
+  void: boolean;
+  forms: boolean;
+  overrides: boolean;
+  recordReply: boolean;
+  linkEmail: boolean;
+  reverseAllocation: boolean;
+};
 
 export function BlDetailScreen({
   detail,
@@ -192,6 +201,10 @@ export function BlDetailScreen({
           />
         </section>
 
+        <Section title={t("blAllocations.title")}>
+          <AllocationsSection blNo={bl.blNo} allocations={detail.allocations} canReverse={can.reverseAllocation} />
+        </Section>
+
         <Section title={t("bls.detail.ledger")}>
           <table className="tabular w-full">
             <thead className="text-muted-foreground text-left text-xs">
@@ -207,6 +220,12 @@ export function BlDetailScreen({
                   <td className="py-1">{formatBusinessDate(line.entryDate)}</td>
                   <td className="py-1">
                     {t(`bls.ledgerTypes.${line.type}`)}
+                    {line.deduction && (
+                      <span className="text-muted-foreground text-xs">
+                        {" "}
+                        · {line.deduction.typeName} ({t(`bls.deductionSources.${line.deduction.source}`)})
+                      </span>
+                    )}
                     {line.compensatesEntryId !== null && <span className="text-muted-foreground text-xs"> · {t("bls.detail.compensates")}</span>}
                     {line.compensated && <span className="text-xs"> · {t("bls.detail.compensated")}</span>}
                   </td>

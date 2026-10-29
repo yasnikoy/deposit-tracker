@@ -32,6 +32,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         overrides: can(user, "bl.updateOverrides").allowed,
         recordReply: can(user, "reply.record").allowed,
         linkEmail: can(user, "email.link").allowed,
+        reverseAllocation: can(user, "allocation.reverse").allowed,
       }}
       replyTypes={listReplyTypes(getDb(), user)
         .filter((type) => type.active)

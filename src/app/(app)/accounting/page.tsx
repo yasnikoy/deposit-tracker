@@ -8,9 +8,10 @@ import { getDb } from "@/server/db/client";
 import { listCurrencies } from "@/server/lists";
 import { listOwnPayments, listReceiptQueue } from "@/server/payments";
 import { getTableLayout } from "@/server/preferences";
+import { listOwnRefunds } from "@/server/refunds";
 import { AccountingScreen, type AccountingTab } from "./accounting-screen";
 
-const TABS: AccountingTab[] = ["new", "queue", "records"];
+const TABS: AccountingTab[] = ["new", "queue", "records", "refund", "refunds"];
 
 export default async function AccountingPage({ searchParams }: PageProps<"/accounting">) {
   const { user } = await requireSession();
@@ -36,8 +37,10 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
           today: istanbulToday(),
         }}
         payments={listOwnPayments(db, user)}
+        refunds={listOwnRefunds(db, user)}
         queue={listReceiptQueue(db, user)}
         layout={getTableLayout(db, user.id, "my-payments")}
+        refundsLayout={getTableLayout(db, user.id, "my-refunds")}
         canCreateBl={can(user, "bl.create").allowed}
       />
     </>

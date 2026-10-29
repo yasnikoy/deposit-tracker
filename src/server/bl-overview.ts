@@ -4,7 +4,7 @@ import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
 import type { StoredBlStatus } from "@/domain/bl-lifecycle";
-import type { BlStatus, LedgerType, PaymentKind } from "@/domain/records";
+import type { AllocationState, BlStatus, DeductionSource, LedgerType, PaymentKind } from "@/domain/records";
 import { OVERRIDABLE_SETTING_KEYS, type OverridableSettingKey } from "@/domain/settings/definitions";
 import { matchBl, parseBlSearch, type BlMatchField } from "@/lib/bl-search";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
@@ -18,12 +18,15 @@ import {
   auditLog,
   billsOfLading,
   containers,
+  deductionTypes,
   depositPayments,
   documents,
   emailAttachments,
   emailBlLinks,
   emails,
   ledgerEntries,
+  refundAllocations,
+  refunds,
   replies,
   replyTypes,
   requests,
@@ -181,6 +184,22 @@ export type BlLedgerLine = {
   compensated: boolean;
   createdAt: string;
   createdByName: string | null;
+  /** Deductions: type name and where it came from (statement, shortfall, write-off). */
+  deduction: { typeName: string; source: DeductionSource } | null;
+};
+
+/** A confirmed (or reversed) split of a refund onto this B/L. */
+export type BlAllocation = {
+  id: number;
+  refundId: number;
+  amountMinor: number;
+  currency: string;
+  valueDate: string;
+  state: AllocationState;
+  confirmedAt: string;
+  confirmedByName: string;
+  reversedAt: string | null;
+  reversalReason: string | null;
 };
 
 export type BlDocument = { id: number; kind: string; originalName: string; uploadedAt: string; uploadedByName: string };
@@ -213,6 +232,7 @@ export type BlDetail = {
   bl: BlOverview;
   payment: { id: number; kind: PaymentKind; evidenceDocumentId: number; evidenceName: string; createdByName: string } | null;
   ledger: BlLedgerLine[];
+  allocations: BlAllocation[];
   documents: BlDocument[];
   emails: BlEmail[];
   replies: BlReply[];
@@ -251,15 +271,16 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     : null;
 
   const ledgerRows = db
-    .select({ entry: ledgerEntries, createdByName: users.displayName })
+    .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name })
     .from(ledgerEntries)
     .leftJoin(users, eq(users.id, ledgerEntries.createdBy))
+    .leftJoin(deductionTypes, eq(deductionTypes.id, ledgerEntries.deductionTypeId))
     .where(eq(ledgerEntries.blId, id))
     // Newest first, like every history on the B/L detail.
     .orderBy(desc(ledgerEntries.id))
     .all();
   const compensatedIds = new Set(ledgerRows.map((r) => r.entry.compensatesEntryId).filter((v) => v !== null));
-  const ledger = ledgerRows.map(({ entry, createdByName }) => ({
+  const ledger = ledgerRows.map(({ entry, createdByName, deductionTypeName }) => ({
     id: entry.id,
     type: entry.type,
     amountMinor: entry.amountMinor,
@@ -269,6 +290,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     compensated: compensatedIds.has(entry.id),
     createdAt: entry.createdAt,
     createdByName,
+    deduction: deductionTypeName && entry.deductionSource ? { typeName: deductionTypeName, source: entry.deductionSource } : null,
   }));
 
   const blDocuments = db
@@ -322,7 +344,28 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     ) as Record<OverridableSettingKey, number>,
   };
 
-  return { bl, payment, ledger, documents: blDocuments, emails: blEmails(db, id), replies: blReplies(db, id), timeline, overrides, form };
+  const allocations = db
+    .select({ allocation: refundAllocations, valueDate: refunds.valueDate, currency: refunds.currency, confirmedByName: users.displayName })
+    .from(refundAllocations)
+    .innerJoin(refunds, eq(refunds.id, refundAllocations.refundId))
+    .innerJoin(users, eq(users.id, refundAllocations.confirmedBy))
+    .where(eq(refundAllocations.blId, id))
+    .orderBy(desc(refundAllocations.id))
+    .all()
+    .map(({ allocation, valueDate, currency, confirmedByName }) => ({
+      id: allocation.id,
+      refundId: allocation.refundId,
+      amountMinor: allocation.amountMinor,
+      currency,
+      valueDate,
+      state: allocation.state,
+      confirmedAt: allocation.confirmedAt,
+      confirmedByName,
+      reversedAt: allocation.reversedAt,
+      reversalReason: allocation.reversalReason,
+    }));
+
+  return { bl, payment, ledger, allocations, documents: blDocuments, emails: blEmails(db, id), replies: blReplies(db, id), timeline, overrides, form };
 }
 
 function blEmails(db: DbOrTx, blId: number): BlEmail[] {

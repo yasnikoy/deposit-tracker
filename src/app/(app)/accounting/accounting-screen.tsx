@@ -25,6 +25,8 @@ import { t, type TranslationKey } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import type { TableLayout } from "@/lib/schemas/table-layout";
+import type { RefundListItem } from "@/server/refunds";
+import { MyRefunds, RefundForm } from "./refunds-tab";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/errors";
 import type { PaymentListItem, QueueItem } from "@/server/payments";
@@ -34,7 +36,7 @@ import { discardQueueItemAction, voidPaymentAction } from "./actions";
 import { CorrectPaymentDialog } from "./correct-payment-dialog";
 import { PaymentForm, type ReferenceData, type SavedPayment } from "./payment-form";
 
-export type AccountingTab = "new" | "queue" | "records";
+export type AccountingTab = "new" | "queue" | "records" | "refund" | "refunds";
 
 type Status = "awaitingBl" | "hasBl" | "voided";
 const statusOf = (p: PaymentListItem): Status => (p.voidedAt ? "voided" : p.blId ? "hasBl" : "awaitingBl");
@@ -43,15 +45,19 @@ export function AccountingScreen({
   tab,
   refs,
   payments,
+  refunds,
   queue,
   layout,
+  refundsLayout,
   canCreateBl,
 }: {
   tab: AccountingTab;
   refs: ReferenceData;
   payments: PaymentListItem[];
+  refunds: RefundListItem[];
   queue: QueueItem[];
   layout: TableLayout | null;
+  refundsLayout: TableLayout | null;
   canCreateBl: boolean;
 }) {
   const router = useRouter();
@@ -72,6 +78,8 @@ export function AccountingScreen({
     { id: "new", label: t("payments.newTitle") },
     { id: "queue", label: `${t("payments.queueTitle")}${queue.length ? ` (${queue.length})` : ""}` },
     { id: "records", label: t("payments.myRecords") },
+    { id: "refund", label: t("refunds.newTitle") },
+    { id: "refunds", label: t("refunds.myRefunds") },
   ];
 
   return (
@@ -89,7 +97,7 @@ export function AccountingScreen({
         ))}
       </nav>
 
-      {saved && tab !== "records" ? (
+      {saved && (tab === "new" || tab === "queue") ? (
         <Continuation saved={saved} refs={refs} onDone={startOver} />
       ) : tab === "new" ? (
         <Card className="max-w-2xl">
@@ -102,6 +110,24 @@ export function AccountingScreen({
         </Card>
       ) : tab === "queue" ? (
         <ReviewQueue queue={queue} refs={refs} onSaved={afterSave} />
+      ) : tab === "refund" ? (
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle>{t("refunds.newTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RefundForm
+              key={formKey}
+              refs={refs}
+              onSaved={() => {
+                router.refresh();
+                setFormKey((k) => k + 1);
+              }}
+            />
+          </CardContent>
+        </Card>
+      ) : tab === "refunds" ? (
+        <MyRefunds refunds={refunds} refs={refs} layout={refundsLayout} />
       ) : (
         <MyRecords payments={payments} refs={refs} layout={layout} />
       )}

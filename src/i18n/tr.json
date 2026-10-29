@@ -45,7 +45,8 @@
     "dueRequests": "Talepler",
     "templates": "E-posta şablonları",
     "replies": "Yanıtlar",
-    "unprocessedBadge": "{count} işlenmemiş yanıt"
+    "unprocessedBadge": "{count} işlenmemiş yanıt",
+    "allocations": "İade dağıtımı"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -531,13 +532,12 @@
       "ibanTaken": "Bu IBAN başka bir hesapta kayıtlı.",
       "iban": "Geçersiz IBAN.",
       "code": "Kod üç büyük harf olmalı (ör. GBP).",
-      "replyTypeTaken": "Bu adda bir yanıt türü zaten var.",
-      "systemReplyType": "Sistem yanıt türleri pasif yapılamaz; yalnızca adı değiştirilebilir."
+      "typeTaken": "Bu adda bir tür zaten var.",
+      "systemType": "Sistem türleri pasif yapılamaz; yalnızca adı ve sırası değiştirilebilir."
     },
     "bankAccountsHint": "Acente iade formlarındaki banka adı ve IBAN alanları buradan doldurulur. Muhasebe kayıtlarında hesap seçilmez.",
     "replyTypes": "Yanıt türleri",
     "addReplyType": "Yanıt türü ekle",
-    "replyTypeName": "Ad",
     "sortOrder": "Sıra",
     "replyTypesHint": "Acente yanıtları bu türlerle kaydedilir. Sistem türleri yalnızca yeniden adlandırılabilir; eklenen türler yalnızca yanıtı belgeler, durumu değiştirmez.",
     "customReplyType": "Eklenen tür: durumu değiştirmez, takip süresini yeniden başlatır",
@@ -546,6 +546,15 @@
       "APPROVED": "Sistem: durum değişmez, takip süresi yeniden başlar",
       "STATEMENT_RECEIVED": "Sistem: durum değişmez; kesinti girişi 6. adımda",
       "INFO": "Sistem: yanıt işlenmiş sayılır, takip süresi yeniden başlamaz"
+    },
+    "typeName": "Ad",
+    "deductionTypes": "Kesinti türleri",
+    "addDeductionType": "Kesinti türü ekle",
+    "deductionTypesHint": "İade eksik geldiğinde veya acente kesinti dökümü gönderdiğinde kesintiler bu türlerle sınıflandırılır. Sistem türleri yalnızca yeniden adlandırılabilir.",
+    "customDeductionType": "Eklenen tür: kesintiyi sınıflandırır, B/L kapanabilir",
+    "deductionTypeEffects": {
+      "UNEXPLAINED": "Sistem: B/L \"Kesinti açık\" kalır; fark açıklanana kadar kapanmaz",
+      "WRITE_OFF": "Sistem: yönetici onaylı silme; onaylanınca B/L kapanır"
     }
   },
   "payments": {
@@ -696,7 +705,12 @@
     },
     "attempts": "Talep sayısı",
     "lastRequestOn": "Son talep",
-    "lastReply": "Son yanıt"
+    "lastReply": "Son yanıt",
+    "deductionSources": {
+      "STATEMENT": "döküm",
+      "SHORTFALL": "eksik ödeme",
+      "WRITE_OFF": "silme"
+    }
   },
   "search": {
     "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
@@ -744,6 +758,10 @@
       },
       "reply": {
         "record": "Acente yanıtı kaydedildi"
+      },
+      "allocation": {
+        "confirm": "İade dağıtımı onaylandı",
+        "reverse": "İade dağıtımı geri alındı"
       }
     },
     "system": "Sistem",
@@ -1013,5 +1031,91 @@
     "next": "Sonraki",
     "position": "{index} / {count}",
     "keys": "← / → ile geçiş, Esc ile kapat"
+  },
+  "refunds": {
+    "errors": {
+      "voided": "Bu iade kaydı iptal edilmiş.",
+      "allocated": "Onaylanmış dağıtımı olan iade düzeltilemez veya iptal edilemez; önce yönetici dağıtımı geri almalı."
+    },
+    "newTitle": "Yeni iade",
+    "myRefunds": "İadelerim",
+    "valueDate": "Valör tarihi",
+    "remainder": "Dağıtılmamış",
+    "save": "İadeyi kaydet",
+    "saved": "İade kaydedildi; operasyon dağıtımı yapacak.",
+    "corrected": "İade düzeltildi.",
+    "voided": "İade iptal edildi.",
+    "voidTitle": "İade kaydı iptal edilsin mi?",
+    "correctTitle": "İadeyi düzelt",
+    "duplicateText": "Aynı acente, tutar, para birimi ve valör tarihli bir iade zaten var. Yine de kaydedilsin mi?",
+    "kinds": {
+      "BANK": "Banka havalesi",
+      "OFFSET": "Fatura mahsubu"
+    },
+    "statuses": {
+      "OPEN": "Dağıtılmadı",
+      "PARTIALLY_ALLOCATED": "Kısmen dağıtıldı",
+      "ALLOCATED": "Dağıtıldı",
+      "REMAINDER_LEFT": "Kalan bırakıldı"
+    }
+  },
+  "allocations": {
+    "errors": {
+      "nothingLeft": "Bu iadede dağıtılacak tutar kalmadı.",
+      "shortfallBl": "Farkı taşıyan B/L dağıtımda yer almalı.",
+      "deductionType": "Kesinti türü bulunamadı veya pasif.",
+      "writeOff": "Silme (tahsil edilemeyen) fark olarak seçilemez; yönetici onaylı silme önerisi olarak girilir.",
+      "exceedsRefund": "Dağıtım toplamı iadede kalan tutarı aşıyor.",
+      "remainderReason": "Dağıtılmayan tutar için bir gerekçe girin.",
+      "notCandidate": "Bu B/L bu iadeye dağıtılamaz (acente, para birimi, talep tarihi veya durum uygun değil).",
+      "mustSettle": "B/L {bl} tek seferde iade edilir: dağıtılan tutar ve taşıdığı fark, beklenen tutara eşit olmalı.",
+      "alreadyReversed": "Bu dağıtım zaten geri alınmış.",
+      "cannotReverse": "B/L'nin şimdiki durumunda bu dağıtım geri alınamaz."
+    },
+    "title": "İade dağıtımı",
+    "hint": "Dağıtılacak tutarı kalan iadeler, en eskisi üstte. Bir iadeyi açıp B/L'lere dağıtımını onaylayın; uygulama hiçbir dağıtımı kendiliğinden yapmaz.",
+    "empty": "Dağıtılacak iade yok.",
+    "back": "İade dağıtımına dön",
+    "review": {
+      "toAllocate": "Dağıtılacak",
+      "noCandidates": "Bu acente ve para biriminde, valör tarihinden önce talebi gönderilmiş açık B/L yok.",
+      "suggestions": "Öneriler",
+      "incomplete": "Arama sınırına ulaşıldı (en eski 30 B/L veya süre); başka tam eşleşmeler olabilir.",
+      "exact": "Tam eşleşme {n}",
+      "fifo": "En eskiden başlayarak",
+      "noDifference": "Fark yok",
+      "differenceOn": "{amount} fark: {bl}",
+      "leftOver": "{amount} dağıtılmadan kalır",
+      "use": "Bu öneriyi kullan",
+      "split": "Dağıtım",
+      "firstRequest": "İlk talep",
+      "allocate": "Dağıtılan",
+      "difference": "Fark",
+      "total": "Toplam",
+      "remainder": "Dağıtılmadan kalan",
+      "splitHint": "Tutar alanına çift tıklayınca beklenen tutar yazılır. Bir B/L tek seferde iade edilir: eksik ödenen fark yalnızca bir B/L'de olabilir ve bir kesinti türü seçilir.",
+      "differenceRow": "{bl} için {amount} fark",
+      "deductionType": "Kesinti türü seçin",
+      "staysOpen": "B/L kesinti açık olarak kalır",
+      "remainderReason": "Dağıtılmayan tutar için gerekçe",
+      "lineInvalid": "Bir B/L'ye beklenen tutardan fazla veya geçersiz bir tutar yazılmış.",
+      "oneDifference": "Fark yalnızca bir B/L'de olabilir.",
+      "chooseType": "Fark için bir kesinti türü seçin.",
+      "nothingChosen": "Henüz hiçbir B/L'ye tutar yazılmadı.",
+      "confirm": "Dağıtımı onayla",
+      "confirmTitle": "Dağıtım onaylansın mı?",
+      "confirmText": "{amount} aşağıdaki B/L'lere dağıtılacak. Onaylanan dağıtımı yalnızca yönetici geri alabilir.",
+      "confirmed": "{count} B/L'ye dağıtım onaylandı."
+    }
+  },
+  "blAllocations": {
+    "title": "İade dağıtımları",
+    "none": "Henüz dağıtım yok.",
+    "refund": "İade #{id} · valör {date}",
+    "reversed": "Geri alındı",
+    "reverse": "Dağıtımı geri al",
+    "reverseTitle": "Dağıtım geri alınsın mı?",
+    "reverseText": "{bl} üzerindeki {amount} dağıtım ve onunla girilen fark kesintisi geri alınır; B/L dağıtımdan önceki durumuna döner ve tutar iadede yeniden dağıtılabilir.",
+    "reversedToast": "Dağıtım geri alındı."
   }
 }

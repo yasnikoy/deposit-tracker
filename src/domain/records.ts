@@ -63,3 +63,15 @@ export type EmailLinkSource = (typeof EMAIL_LINK_SOURCES)[number];
 /** A possible match waits for a user; it is never linked on its own (rule 6). */
 export const SUGGESTION_STATES = ["OPEN", "ACCEPTED", "DISMISSED"] as const;
 export type SuggestionState = (typeof SUGGESTION_STATES)[number];
+
+/** Deduction types with behaviour: an unexplained shortfall keeps a B/L open; a write-off needs an admin (step 6b). */
+export const DEDUCTION_TYPE_CODES = ["UNEXPLAINED", "WRITE_OFF"] as const;
+export type DeductionTypeCode = (typeof DEDUCTION_TYPE_CODES)[number];
+
+/** STATEMENT: from an agency statement before payment; SHORTFALL: a refund paid less; WRITE_OFF: not recovered. */
+export const DEDUCTION_SOURCES = ["STATEMENT", "SHORTFALL", "WRITE_OFF"] as const;
+export type DeductionSource = (typeof DEDUCTION_SOURCES)[number];
+
+/** A confirmed allocation is reversed only by an admin (rule 8); rows are never deleted. */
+export const ALLOCATION_STATES = ["CONFIRMED", "REVERSED"] as const;
+export type AllocationState = (typeof ALLOCATION_STATES)[number];

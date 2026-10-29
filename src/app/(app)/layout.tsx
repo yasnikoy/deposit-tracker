@@ -17,6 +17,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/accounting", label: "nav.accounting", visible: can(user, "payment.create").allowed },
     { href: "/requests", label: "nav.dueRequests", visible: can(user, "request.view").allowed },
     { href: "/replies", label: "nav.replies", visible: can(user, "reply.view").allowed },
+    { href: "/allocations", label: "nav.allocations", visible: can(user, "allocation.view").allowed },
     { href: "/bls", label: "nav.allBls", visible: can(user, "bl.view").allowed },
     { href: "/bls/new", label: "nav.createBls", visible: can(user, "bl.viewAwaiting").allowed },
     { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },

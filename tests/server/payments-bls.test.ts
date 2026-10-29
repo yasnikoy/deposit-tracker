@@ -10,7 +10,7 @@ import type { Db } from "@/server/db/client";
 import { auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { documentPath, storeUpload } from "@/server/files";
-import { addLedgerEntry, ledgerDeposit } from "@/server/ledger";
+import { ledgerDeposit } from "@/server/ledger";
 import {
   correctPayment,
   createPayment,
@@ -23,6 +23,7 @@ import {
 } from "@/server/payments";
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
+import { confirmedAllocationFixture } from "../support/records";
 
 const NOW = new Date("2026-10-22T09:00:00Z");
 const PDF = Buffer.from("%PDF-1.4\n% test receipt\n");
@@ -240,7 +241,7 @@ describe("corrections and voiding", () => {
     );
 
     // A confirmed refund allocation freezes both records (rules 13 and 15).
-    addLedgerEntry(db, { blId: bl.id, type: "REFUND_ALLOCATION", amountMinor: 300000, currency: "USD", entryDate: "2026-10-21", createdBy: ops.id });
+    confirmedAllocationFixture(db, { acc, ops }, { blId: bl.id, agencyId, amountMinor: 300000, now: NOW });
     expect(() => voidBl(db, ops, { id: bl.id, reason: "x" })).toThrow(expect.objectContaining({ messageKey: "bls.errors.allocated" }));
     expect(() =>
       correctPayment(db, acc, { id: p1, agencyId, amountMinor: 1, currency: "USD", paidAt: "2026-10-20", reason: "x" }),

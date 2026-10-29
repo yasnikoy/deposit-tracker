@@ -2,18 +2,20 @@ import "server-only";
 import fs from "node:fs";
 import { asc, eq } from "drizzle-orm";
 import { normalizeIban } from "@/domain/iban";
+import { DEDUCTION_TYPE_CODES, type DeductionTypeCode } from "@/domain/records";
 import { REPLY_TYPE_CODES, type ReplyTypeCode } from "@/domain/replies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { bankAccounts, currencies, replyTypes } from "./db/schema";
+import { bankAccounts, currencies, deductionTypes, replyTypes } from "./db/schema";
 import { DomainError } from "./errors";
 import { SEED_FILE } from "./settings";
 
 export type Currency = typeof currencies.$inferSelect;
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type ReplyType = typeof replyTypes.$inferSelect;
+export type DeductionType = typeof deductionTypes.$inferSelect;
 
 /** Loads the seed currencies on first start (when the list is still empty). */
 export function seedLists(db: Db, seedFile: string = SEED_FILE): string[] {
@@ -120,78 +122,91 @@ export function saveBankAccount(
   });
 }
 
+// ---- Coded type lists: reply types and deduction types ----
+
+type CodedList<Code extends string> = {
+  table: typeof replyTypes | typeof deductionTypes;
+  codes: readonly Code[];
+  seedKey: "replyTypes" | "deductionTypes";
+  entity: "replyType" | "deductionType";
+};
+
+const REPLY_TYPES: CodedList<ReplyTypeCode> = { table: replyTypes, codes: REPLY_TYPE_CODES, seedKey: "replyTypes", entity: "replyType" };
+const DEDUCTION_TYPES: CodedList<DeductionTypeCode> = {
+  table: deductionTypes,
+  // Seed types without a code (e.g. demurrage) are loaded on first start only.
+  codes: [...DEDUCTION_TYPE_CODES],
+  seedKey: "deductionTypes",
+  entity: "deductionType",
+};
+
 /**
- * Loads the seed reply types missing from the database. System types (with a code) are
- * added once each, so a later release can bring a new one; custom types never come from here.
+ * Loads seed types missing from the database. System types (with a code) are added once
+ * each, so a later release can bring a new one; types without a code are seeded only into an
+ * empty list, and those an admin adds never come from here.
  */
-export function seedReplyTypes(db: Db, seedFile: string = SEED_FILE, now: Date = new Date()): ReplyTypeCode[] {
+function seedCodedList<Code extends string>(db: Db, list: CodedList<Code>, seedFile: string, now: Date): string[] {
   const seed = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ seedFile, "utf8")) as {
-    lists?: { replyTypes?: { code: ReplyTypeCode; name: string }[] };
+    lists?: Partial<Record<CodedList<Code>["seedKey"], { code?: Code; name: string }[]>>;
   };
-  const rows = seed.lists?.replyTypes ?? [];
-  const inserted: ReplyTypeCode[] = [];
+  const rows = seed.lists?.[list.seedKey] ?? [];
+  const inserted: string[] = [];
   db.transaction((tx) => {
-    const existing = tx.select().from(replyTypes).all();
-    for (const code of REPLY_TYPE_CODES) {
-      const row = rows.find((r) => r.code === code);
-      if (!row) throw new Error(`Reply type "${code}" is missing from the seed file`);
-      if (existing.some((e) => e.code === code)) continue;
+    const existing = tx.select().from(list.table).all();
+    for (const code of list.codes) {
+      if (!rows.some((r) => r.code === code)) throw new Error(`${list.entity} "${code}" is missing from the seed file`);
+    }
+    rows.forEach((row, index) => {
+      if (row.code ? existing.some((e) => e.code === row.code) : existing.length > 0) return;
       const at = now.toISOString();
       const created = tx
-        .insert(replyTypes)
-        .values({ code, name: row.name, sortOrder: REPLY_TYPE_CODES.indexOf(code), createdAt: at, updatedAt: at })
+        .insert(list.table)
+        .values({ code: (row.code ?? null) as never, name: row.name, sortOrder: index, createdAt: at, updatedAt: at })
         .returning()
         .get();
-      writeAudit(tx, { actorUserId: null, roleUsed: null, action: "replyType.seed", entityType: "replyType", entityId: created.id, after: row }, now);
-      inserted.push(code);
-    }
+      writeAudit(tx, { actorUserId: null, roleUsed: null, action: `${list.entity}.seed`, entityType: list.entity, entityId: created.id, after: row }, now);
+      inserted.push(row.code ?? row.name);
+    });
   });
   return inserted;
 }
 
-export function listReplyTypes(db: DbOrTx, actor: AuthUser): ReplyType[] {
-  authorize(actor, "lists.view");
-  return db.select().from(replyTypes).orderBy(asc(replyTypes.sortOrder), asc(replyTypes.id)).all();
-}
-
-/** Admin: add a reply type, or rename, reorder or (custom types only) deactivate one. */
-export function saveReplyType(
+/** Admin: add a type, or rename, reorder or (types without a code only) deactivate one. */
+function saveCodedType(
   db: Db,
   actor: AuthUser,
+  list: CodedList<string>,
   input: { id?: number; name: string; active: boolean; sortOrder: number; reason: string | null },
-  now: Date = new Date(),
+  now: Date,
 ): number {
   const roleUsed = authorize(actor, "lists.manage");
   const at = now.toISOString();
+  const table = list.table;
   return db.transaction((tx) => {
     const taken = tx
       .select()
-      .from(replyTypes)
+      .from(table)
       .all()
       .find((r) => r.name.toLocaleLowerCase("tr") === input.name.toLocaleLowerCase("tr") && r.id !== input.id);
-    if (taken) throw new DomainError("lists.errors.replyTypeTaken");
+    if (taken) throw new DomainError("lists.errors.typeTaken");
     const values = { name: input.name, active: input.active, sortOrder: input.sortOrder };
 
     if (input.id === undefined) {
-      const row = tx.insert(replyTypes).values({ ...values, code: null, createdAt: at, updatedAt: at }).returning().get();
-      writeAudit(
-        tx,
-        { actorUserId: actor.id, roleUsed, action: "replyType.create", entityType: "replyType", entityId: row.id, after: values, reason: input.reason },
-        now,
-      );
+      const row = tx.insert(table).values({ ...values, code: null, createdAt: at, updatedAt: at }).returning().get();
+      writeAudit(tx, { actorUserId: actor.id, roleUsed, action: `${list.entity}.create`, entityType: list.entity, entityId: row.id, after: values, reason: input.reason }, now);
       return row.id;
     }
-    const before = tx.select().from(replyTypes).where(eq(replyTypes.id, input.id)).get();
+    const before = tx.select().from(table).where(eq(table.id, input.id)).get();
     if (!before) throw new DomainError("errors.notFound");
-    if (before.code && !input.active) throw new DomainError("lists.errors.systemReplyType");
-    tx.update(replyTypes).set({ ...values, updatedAt: at }).where(eq(replyTypes.id, input.id)).run();
+    if (before.code && !input.active) throw new DomainError("lists.errors.systemType");
+    tx.update(table).set({ ...values, updatedAt: at }).where(eq(table.id, input.id)).run();
     writeAudit(
       tx,
       {
         actorUserId: actor.id,
         roleUsed,
-        action: "replyType.update",
-        entityType: "replyType",
+        action: `${list.entity}.update`,
+        entityType: list.entity,
         entityId: input.id,
         before: { name: before.name, active: before.active, sortOrder: before.sortOrder },
         after: values,
@@ -201,4 +216,32 @@ export function saveReplyType(
     );
     return input.id;
   });
+}
+
+type TypeInput = { id?: number; name: string; active: boolean; sortOrder: number; reason: string | null };
+
+export function seedReplyTypes(db: Db, seedFile: string = SEED_FILE, now: Date = new Date()): string[] {
+  return seedCodedList(db, REPLY_TYPES, seedFile, now);
+}
+
+export function listReplyTypes(db: DbOrTx, actor: AuthUser): ReplyType[] {
+  authorize(actor, "lists.view");
+  return db.select().from(replyTypes).orderBy(asc(replyTypes.sortOrder), asc(replyTypes.id)).all();
+}
+
+export function saveReplyType(db: Db, actor: AuthUser, input: TypeInput, now: Date = new Date()): number {
+  return saveCodedType(db, actor, REPLY_TYPES, input, now);
+}
+
+export function seedDeductionTypes(db: Db, seedFile: string = SEED_FILE, now: Date = new Date()): string[] {
+  return seedCodedList(db, DEDUCTION_TYPES, seedFile, now);
+}
+
+export function listDeductionTypes(db: DbOrTx, actor: AuthUser): DeductionType[] {
+  authorize(actor, "lists.view");
+  return db.select().from(deductionTypes).orderBy(asc(deductionTypes.sortOrder), asc(deductionTypes.id)).all();
+}
+
+export function saveDeductionType(db: Db, actor: AuthUser, input: TypeInput, now: Date = new Date()): number {
+  return saveCodedType(db, actor, DEDUCTION_TYPES, input, now);
 }

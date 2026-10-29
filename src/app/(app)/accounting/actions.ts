@@ -6,6 +6,8 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
 import { correctPayment, createPayment, discardQueueItem, voidPayment, type CreatePaymentResult } from "@/server/payments";
+import { correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
+import { correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
 
 export async function createPaymentAction(input: unknown): Promise<ActionResult<CreatePaymentResult>> {
   const { user } = await requireSession();
@@ -25,4 +27,19 @@ export async function voidPaymentAction(input: unknown): Promise<ActionResult<vo
 export async function discardQueueItemAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(discardQueueItemSchema, input, (data) => discardQueueItem(getDb(), user, data));
+}
+
+export async function createRefundAction(input: unknown): Promise<ActionResult<CreateRefundResult>> {
+  const { user } = await requireSession();
+  return runAction(createRefundSchema, input, (data) => createRefund(getDb(), user, data));
+}
+
+export async function correctRefundAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(correctRefundSchema, input, (data) => correctRefund(getDb(), user, data));
+}
+
+export async function voidRefundAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(voidSchema, input, (data) => voidRefund(getDb(), user, data));
 }

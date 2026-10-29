@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
-import type { LedgerType } from "@/domain/records";
+import type { DeductionSource, LedgerType } from "@/domain/records";
 import type { DbOrTx } from "./db/client";
 import { billsOfLading, ledgerEntries } from "./db/schema";
 
@@ -17,13 +17,23 @@ export function addLedgerEntry(
     currency: string;
     entryDate: string;
     depositPaymentId?: number | null;
+    refundAllocationId?: number | null;
+    deduction?: { typeId: number; source: DeductionSource } | null;
     createdBy: number | null;
   },
   now: Date = new Date(),
 ): LedgerEntry {
+  const { deduction, ...rest } = entry;
   return tx
     .insert(ledgerEntries)
-    .values({ ...entry, depositPaymentId: entry.depositPaymentId ?? null, createdAt: now.toISOString() })
+    .values({
+      ...rest,
+      depositPaymentId: entry.depositPaymentId ?? null,
+      refundAllocationId: entry.refundAllocationId ?? null,
+      deductionTypeId: deduction?.typeId ?? null,
+      deductionSource: deduction?.source ?? null,
+      createdAt: now.toISOString(),
+    })
     .returning()
     .get();
 }
@@ -40,6 +50,9 @@ export function compensateLedgerEntry(tx: DbOrTx, entry: LedgerEntry, createdBy:
       currency: entry.currency,
       entryDate: entry.entryDate,
       depositPaymentId: entry.depositPaymentId,
+      refundAllocationId: entry.refundAllocationId,
+      deductionTypeId: entry.deductionTypeId,
+      deductionSource: entry.deductionSource,
       compensatesEntryId: entry.id,
       createdBy,
       createdAt: now.toISOString(),

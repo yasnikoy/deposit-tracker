@@ -89,6 +89,22 @@
         "code": "INFO",
         "name": "Bilgi / işlem gerekmez"
       }
+    ],
+    "deductionTypes": [
+      {
+        "name": "Demuraj / detention"
+      },
+      {
+        "name": "Diğer"
+      },
+      {
+        "code": "UNEXPLAINED",
+        "name": "Açıklanmayan"
+      },
+      {
+        "code": "WRITE_OFF",
+        "name": "Silinen (tahsil edilemeyen)"
+      }
     ]
   },
   "emailTemplates": {
