@@ -53,6 +53,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Logging | pino structured logs to daily rotating files in the data folder, kept 30 days; streams run in-process (no worker-thread transports) so the standalone build is self-contained |
 | Rendering | Next.js Cache Components are off: every screen is session-bound and shows live data, so pages render dynamically on each request |
 | Versioning | Semantic Versioning, with `package.json` as the single source. 0.x during the build (0.6.0 = build step 6, 0.7.0 = step 7, …; a later part of a step raises the patch number, e.g. 0.6.1 = step 6c); 1.0.0 at go-live, once this document is implemented. From then on MAJOR = an update that needs manual steps or breaks compatibility, MINOR = new features, PATCH = fixes only. `pnpm version minor\|patch` raises it and tags the commit (`v0.7.0`). The version is shown in the app header and written to the log at every start; from build step 8 also on the health page and in the portable zip's name (`deposit-tracker-<version>-win-x64.zip`). The change log of this document serves as release notes |
+| Updates | Releases are published on GitHub Releases of the public repository: the portable zip, its SHA-256 and an Ed25519 signature made with a release key that never leaves the developer's machine. The app on the office PC only reaches out (HTTPS to the GitHub API, daily and at start); nothing comes in. It verifies the signature with the public key built into the app (Node's built-in crypto, no new dependency), so neither a changed download nor a compromised GitHub account can install code. Only an admin starts an update; it is staged and applied by `start.cmd` before the app starts (files of a running app are locked on Windows), with the previous `app` folder kept for rollback and an automatic switch back when the health check fails. A major version (manual steps) is never applied this way: the app only points to the runbook. Older versions are never installed. No secrets live in the repository: data, keys and `.env` files are git-ignored |
 | Packaging | pnpm for development. `pnpm build:portable` produces one zip: a portable Node.js runtime, the Next.js standalone build with prebuilt native modules for Windows x64, and start/stop/backup/create-admin `.cmd` scripts |
 
 ## Roles and permissions
@@ -412,13 +413,14 @@ The app runs from a portable folder on an office desktop PC; other users open it
 | First setup | Unzip the release to `app`, run `create-admin.cmd`, open the app, enter mail server settings, users, agencies (with B/L number patterns and form templates), bank accounts, holidays and standing documents |
 | Access | Office network only, plain HTTP on port 3000 by computer name. Windows Firewall allows port 3000 on the private network profile only. No port forwarding; guest Wi-Fi kept separate |
 | Outbound network | The PC must reach Yandex SMTP and IMAP; nothing inbound from the internet is needed |
-| Updates | Download the new release zip, run `stop.cmd`, replace the `app` folder (keeping the previous one for rollback), run `start.cmd`. The `data` folder is never touched by an update |
+| Updates | Pull-only, admin-approved, from GitHub Releases of the public repository (see Technical decisions → Updates). The app checks daily and shows a new version to admins (header and health page) with its release notes; "Güncelle" downloads the zip, verifies its signature and stages it next to `app`; `start.cmd` applies it at the next start (by default right away: the app restarts and the scheduled task brings it back). The previous `app` folder is kept, and if the health check fails after start, `start.cmd` switches back to it. Manual update (download, `stop.cmd`, replace `app`, `start.cmd`) stays possible. The `data` folder is never touched by an update |
 | Backups | Daily at a configurable time during office hours (default 12:30), and at the next start if missed: a consistent SQLite backup plus a copy of the files folder, written locally and copied to a second location. Keep 14 daily and 8 weekly copies. Test a restore monthly |
 | Health | `/api/health` endpoint; an admin page shows scheduler status, last IMAP poll and last backup time |
 | Runbook contents | First setup, configure mail, add users, add an agency form template, update and roll back, back up, restore from backup, move to another PC, back up and restore the key file, what to do when mail is down |
 
 **Open items before go-live**
 
+- [ ] Create the public GitHub repository (commits show the author's name and email) and the Ed25519 release key; keep the private release key offline, like the mail key file
 - [ ] Release 1.0.0 (`pnpm version major`) once this document is implemented
 - [ ] Name of the bank and 3–5 sample PDF receipts (incoming and outgoing, including transfer descriptions with B/L numbers) for the receipt parser
 - [ ] B/L number formats of each agency, to set up the patterns
@@ -446,6 +448,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 30, 2026 — remote updates decided**
+
+- Updates come from GitHub Releases of a public repository, checked daily by the app, started by an admin, verified by signature, applied by `start.cmd` at the next start with automatic rollback (Technical decisions → Updates). Alternatives considered: manual zip only (kept as fallback), fully automatic installs (a bad release would stop daily work unnoticed), installer frameworks (ruled out), building on the PC (needs a toolchain there), remote desktop/VPN (deferred). Built in build step 8 with the portable zip.
 
 **Oct 30, 2026 — build step 6d (opening balances), v0.6.2; build step 6 complete**
 

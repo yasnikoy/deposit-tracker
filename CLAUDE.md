@@ -168,7 +168,8 @@ change.
    write-off approval, undo, opening-balance form
 7. Dashboard, notes and mentions, notifications, reports, weekly summary,
    CSV export and clipboard copy, inline editing, remaining keyboard shortcuts
-8. Portable packaging, backups, health page, `docs/RUNBOOK.md`
+8. Portable packaging, backups, health page, update check and signed
+   self-update from GitHub Releases (ARCHITECTURE.md → Updates), `docs/RUNBOOK.md`
 
 ## Commands
 Toolchain is pinned in `mise.toml` (Node 24, pnpm); prefix with `mise exec --`
