@@ -166,8 +166,9 @@ change.
    with quick buttons and bulk reply types, unprocessed badge and daily email
 6. Refunds, allocation engine and review screen, deductions, disputes,
    write-off approval, undo, opening-balance form
-7. Dashboard, notes and mentions, notifications, reports, weekly summary,
-   CSV export and clipboard copy, inline editing, remaining keyboard shortcuts
+7. Dashboard, reports, CSV export and clipboard copy, report email for
+   operations (internal recipients, preview, CSV attachments), notes and mentions,
+   notifications, weekly summary, inline editing, remaining keyboard shortcuts
 8. Portable packaging, backups, health page, update check and signed
    self-update from GitHub Releases (ARCHITECTURE.md → Updates), `docs/RUNBOOK.md`
 

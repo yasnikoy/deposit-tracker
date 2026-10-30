@@ -63,7 +63,7 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 | Role | Can do | Cannot do |
 | --- | --- | --- |
 | Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
-| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
+| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions, send the report email to internal addresses. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
 A user holding both accountant and operations roles gets a continuous flow: after saving a deposit payment, the same screen continues to B/L creation with agency, amount, currency and extracted B/L number prefilled. The audit log records each step under its own role.
@@ -176,6 +176,7 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | --- | --- |
 | Calendar | Weekend days; holiday list (date, name, full/half day); whether half days (arife) count as business days; bulk holiday entry per year |
 | Durations (business days) | Days after payment until first refund request is due; days in advance a B/L shows as "upcoming"; days between follow-ups after "not yet returned"; days after an unexplained deduction until the statement request is due; days between statement-request follow-ups; days before an unprocessed agency reply raises a warning; aging report bucket edges |
+| Reports | Internal email domains (report recipients must belong to one); default report recipients; report email template |
 | Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval) (step 7); daily unprocessed-reply email on/off, time and recipients (step 5); weekly summary email on/off, its weekday, time and recipients |
 | Email server | SMTP/IMAP host, port, encryption, user, encrypted app password; sent-folder name; inbox folder the poller reads; IMAP poll interval; sender display name; default CC/BCC; signature; max attachment size; send-test button |
 | Templates (Turkish) | Refund request, follow-up, deduction statement request, daily unprocessed-reply email, weekly summary; batched template sections; placeholders; live preview |
@@ -374,6 +375,14 @@ Three on-screen views ship in v1; all are computed from ledger entries and reque
 
 The optional weekly summary email contains open balance per currency, B/Ls waiting longest, and unprocessed replies.
 
+**Report email (operations, on demand).** An operations user sends a brief status report to internal addresses from the Reports screen ("Rapor gönder"):
+
+- **Sections**, any combination: *requested refunds* (requested, still outstanding: B/L, agency, deposit, first and last request date, attempts, last reply); *remaining deposits* (open balance per agency and currency); *collected in a period* (refunds allocated in the date range, with deductions and write-offs); *problems* (open and disputed deductions, failed sends, B/Ls waiting longest).
+- **Filters:** agencies, currency, and a date range for the collected section; the other sections show the state of today. Voided records are excluded, as in every report.
+- **Format:** a Turkish email with a short summary table per section in the body (template in settings) and the full lists as CSV attachments, one per section, in the export format (UTF-8 with BOM, semicolons, Turkish numbers and dates).
+- **Recipients:** internal only. They must belong to one of the internal email domains (setting; the sender's own domain counts), and an address that is on any agency's recipient list is refused, so internal figures never reach an agency. A saved default recipient list (setting) prefills the preview.
+- **Sending:** always with a preview (recipients, subject and intro editable), then through the same send job as requests: retries, the sent-folder copy, dry-run outside production (rule 13), the `.eml` kept. Each send is audited with its sections, filters and recipients. Nothing is sent on a schedule; the weekly summary covers that.
+
 ## Screens
 
 Desktop-only, dense tables; a row opens its details in a large centered dialog over the full-width list, with previous/next through the list as sorted and filtered (← / →). There is no per-user assignment: operations works from a shared pool, and a B/L being drafted by one user shows a lock badge for others. A user with both roles sees both menus.
@@ -398,7 +407,7 @@ Desktop-only, dense tables; a row opens its details in a large centered dialog o
 | Replies | Operations | Tabs: to process, possible matches, processed. Full message with attachments and its linked B/Ls; quick reply-type buttons per B/L and "apply to all"; enter deductions from a statement; save attachments as B/L documents |
 | Agencies | Operations | Card: name, bank sender aliases, B/L number patterns (with a test field), one recipient list, batch/single sending, request channel and portal link, form template (admin uploads, shows placeholder check), setting overrides with impact preview, open B/Ls, scorecard summary, notes |
 | Accounting | Accountant | New deposit payment (single, or drop several receipts into the review queue), new refund (receipt or invoice mandatory, prefilled from a PDF receipt, duplicate warning). List of own records with status, linked B/L numbers (read-only, copy button), correct and void actions. For dual-role users, saving a payment continues to B/L creation |
-| Reports | All | Aging, agency scorecard, with CSV download |
+| Reports | All (report email: operations) | Aging, agency scorecard, with CSV download; "Rapor gönder" opens the report email preview |
 | Settings, users | Admin | As in the Settings section, with impact preview; standing documents upload; write-off approvals; opening-balance form. The admin pages share one "Yönetim" menu in the header |
 
 ## Operations and deployment
@@ -448,6 +457,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 30, 2026 — report email for operations planned**
+
+- New: an on-demand report email that operations sends to internal addresses (Reports and exports → Report email): four selectable sections, agency/currency/date filters, summary tables in the body and CSV attachments, preview before sending, internal domains enforced on the server. New settings group *Reports*. Planned as build step 7c; the later parts of step 7 move to 7d and 7e.
 
 **Oct 30, 2026 — remote updates decided**
 
