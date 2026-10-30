@@ -39,6 +39,8 @@ const rules = {
   "payment.viewOwn": only("ACCOUNTANT"),
   "payment.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
   "payment.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],
+  // A missing receipt or invoice may follow later; it adds evidence and changes no amount.
+  "payment.attachEvidence": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "OPERATIONS" }],
   // Incoming refunds and offsets are money records too (rule 7).
   "refund.create": only("ACCOUNTANT"),
   "refund.viewOwn": only("ACCOUNTANT"),
@@ -48,6 +50,12 @@ const rules = {
   "allocation.view": only("OPERATIONS", "ADMIN"),
   "allocation.confirm": only("OPERATIONS"),
   "allocation.reverse": only("ADMIN"),
+  // Operations records and disputes deductions; write-offs need an admin approval (rule 16).
+  "deduction.record": only("OPERATIONS"),
+  "deduction.dispute": only("OPERATIONS"),
+  "writeOff.propose": only("OPERATIONS"),
+  "writeOff.view": only("ADMIN"),
+  "writeOff.decide": only("ADMIN"),
   // B/Ls are created from payments by operations.
   "bl.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),

@@ -9,7 +9,7 @@ import { billsOfLading, deductionTypes } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
-import { addLedgerEntry } from "@/server/ledger";
+import { recordStatementDeductions } from "@/server/deductions";
 import { correctRefund, createRefund, getRefund, listOwnRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
 import { recordPortalRequest } from "@/server/requests";
 import { createTestDb, makeUser } from "../support/db";
@@ -120,7 +120,8 @@ describe("allocating a batched refund", () => {
   });
 
   it("with a 700 statement deduction on C beforehand, the exact subset A + B + C matches", () => {
-    addLedgerEntry(db, { blId: c, type: "DEDUCTION", amountMinor: usd(700), currency: "USD", entryDate: "2026-10-15", deduction: { typeId: typeId(null, "Diğer"), source: "STATEMENT" }, createdBy: ops.id }, NOW);
+    const doc = storeUpload(db, ops, { originalName: "dokum.pdf", content: PDF, kind: "DEDUCTION_STATEMENT" }, NOW).id;
+    recordStatementDeductions(db, ops, { blId: c, documentId: doc, lines: [{ deductionTypeId: typeId(null, "Diğer"), amountMinor: usd(700) }] }, NOW);
     const r = refund(line, 6300);
     const { exact } = allocationProposal(db, ops, r).suggestions;
     expect(exact).toEqual([

@@ -116,6 +116,10 @@
       "subject": "Depozito İade Talebi – B/L {bl_no} – Portal ref. {portal_ref}",
       "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.\n\n{signature}"
     },
+    "DEDUCTION_STATEMENT": {
+      "subject": "Depozito Kesinti Dökümü Talebi – B/L {bl_no}",
+      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait depozito iadesinde {deduction_amount} {currency} tutarında fark oluşmuştur. Kesintinin dökümünü ve dayanak belgelerini iletmenizi rica ederiz.\n\n{signature}"
+    },
     "BATCH": {
       "subject": "Depozito Talepleri – B/L {bl_no}",
       "body": "Sayın {agency_name} yetkilisi,\n\n[[refund]]\nAşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n{refund_section}\n\n[[/refund]]\n[[statement]]\nAşağıdaki konşimentolarda oluşan farkların kesinti dökümünü rica ederiz:\n{statement_section}\n\n[[/statement]]\nTüm belgeler ektedir.\n{signature}"

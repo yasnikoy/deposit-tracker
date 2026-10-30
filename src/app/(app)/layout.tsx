@@ -3,11 +3,13 @@ import { ShortcutsDialog } from "@/components/app-shell/shortcuts-dialog";
 import { can } from "@/server/auth/can";
 import { t } from "@/i18n";
 import { formatTimestamp } from "@/lib/format";
+import { APP_VERSION } from "@/lib/version";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { getEnv } from "@/server/env";
 import { unprocessedSummary } from "@/server/replies";
 import { mailOutages } from "@/server/service-status";
+import { pendingWriteOffCount } from "@/server/write-offs";
 
 export default async function AppLayout({ children }: LayoutProps<"/">) {
   const { user } = await requireSession();
@@ -26,20 +28,26 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/admin/holidays", label: "nav.holidays", visible: can(user, "holiday.manage").allowed },
     { href: "/admin/lists", label: "nav.lists", visible: can(user, "lists.manage").allowed },
     { href: "/admin/users", label: "nav.users", visible: can(user, "user.list").allowed },
+    { href: "/admin/write-offs", label: "nav.writeOffs", visible: can(user, "writeOff.view").allowed },
   ];
   const db = getDb();
   const unprocessed = can(user, "reply.view").allowed ? unprocessedSummary(db) : null;
+  const writeOffsWaiting = can(user, "writeOff.view").allowed ? pendingWriteOffCount(db) : 0;
   const nav: NavItem[] = items
     .filter((item) => item.visible)
     .map(({ href, label }) =>
-      href === "/replies" && unprocessed ? { href, label, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0 } } : { href, label },
+      href === "/replies" && unprocessed
+        ? { href, label, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0, label: "nav.unprocessedBadge" } }
+        : href === "/admin/write-offs" && writeOffsWaiting > 0
+          ? { href, label, badge: { count: writeOffsWaiting, alert: false, label: "nav.writeOffsBadge" } }
+          : { href, label },
     );
   const outages = mailOutages(db);
   const dryRun = getEnv().EMAIL_MODE !== "live";
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader nav={nav} user={{ displayName: user.displayName, roles: user.roles }} />
+      <AppHeader nav={nav} user={{ displayName: user.displayName, roles: user.roles }} version={APP_VERSION} />
       {outages.map((outage) => (
         <div key={outage.service} role="alert" className="border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           {t(`mail.outage.${outage.service}`, { since: formatTimestamp(outage.since) })}

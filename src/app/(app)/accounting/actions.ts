@@ -1,11 +1,11 @@
 "use server";
 
-import { correctPaymentSchema, createPaymentSchema, discardQueueItemSchema, voidSchema } from "@/lib/schemas/payments";
+import { attachEvidenceSchema, correctPaymentSchema, createPaymentSchema, discardQueueItemSchema, voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
-import { correctPayment, createPayment, discardQueueItem, voidPayment, type CreatePaymentResult } from "@/server/payments";
+import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, voidPayment, type CreatePaymentResult } from "@/server/payments";
 import { correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
 import { correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
 
@@ -42,4 +42,9 @@ export async function correctRefundAction(input: unknown): Promise<ActionResult<
 export async function voidRefundAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(voidSchema, input, (data) => voidRefund(getDb(), user, data));
+}
+
+export async function attachPaymentEvidenceAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(attachEvidenceSchema, input, (data) => attachPaymentEvidence(getDb(), user, data));
 }

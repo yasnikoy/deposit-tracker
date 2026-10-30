@@ -13,12 +13,15 @@ import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { BlDetail } from "@/server/bl-overview";
+import { EvidenceDrop } from "../../accounting/evidence-drop";
 import { BalanceStrip } from "../balance-strip";
 import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
 import { updateBlOverridesAction } from "../../requests/actions";
 import { FormSection } from "../form-section";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
+import type { DeductionTypeOption } from "../deduction-dialog";
 import { AllocationsSection } from "./allocations-section";
+import { DeductionsSection } from "./deductions-section";
 import { ReplySection } from "./reply-section";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -43,17 +46,24 @@ export type BlDetailPermissions = {
   recordReply: boolean;
   linkEmail: boolean;
   reverseAllocation: boolean;
+  /** Attach the receipt or invoice the source payment was saved without. */
+  attachEvidence: boolean;
+  recordDeduction: boolean;
+  disputeDeduction: boolean;
+  proposeWriteOff: boolean;
 };
 
 export function BlDetailScreen({
   detail,
   can,
   replyTypes,
+  deductionTypes,
   today,
 }: {
   detail: BlDetail;
   can: BlDetailPermissions;
   replyTypes: ReplyTypeOption[];
+  deductionTypes: DeductionTypeOption[];
   today: string;
 }) {
   const router = useRouter();
@@ -116,10 +126,19 @@ export function BlDetailScreen({
               {payment ? (
                 <span className="flex flex-wrap items-center gap-2">
                   {t(`payments.kinds.${payment.kind}`)} · {formatMoney(bl.depositMinor, bl.currency)} ·{" "}
-                  <a href={`/api/files/${payment.evidenceDocumentId}`} target="_blank" rel="noreferrer" className="underline">
-                    {payment.evidenceName}
-                  </a>
+                  {payment.evidenceDocumentId !== null ? (
+                    <a href={`/api/files/${payment.evidenceDocumentId}`} target="_blank" rel="noreferrer" className="underline">
+                      {payment.evidenceName}
+                    </a>
+                  ) : (
+                    <span className="text-amber-700 dark:text-amber-400">{t(`payments.evidenceMissing.${payment.kind}`)}</span>
+                  )}
                   <span className="text-muted-foreground text-xs">({payment.createdByName})</span>
+                  {payment.evidenceDocumentId === null && can.attachEvidence && !bl.voidedAt && (
+                    <span className="w-full">
+                      <EvidenceDrop paymentId={payment.id} kind={payment.kind} compact />
+                    </span>
+                  )}
                 </span>
               ) : (
                 t("common.none")
@@ -200,6 +219,18 @@ export function BlDetailScreen({
             savedMessage={t("overrides.saved")}
           />
         </section>
+
+        <Section title={t("deductions.sectionTitle")}>
+          <DeductionsSection
+            detail={detail}
+            deductionTypes={deductionTypes}
+            can={{
+              record: can.recordDeduction && !bl.voidedAt,
+              dispute: can.disputeDeduction && !bl.voidedAt,
+              proposeWriteOff: can.proposeWriteOff && !bl.voidedAt,
+            }}
+          />
+        </Section>
 
         <Section title={t("blAllocations.title")}>
           <AllocationsSection blNo={bl.blNo} allocations={detail.allocations} canReverse={can.reverseAllocation} />

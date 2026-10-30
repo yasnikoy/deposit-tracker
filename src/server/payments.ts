@@ -18,7 +18,7 @@ import {
   receiptQueue,
 } from "./db/schema";
 import { DomainError } from "./errors";
-import { attachDocument, type StoredDocument } from "./files";
+import { attachDocument, nameBlDocuments, type StoredDocument } from "./files";
 import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
 import type { ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
@@ -97,7 +97,8 @@ export function validateReferences(
 }
 
 /**
- * Opens a deposit payment record (accountant, rule 7) with its mandatory evidence (rule 12).
+ * Opens a deposit payment record (accountant, rule 7), with its receipt or invoice when at hand;
+ * it may be attached later (rule 12).
  * With the duplicate-warning setting on, a record with the same agency, amount, currency and
  * date is reported back and saved only once the user confirms.
  */
@@ -119,8 +120,10 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
     }
 
     const at = now.toISOString();
-    const evidence = tx.select().from(documents).where(eq(documents.id, input.evidenceDocumentId)).get();
-    if (!evidence || evidence.ownerId !== null) throw new DomainError("payments.errors.evidence");
+    if (input.evidenceDocumentId !== null) {
+      const evidence = tx.select().from(documents).where(eq(documents.id, input.evidenceDocumentId)).get();
+      if (!evidence || evidence.ownerId !== null) throw new DomainError("payments.errors.evidence");
+    }
     const row = tx
       .insert(depositPayments)
       .values({
@@ -139,12 +142,14 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
       })
       .returning()
       .get();
-    attachDocument(tx, actor, {
-      documentId: input.evidenceDocumentId,
-      kind: EVIDENCE_KIND[input.kind],
-      ownerType: "deposit_payment",
-      ownerId: row.id,
-    });
+    if (input.evidenceDocumentId !== null) {
+      attachDocument(tx, actor, {
+        documentId: input.evidenceDocumentId,
+        kind: EVIDENCE_KIND[input.kind],
+        ownerType: "deposit_payment",
+        ownerId: row.id,
+      });
+    }
     if (queueItem) {
       tx.update(receiptQueue).set({ resolvedAt: at, resolution: "SAVED", paymentId: row.id }).where(eq(receiptQueue.id, queueItem.id)).run();
     }
@@ -347,6 +352,60 @@ export function discardQueueItem(db: Db, actor: AuthUser, input: { id: number },
   });
 }
 
+/**
+ * Attaches the receipt (bank) or invoice (offset) a payment was saved without: by the
+ * accountant who entered it, or by operations from the B/L. Any time while the payment is
+ * active, also after requests went out (later requests attach it). The file takes the B/L's
+ * name, like the other files of a B/L.
+ */
+export function attachPaymentEvidence(db: Db, actor: AuthUser, input: { paymentId: number; documentId: number }, now: Date = new Date()): void {
+  const payment = requirePayment(db, input.paymentId);
+  const roleUsed = authorize(actor, "payment.attachEvidence", payment);
+  db.transaction((tx) => {
+    const current = requirePayment(tx, input.paymentId);
+    if (current.voidedAt) throw new DomainError("payments.errors.voided");
+    if (current.evidenceDocumentId !== null) throw new DomainError("payments.errors.evidenceExists");
+    attachDocument(tx, actor, { documentId: input.documentId, kind: EVIDENCE_KIND[current.kind], ownerType: "deposit_payment", ownerId: current.id });
+    tx.update(depositPayments).set({ evidenceDocumentId: input.documentId, updatedAt: now.toISOString() }).where(eq(depositPayments.id, current.id)).run();
+    const bl = tx
+      .select()
+      .from(billsOfLading)
+      .where(and(eq(billsOfLading.depositPaymentId, current.id), isNull(billsOfLading.voidedAt)))
+      .get();
+    const renamed = bl ? nameBlDocuments(tx, bl) : [];
+    writeAudit(
+      tx,
+      {
+        actorUserId: actor.id,
+        roleUsed,
+        action: "payment.attachEvidence",
+        entityType: "deposit_payment",
+        entityId: current.id,
+        after: { evidenceDocumentId: input.documentId, renamed: renamed.length ? renamed : undefined },
+      },
+      now,
+    );
+  });
+}
+
+/** The receipt (bank) or invoice (offset) of a payment, if attached. */
+export function paymentEvidence(tx: DbOrTx, paymentId: number | null) {
+  if (paymentId === null) return null;
+  return (
+    tx
+      .select({ id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind })
+      .from(depositPayments)
+      .innerJoin(documents, eq(documents.id, depositPayments.evidenceDocumentId))
+      .where(eq(depositPayments.id, paymentId))
+      .get() ?? null
+  );
+}
+
+/** A B/L whose payment was saved without its receipt or invoice; requests for it warn (rule 12). */
+export function lacksPaymentEvidence(tx: DbOrTx, bl: { depositPaymentId: number | null }): boolean {
+  return bl.depositPaymentId !== null && paymentEvidence(tx, bl.depositPaymentId) === null;
+}
+
 // ---- Lists ----
 
 export type PaymentListItem = {
@@ -357,7 +416,7 @@ export type PaymentListItem = {
   currency: string;
   paidAt: string;
   kind: PaymentKind;
-  evidenceDocumentId: number;
+  evidenceDocumentId: number | null;
   blNoHint: string | null;
   extractedBlNumbers: string[];
   blId: number | null;

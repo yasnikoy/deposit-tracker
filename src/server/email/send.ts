@@ -32,6 +32,8 @@ export type QueueEmailInput = {
   body: string;
   /** The attachments kept in the preview; only the draft's own files can be sent. */
   documentIds: number[];
+  /** The user saw that some B/Ls have no receipt or invoice yet and sends anyway. */
+  confirmMissingEvidence?: boolean;
 };
 
 const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -48,6 +50,10 @@ export function queueRequestEmail(db: Db, actor: AuthUser, input: QueueEmailInpu
     const drafts = buildRequestDrafts(tx, input.blIds, now);
     const draft = drafts.length === 1 ? drafts[0] : null;
     if (!draft || !sameSet(draft.items.map((i) => i.blId), [...new Set(input.blIds)])) throw new DomainError("requests.errors.draftChanged");
+    // Rule 12: a payment may lack its receipt or invoice; the request then goes only once confirmed.
+    if (draft.missingEvidence.length > 0 && !input.confirmMissingEvidence) {
+      throw new DomainError("requests.errors.evidenceMissing", { bls: draft.missingEvidence.join(", ") });
+    }
     lockForDraft(tx, actor, input.blIds, now);
 
     const allowed = new Map(draft.attachments.map((a) => [a.documentId, a]));
@@ -89,7 +95,7 @@ export function queueRequestEmail(db: Db, actor: AuthUser, input: QueueEmailInpu
       tx.insert(requests)
         .values({
           blId: item.blId,
-          type: "REFUND",
+          type: item.type,
           channel: "EMAIL",
           attemptNo: item.attemptNo,
           sendStatus: "QUEUED",
@@ -106,7 +112,7 @@ export function queueRequestEmail(db: Db, actor: AuthUser, input: QueueEmailInpu
           action: "request.queue",
           entityType: "bill_of_lading",
           entityId: item.blId,
-          after: { emailId: email.id, attemptNo: item.attemptNo, subject: input.subject, to: input.to, cc: input.cc },
+          after: { emailId: email.id, type: item.type, attemptNo: item.attemptNo, subject: input.subject, to: input.to, cc: input.cc },
         },
         now,
       );
@@ -169,7 +175,8 @@ function markSent(db: Db, email: EmailRow, raw: Buffer, dryRun: boolean, now: Da
       let status = bl.status as StoredBlStatus;
       try {
         // A B/L voided while the email was queued stays as it is; the email went out anyway.
-        if (!bl.voidedAt) status = nextStatus(status, "REFUND_REQUEST_SENT");
+        // A deduction-statement request changes no status.
+        if (!bl.voidedAt && request.type === "REFUND") status = nextStatus(status, "REFUND_REQUEST_SENT");
       } catch (error) {
         if (!(error instanceof InvalidTransitionError)) throw error;
         logger.warn({ blId: bl.id, from: bl.status }, "request sent for a B/L that no longer takes requests");
@@ -183,7 +190,7 @@ function markSent(db: Db, email: EmailRow, raw: Buffer, dryRun: boolean, now: Da
           entityType: "bill_of_lading",
           entityId: bl.id,
           before: { status: bl.status },
-          after: { status, emailId: email.id, attemptNo: request.attemptNo, dryRun },
+          after: { status, emailId: email.id, type: request.type, attemptNo: request.attemptNo, dryRun },
         },
         now,
       );

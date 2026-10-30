@@ -6,10 +6,11 @@ import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
 import { deductionTypes } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
+import { storeUpload } from "@/server/files";
 import { addLedgerEntry } from "@/server/ledger";
 import { correctPayment } from "@/server/payments";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, NO_OVERRIDES } from "../support/records";
+import { makeAgency, makeBl, NO_OVERRIDES, PDF } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -45,6 +46,7 @@ describe("listAllBls", () => {
       currency: "USD",
       entryDate: "2026-10-21",
       deduction: { typeId: other.id, source: "STATEMENT" },
+      documentId: storeUpload(db, ops, { originalName: "dokum.pdf", content: PDF, kind: "DEDUCTION_STATEMENT" }, NOW).id,
       createdBy: ops.id,
     });
 

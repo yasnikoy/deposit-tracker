@@ -3,8 +3,18 @@ import type { BlStatus } from "./records";
 /** Statuses held in the database; DUE is derived on read and never stored. */
 export type StoredBlStatus = Exclude<BlStatus, "DUE">;
 
-/** Events that move a B/L. Later build steps add replies, allocations, deductions and disputes. */
-export type BlEvent = "REFUND_REQUEST_SENT" | "NOT_RETURNED_REPLY" | "ALLOCATION_SETTLED" | "ALLOCATION_UNEXPLAINED" | "ALLOCATION_REVERSED";
+/** Events that move a B/L. */
+export type BlEvent =
+  | "REFUND_REQUEST_SENT"
+  | "NOT_RETURNED_REPLY"
+  | "ALLOCATION_SETTLED"
+  | "ALLOCATION_UNEXPLAINED"
+  | "ALLOCATION_REVERSED"
+  | "STATEMENT_SETTLED"
+  | "DEDUCTION_DISPUTED"
+  | "DEDUCTION_CLASSIFIED"
+  | "DIFFERENCE_PAID"
+  | "WRITE_OFF_APPROVED";
 
 export class InvalidTransitionError extends Error {
   constructor(
@@ -41,10 +51,36 @@ const TRANSITIONS: Record<BlEvent, Partial<Record<StoredBlStatus, StoredBlStatus
   },
   // Handled by statusAfterReversal: the target depends on the status before the allocation.
   ALLOCATION_REVERSED: {},
+  // Rule 1 with no refund: statement deductions take the whole deposit (e.g. applied to an agency invoice).
+  STATEMENT_SETTLED: {
+    REQUESTED: "COLLECTED",
+    AWAITING_RETURN: "COLLECTED",
+  },
+  DEDUCTION_DISPUTED: {
+    DEDUCTION_OPEN: "DISPUTED",
+  },
+  // Every unexplained deduction got a real type (rule 4); a cleared dispute is accepted this way.
+  DEDUCTION_CLASSIFIED: {
+    DEDUCTION_OPEN: "COLLECTED",
+    DISPUTED: "COLLECTED",
+  },
+  // A later refund pays the disputed difference.
+  DIFFERENCE_PAID: {
+    DISPUTED: "COLLECTED",
+  },
+  // Rule 16: an admin-approved write-off closes the balance of any open B/L.
+  WRITE_OFF_APPROVED: {
+    PAID: "COLLECTED",
+    REQUESTED: "COLLECTED",
+    AWAITING_RETURN: "COLLECTED",
+    DEDUCTION_OPEN: "COLLECTED",
+    DISPUTED: "COLLECTED",
+  },
 };
 
 const REVERSIBLE: readonly StoredBlStatus[] = ["COLLECTED", "DEDUCTION_OPEN", "DISPUTED"];
-const ALLOCATABLE: readonly StoredBlStatus[] = ["REQUESTED", "AWAITING_RETURN"];
+/** Statuses an allocation starts from: a refund, or the payment of a disputed difference. */
+const ALLOCATABLE: readonly StoredBlStatus[] = ["REQUESTED", "AWAITING_RETURN", "DISPUTED"];
 
 /** Rule 8: an admin reversal returns the B/L to the status it had before the allocation. */
 export function statusAfterReversal(current: StoredBlStatus, before: StoredBlStatus): StoredBlStatus {

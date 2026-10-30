@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BusinessCalendar } from "@/domain/business-days";
-import { dueState, type DueInput } from "@/domain/due-requests";
+import { dueState, statementDueState, type DueInput, type StatementDueInput } from "@/domain/due-requests";
 
 // Tue 20 Oct 2026 payment; 28 Oct half day (not a business day), 29 Oct holiday.
 const calendar: BusinessCalendar = {
@@ -29,7 +29,7 @@ describe("first refund request", () => {
     // Due Mon 2 Nov. Upcoming while at most 2 business days remain: from Tue 27 Oct on,
     // because 28 and 29 Oct are not business days (only 30 Oct and 2 Nov are left).
     expect(dueState(input(), "2026-10-26", calendar)).toMatchObject({ kind: "FIRST", dueDate: "2026-11-02", list: null });
-    expect(dueState(input(), "2026-10-27", calendar)).toMatchObject({ list: "UPCOMING", attemptNo: 1 });
+    expect(dueState(input(), "2026-10-27", calendar)).toMatchObject({ type: "REFUND", list: "UPCOMING", attemptNo: 1 });
     expect(dueState(input(), "2026-10-31", calendar)).toMatchObject({ list: "UPCOMING" });
     expect(dueState(input(), "2026-11-02", calendar)).toMatchObject({ list: "DUE" });
     expect(dueState(input(), "2026-12-15", calendar)).toMatchObject({ list: "DUE" });
@@ -68,5 +68,47 @@ describe("nothing is due", () => {
     for (const status of ["COLLECTED", "DEDUCTION_OPEN", "DISPUTED"] as const) {
       expect(dueState(input({ status, attempts: 1, lastRequestOn: "2026-11-02" }), "2026-12-01", calendar)).toBeNull();
     }
+  });
+});
+
+const statement = (overrides: Partial<StatementDueInput> = {}): StatementDueInput => ({
+  unexplainedSince: "2026-10-20",
+  durations: { statementRequestDays: 2, statementFollowUpDays: 5, upcomingDays: 2 },
+  attempts: 0,
+  lastRequestOn: null,
+  lastReplyOn: null,
+  sending: false,
+  ...overrides,
+});
+
+describe("deduction-statement requests", () => {
+  it("are due the statement-request delay after the unexplained deduction", () => {
+    // Tue 20 Oct + 2 business days = Thu 22 Oct.
+    expect(statementDueState(statement(), "2026-10-20", calendar)).toMatchObject({
+      type: "DEDUCTION_STATEMENT",
+      kind: "FIRST",
+      dueDate: "2026-10-22",
+      list: "UPCOMING",
+      attemptNo: 1,
+    });
+    expect(statementDueState(statement(), "2026-10-22", calendar)).toMatchObject({ list: "DUE" });
+  });
+
+  it("are followed up after the statement follow-up interval, or after a later reply", () => {
+    // Thu 22 Oct + 5 business days skips the half day (28 Oct) and the holiday (29 Oct): Mon 2 Nov.
+    const asked = statement({ attempts: 1, lastRequestOn: "2026-10-22" });
+    expect(statementDueState(asked, "2026-10-26", calendar)).toMatchObject({ kind: "FOLLOW_UP", dueDate: "2026-11-02", list: null, attemptNo: 2 });
+    expect(statementDueState(asked, "2026-11-02", calendar)?.list).toBe("DUE");
+    expect(statementDueState({ ...asked, lastReplyOn: "2026-10-26" }, "2026-11-02", calendar)?.dueDate).toBe("2026-11-04");
+  });
+
+  it("follow the resolved durations", () => {
+    const quick = statement({ durations: { statementRequestDays: 0, statementFollowUpDays: 1, upcomingDays: 0 } });
+    expect(statementDueState(quick, "2026-10-20", calendar)).toMatchObject({ dueDate: "2026-10-20", list: "DUE" });
+  });
+
+  it("are not due without an open unexplained deduction or while a send is in progress", () => {
+    expect(statementDueState(statement({ unexplainedSince: null }), "2026-12-01", calendar)).toBeNull();
+    expect(statementDueState(statement({ sending: true }), "2026-12-01", calendar)).toBeNull();
   });
 });

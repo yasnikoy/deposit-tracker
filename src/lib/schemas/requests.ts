@@ -43,4 +43,5 @@ export const queueEmailSchema = z.object({
   subject: z.string().trim().min(1).max(500),
   body: z.string().min(1).max(20_000),
   documentIds: z.array(id).max(100),
+  confirmMissingEvidence: z.boolean().default(false),
 });

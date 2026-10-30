@@ -78,8 +78,9 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   // Accountant part: a bank payment with its receipt.
   await page.getByRole("link", { name: tr.nav.accounting }).click();
   await page.getByRole("button", { name: tr.payments.save }).click();
-  await expect(page.getByText(tr.payments.errors.evidence)).toBeVisible();
+  // The receipt is optional (it may follow later); the agency is not.
   await expect(page.getByText(tr.payments.errors.agency)).toBeVisible();
+  await expect(page.getByText(tr.payments.errors.evidence)).toHaveCount(0);
 
   await page.getByLabel(tr.files.drop).setInputFiles(pdf("dekont-1.pdf"));
   await expect(page.getByRole("link", { name: "dekont-1.pdf" })).toBeVisible();

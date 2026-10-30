@@ -4,14 +4,25 @@
  * so a batched email leaves out an empty request-type section with its intro line.
  */
 
-export const EMAIL_TEMPLATE_KEYS = ["REFUND_REQUEST", "FOLLOW_UP", "BATCH", "BATCH_LINE", "REPLY_QUOTE", "DAILY_UNPROCESSED"] as const;
+export const EMAIL_TEMPLATE_KEYS = [
+  "REFUND_REQUEST",
+  "FOLLOW_UP",
+  "DEDUCTION_STATEMENT",
+  "BATCH",
+  "BATCH_LINE",
+  "REPLY_QUOTE",
+  "DAILY_UNPROCESSED",
+] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
 /** Placeholders each template may use; shown next to the editor. */
 export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly string[]> = {
   REFUND_REQUEST: ["agency_name", "bl_no", "containers", "amount", "currency", "attempt_no", "signature"],
   FOLLOW_UP: ["agency_name", "bl_no", "containers", "amount", "currency", "attempt_no", "portal_ref", "signature"],
+  // First request and follow-ups alike; a follow-up replies in the statement thread.
+  DEDUCTION_STATEMENT: ["agency_name", "bl_no", "containers", "deduction_amount", "currency", "attempt_no", "signature"],
   BATCH: ["agency_name", "bl_no", "refund_section", "statement_section", "signature"],
+  // In the statement section, {amount} is the unexplained deduction.
   BATCH_LINE: ["bl_no", "containers", "amount", "currency", "attempt_no"],
   // Header above the quoted earlier email in a reply; the earlier text follows it.
   REPLY_QUOTE: ["from", "sent_at", "to", "cc_section", "subject"],

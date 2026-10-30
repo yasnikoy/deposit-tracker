@@ -112,7 +112,7 @@ describe("deposit payments", () => {
     const [row] = listOwnPayments(db, acc);
     expect(row).toMatchObject({ id, amountMinor: 300000, blId: null });
     expect(row).not.toHaveProperty("bankAccountId");
-    expect(db.select().from(documents).where(eq(documents.id, row.evidenceDocumentId)).get()).toMatchObject({
+    expect(db.select().from(documents).where(eq(documents.id, row.evidenceDocumentId!)).get()).toMatchObject({
       ownerType: "deposit_payment",
       ownerId: id,
     });

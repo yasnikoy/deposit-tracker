@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
-import { listReplyTypes } from "@/server/lists";
+import { listDeductionTypes, listReplyTypes } from "@/server/lists";
 import { getTableLayout } from "@/server/preferences";
 import { getReplyDetail, listReplies } from "@/server/replies";
 import { RepliesScreen, type ReplyTab } from "./replies-screen";
@@ -34,6 +34,10 @@ export default async function RepliesPage({ searchParams }: PageProps<"/replies"
         layout={getTableLayout(db, user.id, "replies")}
         canRecord={can(user, "reply.record").allowed}
         canLink={can(user, "email.link").allowed}
+        deductionTypes={listDeductionTypes(db, user)
+          .filter((type) => type.active && type.code === null)
+          .map(({ id, name }) => ({ id, name }))}
+        canRecordDeduction={can(user, "deduction.record").allowed}
       />
     </>
   );

@@ -36,11 +36,13 @@ const SAMPLE: Record<string, string> = {
 function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {
   if (key !== "BATCH") return { ...SAMPLE, signature };
   const lines = [SAMPLE, { ...SAMPLE, bl_no: "MEDU7654321", containers: "TGHU8765432", amount: "1.500,00" }];
+  // A statement line shows the unexplained deduction as its amount.
+  const statement = { ...SAMPLE, bl_no: "MEDU5555555", containers: "MSCU7777770", amount: SAMPLE.deduction_amount };
   return {
     ...SAMPLE,
-    bl_no: "MEDU1234567, MEDU7654321",
+    bl_no: "MEDU1234567, MEDU7654321, MEDU5555555",
     refund_section: lines.map((line) => renderTemplate(lineTemplate, line)).join("\n"),
-    statement_section: "",
+    statement_section: renderTemplate(lineTemplate, statement),
     signature,
   };
 }

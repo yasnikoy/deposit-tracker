@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, isNull } from "drizzle-orm";
 import { suggestAllocations, type AllocationSuggestions } from "@/domain/allocation";
 import { blBalance } from "@/domain/balances";
 import { InvalidTransitionError, nextStatus, statusAfterReversal, type StoredBlStatus } from "@/domain/bl-lifecycle";
@@ -10,12 +10,15 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { billsOfLading, deductionTypes, ledgerEntries, refundAllocations, refunds, requests } from "./db/schema";
 import { DomainError } from "./errors";
-import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry } from "./ledger";
+import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, reinstateLedgerEntry } from "./ledger";
 import { allocatedByRefund, getRefund, type RefundListItem } from "./refunds";
 import { getSetting } from "./settings";
 
-/** Statuses that take a refund allocation: a request went out and nothing is settled yet. */
-const ALLOCATABLE: StoredBlStatus[] = ["REQUESTED", "AWAITING_RETURN"];
+/**
+ * Statuses that take a refund allocation: a request went out and nothing is settled yet, or a
+ * disputed deduction that the agency may still pay.
+ */
+const ALLOCATABLE: StoredBlStatus[] = ["REQUESTED", "AWAITING_RETURN", "DISPUTED"];
 
 export type CandidateBl = {
   blId: number;
@@ -26,8 +29,10 @@ export type CandidateBl = {
   depositMinor: number;
   deductionsMinor: number;
   collectedMinor: number;
-  /** Deposit − recorded deductions − already allocated. */
+  /** Deposit − recorded deductions − already allocated; for a disputed B/L, the disputed difference. */
   expectedMinor: number;
+  /** A disputed B/L: the deduction a payment of the difference cancels. */
+  disputedEntryId: number | null;
 };
 
 /**
@@ -66,6 +71,8 @@ export function allocationCandidates(tx: DbOrTx, refund: { agencyId: number; cur
         ledger.filter((l) => l.blId === bl.id),
         bl.currency,
       );
+      // The payment of a disputed difference settles exactly the disputed deduction.
+      const disputed = bl.status === "DISPUTED" ? activeLedgerEntries(tx, bl.id, ["DEDUCTION"]).find((e) => e.disputed) : undefined;
       return {
         blId: bl.id,
         blNo: bl.blNo,
@@ -73,6 +80,8 @@ export function allocationCandidates(tx: DbOrTx, refund: { agencyId: number; cur
         paidAt: bl.paidAt,
         firstRequestOn: firstRequests.get(bl.id) ?? "",
         ...balance,
+        expectedMinor: disputed ? disputed.amountMinor : balance.expectedMinor,
+        disputedEntryId: disputed?.id ?? null,
       };
     })
     .filter((c) => c.firstRequestOn !== "" && c.firstRequestOn <= refund.valueDate && c.expectedMinor > 0)
@@ -135,6 +144,8 @@ export function confirmAllocation(db: Db, actor: AuthUser, input: ConfirmAllocat
       const candidate = candidates.get(line.blId);
       if (!candidate) throw new DomainError("allocations.errors.notCandidate");
       const borne = shortfall?.blId === line.blId ? shortfall.amountMinor : 0;
+      // A disputed difference is paid in full or not at all; a smaller payment is no settlement.
+      if (candidate.disputedEntryId !== null && borne > 0) throw new DomainError("allocations.errors.disputedShortfall", { bl: candidate.blNo });
       if (line.amountMinor + borne !== candidate.expectedMinor) throw new DomainError("allocations.errors.mustSettle", { bl: candidate.blNo });
 
       const allocation = tx
@@ -173,9 +184,21 @@ export function confirmAllocation(db: Db, actor: AuthUser, input: ConfirmAllocat
         );
       }
 
+      if (candidate.disputedEntryId !== null) {
+        const disputed = activeLedgerEntries(tx, line.blId, ["DEDUCTION"]).find((e) => e.id === candidate.disputedEntryId)!;
+        compensateLedgerEntry(tx, disputed, actor.id, now, allocation.id);
+      }
+
       let status: StoredBlStatus;
       try {
-        status = nextStatus(candidate.status, shortfallType?.code === "UNEXPLAINED" && borne > 0 ? "ALLOCATION_UNEXPLAINED" : "ALLOCATION_SETTLED");
+        status = nextStatus(
+          candidate.status,
+          candidate.disputedEntryId !== null
+            ? "DIFFERENCE_PAID"
+            : shortfallType?.code === "UNEXPLAINED" && borne > 0
+              ? "ALLOCATION_UNEXPLAINED"
+              : "ALLOCATION_SETTLED",
+        );
       } catch (error) {
         if (error instanceof InvalidTransitionError) throw new DomainError("allocations.errors.notCandidate");
         throw error;
@@ -196,6 +219,7 @@ export function confirmAllocation(db: Db, actor: AuthUser, input: ConfirmAllocat
             allocationId: allocation.id,
             amountMinor: line.amountMinor,
             shortfall: borne > 0 ? { amountMinor: borne, deductionType: shortfallType!.name } : undefined,
+            differencePaid: candidate.disputedEntryId !== null || undefined,
           },
         },
         now,
@@ -221,8 +245,9 @@ export function confirmAllocation(db: Db, actor: AuthUser, input: ConfirmAllocat
 
 /**
  * Admin only, with a reason (rule 8): the allocation and the shortfall deduction confirmed
- * with it are compensated in the ledger, the B/L returns to its status before the allocation,
- * and the money is open on the refund again.
+ * with it are compensated in the ledger, a disputed deduction it paid is entered again, the
+ * B/L returns to its status before the allocation, and the money is open on the refund again.
+ * Allocations on one B/L are reversed newest first.
  */
 export function reverseAllocation(db: Db, actor: AuthUser, input: { allocationId: number; reason: string }, now: Date = new Date()): void {
   const roleUsed = authorize(actor, "allocation.reverse");
@@ -231,32 +256,39 @@ export function reverseAllocation(db: Db, actor: AuthUser, input: { allocationId
     if (!allocation) throw new DomainError("errors.notFound");
     if (allocation.state !== "CONFIRMED") throw new DomainError("allocations.errors.alreadyReversed");
     const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, allocation.blId)).get()!;
+    const later = tx
+      .select({ id: refundAllocations.id })
+      .from(refundAllocations)
+      .where(and(eq(refundAllocations.blId, bl.id), eq(refundAllocations.state, "CONFIRMED"), gt(refundAllocations.id, allocation.id)))
+      .get();
+    if (later) throw new DomainError("allocations.errors.laterAllocation");
     const at = now.toISOString();
 
     tx.update(refundAllocations)
       .set({ state: "REVERSED", reversedBy: actor.id, reversedAt: at, reversalReason: input.reason })
       .where(eq(refundAllocations.id, allocation.id))
       .run();
+    // Entries this allocation cancelled under its own id: a disputed difference it paid.
+    const paidDeductions = tx
+      .select({ compensatesEntryId: ledgerEntries.compensatesEntryId })
+      .from(ledgerEntries)
+      .where(and(eq(ledgerEntries.blId, bl.id), eq(ledgerEntries.refundAllocationId, allocation.id), isNotNull(ledgerEntries.compensatesEntryId)))
+      .all()
+      .map((row) => tx.select().from(ledgerEntries).where(eq(ledgerEntries.id, row.compensatesEntryId!)).get()!)
+      .filter((original) => original.refundAllocationId !== allocation.id);
     for (const entry of activeLedgerEntries(tx, bl.id).filter((e) => e.refundAllocationId === allocation.id)) {
       compensateLedgerEntry(tx, entry, actor.id, now);
     }
+    for (const original of paidDeductions) reinstateLedgerEntry(tx, original, actor.id, now);
 
-    // With another allocation still confirmed on the B/L its settlement stands; otherwise back to before.
-    const others = tx
-      .select({ id: refundAllocations.id })
-      .from(refundAllocations)
-      .where(and(eq(refundAllocations.blId, bl.id), eq(refundAllocations.state, "CONFIRMED"), ne(refundAllocations.id, allocation.id)))
-      .get();
-    let status = bl.status as StoredBlStatus;
-    if (!others) {
-      try {
-        status = statusAfterReversal(status, allocation.blStatusBefore as StoredBlStatus);
-      } catch (error) {
-        if (error instanceof InvalidTransitionError) throw new DomainError("allocations.errors.cannotReverse");
-        throw error;
-      }
-      tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
+    let status: StoredBlStatus;
+    try {
+      status = statusAfterReversal(bl.status as StoredBlStatus, allocation.blStatusBefore as StoredBlStatus);
+    } catch (error) {
+      if (error instanceof InvalidTransitionError) throw new DomainError("allocations.errors.cannotReverse");
+      throw error;
     }
+    tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
     // The refund has money to allocate again, so a remainder left on purpose is reopened.
     tx.update(refunds).set({ unallocatedReason: null, updatedAt: at }).where(eq(refunds.id, allocation.refundId)).run();
     writeAudit(

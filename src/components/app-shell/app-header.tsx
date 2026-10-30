@@ -18,10 +18,10 @@ import { t, type TranslationKey } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { GlobalSearch } from "./global-search";
 
-/** A badge count on the item; `alert` marks it as needing attention (e.g. overdue replies). */
-export type NavItem = { href: string; label: TranslationKey; badge?: { count: number; alert: boolean } };
+/** A badge count on the item; `alert` marks it as needing attention (e.g. overdue replies); `label` is read out. */
+export type NavItem = { href: string; label: TranslationKey; badge?: { count: number; alert: boolean; label: TranslationKey } };
 
-export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: string; roles: Role[] } }) {
+export function AppHeader({ nav, user, version }: { nav: NavItem[]; user: { displayName: string; roles: Role[] }; version: string }) {
   const pathname = usePathname();
   // The most specific matching item is active, so "/bls/new" does not also light up "/bls".
   const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
@@ -30,8 +30,8 @@ export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: 
 
   return (
     <header className="bg-background sticky top-0 z-20 flex h-11 items-center gap-4 border-b px-4">
-      <Link href="/" className="font-semibold">
-        {t("app.name")}
+      <Link href="/" className="font-semibold whitespace-nowrap">
+        {t("app.name")} <span className="text-muted-foreground text-xs font-normal">v{version}</span>
       </Link>
       <nav className="flex items-center gap-1">
         {nav.map((item) => (
@@ -47,7 +47,7 @@ export function AppHeader({ nav, user }: { nav: NavItem[]; user: { displayName: 
             {t(item.label)}
             {item.badge && item.badge.count > 0 && (
               <span
-                aria-label={t("nav.unprocessedBadge", { count: item.badge.count })}
+                aria-label={t(item.badge.label, { count: item.badge.count })}
                 className={cn(
                   "ml-1.5 rounded-full px-1.5 py-0.5 text-xs font-medium tabular-nums",
                   item.badge.alert ? "bg-destructive text-white" : "bg-muted-foreground/20",

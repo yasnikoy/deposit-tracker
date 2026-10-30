@@ -75,3 +75,7 @@ export type DeductionSource = (typeof DEDUCTION_SOURCES)[number];
 /** A confirmed allocation is reversed only by an admin (rule 8); rows are never deleted. */
 export const ALLOCATION_STATES = ["CONFIRMED", "REVERSED"] as const;
 export type AllocationState = (typeof ALLOCATION_STATES)[number];
+
+/** A write-off is proposed by operations and approved or rejected by an admin (rule 16). */
+export const WRITE_OFF_STATES = ["PROPOSED", "APPROVED", "REJECTED"] as const;
+export type WriteOffState = (typeof WRITE_OFF_STATES)[number];

@@ -46,7 +46,9 @@
     "templates": "E-posta şablonları",
     "replies": "Yanıtlar",
     "unprocessedBadge": "{count} işlenmemiş yanıt",
-    "allocations": "İade dağıtımı"
+    "allocations": "İade dağıtımı",
+    "writeOffs": "Silme onayları",
+    "writeOffsBadge": "Onay bekleyen {count} silme önerisi"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -619,8 +621,19 @@
       "voidBlFirst": "Önce bu ödemeye bağlı B/L iptal edilmeli.",
       "allocated": "Onaylanmış iade dağıtımı olan kayıt değiştirilemez.",
       "noChange": "Değişiklik yok.",
-      "queueItem": "Bu dekont artık kuyrukta değil."
-    }
+      "queueItem": "Bu dekont artık kuyrukta değil.",
+      "evidenceExists": "Bu ödemenin dekontu veya faturası zaten var; değiştirmek için ödemeyi düzeltin."
+    },
+    "evidenceOptional": "(isteğe bağlı, sonra da eklenebilir)",
+    "evidenceMissing": {
+      "BANK": "Dekont yok",
+      "OFFSET": "Fatura yok"
+    },
+    "attachEvidence": {
+      "BANK": "Dekontu ekleyin (sürükleyin veya seçin)",
+      "OFFSET": "Faturayı ekleyin (sürükleyin veya seçin)"
+    },
+    "evidenceAttached": "Belge eklendi."
   },
   "bls": {
     "createTitle": "B/L oluştur",
@@ -737,7 +750,8 @@
       "payment": {
         "create": "Depozito ödemesi kaydedildi",
         "correct": "Ödeme düzeltildi",
-        "void": "Ödeme iptal edildi"
+        "void": "Ödeme iptal edildi",
+        "attachEvidence": "Dekont veya fatura eklendi"
       },
       "document": {
         "upload": "Belge yüklendi"
@@ -762,6 +776,17 @@
       "allocation": {
         "confirm": "İade dağıtımı onaylandı",
         "reverse": "İade dağıtımı geri alındı"
+      },
+      "deduction": {
+        "statement": "Dökümden kesinti girildi",
+        "classify": "Açıklanmayan kesinti sınıflandırıldı",
+        "dispute": "Kesintiye itiraz edildi",
+        "disputeCleared": "İtiraz kapatıldı, kesinti kabul edildi"
+      },
+      "writeOff": {
+        "propose": "Silme önerildi",
+        "approve": "Silme onaylandı",
+        "reject": "Silme reddedildi"
       }
     },
     "system": "Sistem",
@@ -809,8 +834,14 @@
       "FAILED": "Gönderilemeyen talep yok."
     },
     "kinds": {
-      "FIRST": "İlk talep",
-      "FOLLOW_UP": "Takip"
+      "REFUND": {
+        "FIRST": "İlk talep",
+        "FOLLOW_UP": "Takip"
+      },
+      "DEDUCTION_STATEMENT": {
+        "FIRST": "Döküm talebi",
+        "FOLLOW_UP": "Döküm takibi"
+      }
     },
     "batch": "Toplu e-posta",
     "single": "B/L başına e-posta",
@@ -844,7 +875,8 @@
       "attachment": "Bu ek bu e-postaya eklenemez.",
       "tooLarge": "Eklerin toplamı {max} MB sınırını aşıyor; bir eki çıkarın.",
       "noSender": "Gönderen adresi ayarlanmamış (Ayarlar → E-posta sunucusu).",
-      "recipients": "Geçerli e-posta adresleri girin (en az bir alıcı)."
+      "recipients": "Geçerli e-posta adresleri girin (en az bir alıcı).",
+      "evidenceMissing": "{bls}: ödemenin dekontu veya faturası yok; dekontsuz göndermeyi onaylayın."
     },
     "prepare": "E-posta hazırla",
     "preview": "E-posta önizlemesi",
@@ -866,7 +898,16 @@
     "failedAt": "Gönderim denemesi",
     "failureReason": "Hata",
     "retry": "Yeniden hazırla",
-    "selectHint": "Gönderilecek B/L'leri seçin; portal ilk talepleri portal üzerinden kaydedilir."
+    "selectHint": "Gönderilecek B/L'leri seçin; portal ilk talepleri portal üzerinden kaydedilir.",
+    "types": {
+      "REFUND": "İade talebi",
+      "DEDUCTION_STATEMENT": "Döküm talebi"
+    },
+    "formNotNeeded": "Gerekmez",
+    "evidenceMissing": "Dekont yok",
+    "evidenceMissingHint": "Ödemenin dekontu veya faturası yüklenmemiş; e-posta onayla ve bu ek olmadan gider.",
+    "evidenceWarning": "Şu B/L'lerin ödemesinde dekont veya fatura yok, e-posta bu ek olmadan gider: {bls}. Belgeyi B/L detayından veya Muhasebe ekranından ekleyebilirsiniz.",
+    "evidenceConfirm": "Dekontsuz göndermeyi onaylıyorum"
   },
   "overrides": {
     "blTitle": "B/L ayar istisnaları",
@@ -906,7 +947,8 @@
       "BATCH": "Toplu e-posta",
       "BATCH_LINE": "Toplu e-posta satırı",
       "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)",
-      "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası"
+      "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası",
+      "DEDUCTION_STATEMENT": "Kesinti dökümü talebi"
     },
     "help": {
       "REFUND_REQUEST": "Tek B/L için ilk talep.",
@@ -914,7 +956,8 @@
       "BATCH": "Toplu gönderim yapan acentelerde birden fazla B/L tek e-postada.",
       "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
       "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
-      "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur."
+      "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur.",
+      "DEDUCTION_STATEMENT": "Açıklanmayan bir kesinti için acenteden döküm istenir. Takip talepleri aynı metinle, önceki döküm talebine yanıt olarak gider (konu \"Re: …\"). Toplu e-postada bu B/L'ler [[statement]] bölümünde yer alır; satırdaki {amount} kesinti tutarıdır."
     },
     "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
   },
@@ -1070,7 +1113,9 @@
       "notCandidate": "Bu B/L bu iadeye dağıtılamaz (acente, para birimi, talep tarihi veya durum uygun değil).",
       "mustSettle": "B/L {bl} tek seferde iade edilir: dağıtılan tutar ve taşıdığı fark, beklenen tutara eşit olmalı.",
       "alreadyReversed": "Bu dağıtım zaten geri alınmış.",
-      "cannotReverse": "B/L'nin şimdiki durumunda bu dağıtım geri alınamaz."
+      "cannotReverse": "B/L'nin şimdiki durumunda bu dağıtım geri alınamaz.",
+      "disputedShortfall": "{bl}: itirazlı fark tek seferde ve tam ödenir; bu B/L için fark satırı seçilemez.",
+      "laterAllocation": "Bu B/L'de daha sonra onaylanmış bir dağıtım var; önce onu geri alın."
     },
     "title": "İade dağıtımı",
     "hint": "Dağıtılacak tutarı kalan iadeler, en eskisi üstte. Bir iadeyi açıp B/L'lere dağıtımını onaylayın; uygulama hiçbir dağıtımı kendiliğinden yapmaz.",
@@ -1105,7 +1150,9 @@
       "confirm": "Dağıtımı onayla",
       "confirmTitle": "Dağıtım onaylansın mı?",
       "confirmText": "{amount} aşağıdaki B/L'lere dağıtılacak. Onaylanan dağıtımı yalnızca yönetici geri alabilir.",
-      "confirmed": "{count} B/L'ye dağıtım onaylandı."
+      "confirmed": "{count} B/L'ye dağıtım onaylandı.",
+      "disputedDifference": "İtirazlı fark",
+      "disputedHint": "Acente itiraz edilen farkı ödüyorsa bu B/L'ye tam fark tutarı dağıtılır; B/L kapanır."
     }
   },
   "blAllocations": {
@@ -1115,7 +1162,90 @@
     "reversed": "Geri alındı",
     "reverse": "Dağıtımı geri al",
     "reverseTitle": "Dağıtım geri alınsın mı?",
-    "reverseText": "{bl} üzerindeki {amount} dağıtım ve onunla girilen fark kesintisi geri alınır; B/L dağıtımdan önceki durumuna döner ve tutar iadede yeniden dağıtılabilir.",
+    "reverseText": "{bl} üzerindeki {amount} dağıtım ve onunla girilen fark kesintisi geri alınır; bu dağıtım itirazlı bir farkı ödediyse itiraz yeniden açılır. B/L dağıtımdan önceki durumuna döner ve tutar iadede yeniden dağıtılabilir.",
     "reversedToast": "Dağıtım geri alındı."
+  },
+  "deductions": {
+    "sectionTitle": "Kesintiler",
+    "none": "Kesinti yok.",
+    "type": "Kesinti türü",
+    "amount": "Tutar",
+    "chooseType": "Kesinti türü seçin",
+    "open": "Açıklanmadı",
+    "disputed": "İtirazlı",
+    "statementLink": "Döküm",
+    "addFromStatement": "Dökümden kesinti gir",
+    "classify": "Kesintiyi sınıflandır",
+    "clearDispute": "İtirazı kapat",
+    "dispute": "İtiraz et",
+    "disputeTitle": "{bl} – kesintiye itiraz",
+    "disputeText": "{amount} açıklanmayan kesintiye itiraz edilir; B/L itirazlı olarak açık kalır. Acente farkı öderse iade bu B/L'ye dağıtılır; kesintiyi kabul ederseniz itirazı bir notla kapatırsınız. Gerekçe olarak itiraz notunu yazın.",
+    "disputedToast": "İtiraz kaydedildi.",
+    "recorded": "Kesintiler kaydedildi.",
+    "classified": "Kesinti sınıflandırıldı.",
+    "dialog": {
+      "statementTitle": "{bl} – dökümden kesinti",
+      "statementHint": "Acentenin dökümündeki kesintileri türleriyle girin. Beklenen tutar ({amount}) düşer, böylece gelen iade tam eşleşir. Kesintiler beklenen tutarın tamamını karşılarsa (ör. depozito acentenin bir faturasına mahsup edildiyse) B/L iade beklenmeden tahsil edildi olarak kapanır.",
+      "classifyTitle": "{bl} – kesintiyi sınıflandır",
+      "classifyHint": "{amount} açıklanmayan kesintinin gerçek türünü girin; satırların toplamı bu tutara eşit olmalı. Başka açıklanmayan kesinti kalmazsa B/L tahsil edildi olur.",
+      "clearTitle": "{bl} – itirazı kapat",
+      "clearHint": "Kesintiyi kabul ediyorsanız {amount} için gerçek türü ve kapatma notunu girin; B/L tahsil edildi olur.",
+      "addLine": "Satır ekle",
+      "removeLine": "Satırı kaldır",
+      "total": "Toplam {amount}",
+      "linesInvalid": "Her satır için bir tür ve geçerli bir tutar girin.",
+      "statement": "Kesinti dökümü",
+      "statementOptional": "Kesinti dökümü (isteğe bağlı)",
+      "noStatement": "Döküm ekleme",
+      "uploadStatement": "Dökümü yükleyin (sürükleyin veya seçin)",
+      "note": "Not (isteğe bağlı)",
+      "clearNote": "İtiraz kapatma notu"
+    },
+    "errors": {
+      "type": "Kesinti türü bulunamadı, pasif veya sistem türü (açıklanmayan, silme) seçilemez.",
+      "statementDocument": "Kesinti dökümünü seçin veya yükleyin (B/L'ye ait bir döküm ya da bağlı bir acente e-postasının eki).",
+      "statementStatus": "{bl}: dökümden kesinti yalnızca talep gönderilmiş ve henüz iade almamış B/L'lere girilir.",
+      "exceedsExpected": "{bl}: kesintiler beklenen tutarı ({amount}) aşamaz.",
+      "notUnexplained": "Bu kesinti açıklanmayan, açık bir kesinti değil.",
+      "mustEqual": "Satırların toplamı açıklanmayan kesintiye ({amount}) eşit olmalı.",
+      "clearNote": "İtirazı kapatmak için bir not girin.",
+      "alreadyDisputed": "Bu kesintiye zaten itiraz edilmiş."
+    }
+  },
+  "writeOffs": {
+    "title": "Silme onayları",
+    "hint": "Operasyonun önerdiği silmeler (tahsil edilemeyecek tutarlar). Onaylanan silme açıklanmayan kesintilerin yerine geçer ve B/L'yi kapatır; reddedilen silme hiçbir şeyi değiştirmez.",
+    "pending": "Onay bekleyenler",
+    "decided": "Son kararlar",
+    "nonePending": "Onay bekleyen silme önerisi yok.",
+    "noneDecided": "Henüz karar verilmiş silme yok.",
+    "amount": "Tutar",
+    "reason": "Gerekçe",
+    "proposedBy": "Öneren",
+    "changedSince": "B/L değişti, şimdi {amount}; reddedip yeniden önerin.",
+    "approve": "Onayla",
+    "reject": "Reddet",
+    "approveTitle": "Silme onaylansın mı?",
+    "approveText": "{amount} silinir ve B/L tahsil edildi olarak kapanır. Silmeler geri alınamaz.",
+    "rejectTitle": "Silme reddedilsin mi?",
+    "rejectText": "{amount} için silme önerisi reddedilir; B/L olduğu gibi kalır. Gerekçeyi yazın.",
+    "approved": "Silme onaylandı.",
+    "rejected": "Silme reddedildi.",
+    "propose": "Silme öner",
+    "proposeTitle": "{bl} – silme önerisi",
+    "proposeText": "Tahsil edilemeyecek {amount} için silme önerilir (açıklanmayan kesintiler dahil). Yönetici onaylayana kadar hiçbir şey değişmez. Gerekçeyi yazın.",
+    "proposed": "Silme önerisi yöneticiye gönderildi.",
+    "states": {
+      "PROPOSED": "Onay bekliyor",
+      "APPROVED": "Onaylandı",
+      "REJECTED": "Reddedildi"
+    },
+    "errors": {
+      "closed": "Bu B/L açık değil; silme yapılamaz.",
+      "pending": "Bu B/L için onay bekleyen bir silme önerisi zaten var.",
+      "nothingLeft": "Bu B/L'de silinecek tutar yok.",
+      "decided": "Bu silme önerisi için zaten karar verilmiş.",
+      "amountChanged": "Öneriden sonra B/L değişti (dağıtım veya kesinti); öneriyi reddedip yeniden önerin."
+    }
   }
 }

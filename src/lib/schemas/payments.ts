@@ -31,7 +31,8 @@ export const createPaymentSchema = z.object({
   ...paymentFields,
   kind: z.enum(PAYMENT_KINDS),
   blNoHint,
-  evidenceDocumentId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.evidence")).transform((v) => v as number),
+  // Optional: the receipt or invoice can be attached later (rule 12).
+  evidenceDocumentId: id.nullable().default(null),
   queueItemId: id.nullable().default(null),
   confirmDuplicate: z.boolean().default(false),
 });
@@ -46,6 +47,8 @@ export const correctPaymentSchema = z.object({
 });
 
 export type CorrectPaymentInput = z.infer<typeof correctPaymentSchema>;
+
+export const attachEvidenceSchema = z.object({ paymentId: id, documentId: id });
 
 export const voidSchema = z.object({ id, reason: requiredReasonSchema });
 

@@ -47,7 +47,7 @@ export function FileDrop({
   compact = false,
   onUploaded,
 }: {
-  kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE" | "STANDING";
+  kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE" | "STANDING" | "DEDUCTION_STATEMENT";
   multiple?: boolean;
   queue?: boolean;
   label: string;

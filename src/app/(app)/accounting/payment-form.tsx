@@ -150,7 +150,9 @@ export function PaymentForm({
       )}
 
       <div className="flex flex-col gap-1.5">
-        <Label>{t(`payments.evidence.${kind}`)}</Label>
+        <Label>
+          {t(`payments.evidence.${kind}`)} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
+        </Label>
         {evidence ? (
           <div className="flex items-center gap-2">
             <a href={`/api/files/${evidence.id}`} target="_blank" rel="noreferrer" className="underline">

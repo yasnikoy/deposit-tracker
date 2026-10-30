@@ -30,6 +30,7 @@ import {
   ALLOCATION_STATES,
   DEDUCTION_SOURCES,
   DEDUCTION_TYPE_CODES,
+  WRITE_OFF_STATES,
 } from "../../domain/records";
 import { ROLES } from "../../domain/roles";
 
@@ -292,9 +293,8 @@ export const depositPayments = sqliteTable(
       .references(() => currencies.code),
     paidAt: text("paid_at").notNull(),
     kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
-    evidenceDocumentId: integer("evidence_document_id")
-      .notNull()
-      .references(() => documents.id),
+    // The receipt (bank) or invoice (offset); may follow later, until then requests warn (rule 12).
+    evidenceDocumentId: integer("evidence_document_id").references(() => documents.id),
     extractedFields: text("extracted_fields", { mode: "json" }).$type<Record<string, unknown>>(),
     extractedBlNumbers: text("extracted_bl_numbers", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     blNoHint: text("bl_no_hint"),
@@ -428,11 +428,22 @@ export const ledgerEntries = sqliteTable(
     // DEDUCTION entries only.
     deductionTypeId: integer("deduction_type_id").references((): AnySQLiteColumn => deductionTypes.id),
     deductionSource: text("deduction_source", { enum: DEDUCTION_SOURCES }),
+    // The agency's deduction statement: mandatory for STATEMENT deductions, optional when a shortfall is classified.
+    documentId: integer("document_id").references(() => documents.id),
+    // Set once when operations disputes an unexplained deduction; never cleared, the entry is compensated instead.
+    disputed: integer("disputed", { mode: "boolean" }).notNull().default(false),
+    disputeNote: text("dispute_note"),
     createdBy: integer("created_by").references(() => users.id),
     createdAt: timestamp("created_at").notNull(),
   },
   (t) => [
     check("ledger_entries_type", sql`${t.type} IN (${sqlList(LEDGER_TYPES)})`),
+    check("ledger_entries_statement_document", sql`${t.deductionSource} IS NOT 'STATEMENT' OR ${t.documentId} IS NOT NULL`),
+    check(
+      "ledger_entries_dispute",
+      sql`(${t.disputed} = 0 AND ${t.disputeNote} IS NULL)
+        OR (${t.disputed} = 1 AND ${t.type} = 'DEDUCTION' AND ${t.compensatesEntryId} IS NULL AND length(trim(${t.disputeNote})) > 0)`,
+    ),
     check(
       "ledger_entries_deduction",
       sql`(${t.type} = 'DEDUCTION') = (${t.deductionTypeId} IS NOT NULL AND ${t.deductionSource} IN (${sqlList(DEDUCTION_SOURCES)}))`,
@@ -817,5 +828,52 @@ export const refundAllocations = sqliteTable(
     check("refund_allocations_role_used", sql`${t.roleUsed} IN (${roleList})`),
     uniqueIndex("refund_allocations_confirmed_unique").on(t.refundId, t.blId).where(sql`${t.state} = 'CONFIRMED'`),
     index("refund_allocations_bl").on(t.blId),
+  ],
+);
+
+/**
+ * Rule 16: operations proposes writing off what a B/L will not recover, with a reason; an
+ * admin approves (a WRITE_OFF deduction closes the B/L) or rejects it. Unapproved, it
+ * changes nothing.
+ */
+export const writeOffs = sqliteTable(
+  "write_offs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    // What the B/L still lacked when proposed; approval requires it to be unchanged.
+    amountMinor: integer("amount_minor").notNull(),
+    currency: text("currency")
+      .notNull()
+      .references(() => currencies.code),
+    reason: text("reason").notNull(),
+    state: text("state", { enum: WRITE_OFF_STATES }).notNull().default("PROPOSED"),
+    proposedBy: integer("proposed_by")
+      .notNull()
+      .references(() => users.id),
+    proposedAt: timestamp("proposed_at").notNull(),
+    decidedBy: integer("decided_by").references(() => users.id),
+    decidedAt: timestamp("decided_at"),
+    // Rejections need a reason; an approval may carry a note.
+    decisionNote: text("decision_note"),
+    // The WRITE_OFF deduction written on approval.
+    ledgerEntryId: integer("ledger_entry_id").references(() => ledgerEntries.id),
+  },
+  (t) => [
+    check("write_offs_amount", sql`${t.amountMinor} > 0`),
+    check("write_offs_reason", sql`length(trim(${t.reason})) > 0`),
+    check("write_offs_state", sql`${t.state} IN (${sqlList(WRITE_OFF_STATES)})`),
+    check(
+      "write_offs_decision",
+      sql`(${t.state} = 'PROPOSED' AND ${t.decidedBy} IS NULL AND ${t.decidedAt} IS NULL AND ${t.ledgerEntryId} IS NULL)
+        OR (${t.state} = 'APPROVED' AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.ledgerEntryId} IS NOT NULL)
+        OR (${t.state} = 'REJECTED' AND ${t.decidedBy} IS NOT NULL AND ${t.decidedAt} IS NOT NULL AND ${t.ledgerEntryId} IS NULL
+          AND length(trim(${t.decisionNote})) > 0)`,
+    ),
+    // One open proposal per B/L.
+    uniqueIndex("write_offs_proposed_unique").on(t.blId).where(sql`${t.state} = 'PROPOSED'`),
+    index("write_offs_bl").on(t.blId),
   ],
 );

@@ -11,6 +11,8 @@ import type { Envelope, MailTransport } from "@/server/email/transport";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
+import { createBls } from "@/server/bls";
+import { attachPaymentEvidence, createPayment } from "@/server/payments";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { listDueRequests, recordPortalRequest } from "@/server/requests";
 import { mailOutages } from "@/server/service-status";
@@ -272,6 +274,44 @@ describe("sending", () => {
     expect(() => send(withBig)).toThrow(expect.objectContaining({ messageKey: "requests.errors.tooLarge" }));
     updateSettings(db, admin, { changes: [{ key: "email.fromAddress", value: "" }] }, NOW);
     expect(() => send(withBig, ops, { documentIds: [] })).toThrow(expect.objectContaining({ messageKey: "requests.errors.noSender" }));
+  });
+});
+
+describe("a payment without its receipt", () => {
+  it("still yields a B/L; its request warns and goes only once confirmed, and the receipt can follow later", async () => {
+    const payment = createPayment(
+      db,
+      acc,
+      { agencyId: msc, amountMinor: 300000, currency: "USD", paidAt: "2026-10-01", kind: "BANK", blNoHint: null, evidenceDocumentId: null, queueItemId: null, confirmDuplicate: true },
+      NOW,
+    );
+    if (payment.status !== "created") throw new Error("payment not created");
+    const a = createBls(db, ops, [{ paymentId: payment.id, blNo: "MEDU1000009", containers: [] }], NOW).created[0].blId;
+    attachForm(a);
+    expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blId: a, evidenceMissing: true });
+
+    const [draft] = prepareRequestEmails(db, ops, { blIds: [a] }, NOW);
+    expect(draft.missingEvidence).toEqual(["MEDU1000009"]);
+    expect(draft.attachments.map((x) => x.kind)).toEqual(["FORM"]);
+    expect(() => send(draft)).toThrow(expect.objectContaining({ messageKey: "requests.errors.evidenceMissing", params: { bls: "MEDU1000009" } }));
+    send(draft, ops, { confirmMissingEvidence: true });
+    const { transport } = fakeTransport();
+    await runJobs(transport);
+    expect(getBlDetail(db, ops, a, NOW).bl.status).toBe("REQUESTED");
+
+    // Attached later, by operations from the B/L; another accountant may not touch the record.
+    const acc2 = await makeUser(db, "acc2", ["ACCOUNTANT"]);
+    expect(() => attachPaymentEvidence(db, acc2, { paymentId: payment.id, documentId: storeUpload(db, acc2, { originalName: "d.pdf", content: PDF, kind: "RECEIPT" }, NOW).id }, NOW)).toThrow(ForbiddenError);
+    const invoice = storeUpload(db, ops, { originalName: "fatura.pdf", content: PDF, kind: "INVOICE" }, NOW).id;
+    expect(() => attachPaymentEvidence(db, ops, { paymentId: payment.id, documentId: invoice }, NOW)).toThrow(expect.objectContaining({ messageKey: "files.errors.evidence" }));
+    const receipt = storeUpload(db, ops, { originalName: "banka.pdf", content: PDF, kind: "RECEIPT" }, NOW).id;
+    attachPaymentEvidence(db, ops, { paymentId: payment.id, documentId: receipt }, NOW);
+    const detail = getBlDetail(db, ops, a, NOW);
+    expect(detail.payment).toMatchObject({ evidenceDocumentId: receipt, evidenceName: "Dekont MEDU1000009.pdf" });
+    expect(detail.timeline.map((e) => e.action)).toContain("payment.attachEvidence");
+    expect(() => attachPaymentEvidence(db, acc, { paymentId: payment.id, documentId: receipt }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "payments.errors.evidenceExists" }),
+    );
   });
 });
 

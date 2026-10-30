@@ -50,11 +50,56 @@ describe("confirmed allocation", () => {
   });
 });
 
+describe("statement deductions that take the whole deposit", () => {
+  it("close a requested or awaiting-return B/L without a refund", () => {
+    expect(nextStatus("REQUESTED", "STATEMENT_SETTLED")).toBe("COLLECTED");
+    expect(nextStatus("AWAITING_RETURN", "STATEMENT_SETTLED")).toBe("COLLECTED");
+    for (const from of ["PAID", "DEDUCTION_OPEN", "DISPUTED", "COLLECTED"] as const) {
+      expect(() => nextStatus(from, "STATEMENT_SETTLED")).toThrow(InvalidTransitionError);
+    }
+  });
+});
+
+describe("unexplained deduction", () => {
+  it("is disputed only while the deduction is open", () => {
+    expect(nextStatus("DEDUCTION_OPEN", "DEDUCTION_DISPUTED")).toBe("DISPUTED");
+    for (const from of ["REQUESTED", "AWAITING_RETURN", "DISPUTED", "COLLECTED"] as const) {
+      expect(() => nextStatus(from, "DEDUCTION_DISPUTED")).toThrow(InvalidTransitionError);
+    }
+  });
+
+  it("closes the B/L once classified with a real type, also when a dispute is cleared", () => {
+    expect(nextStatus("DEDUCTION_OPEN", "DEDUCTION_CLASSIFIED")).toBe("COLLECTED");
+    expect(nextStatus("DISPUTED", "DEDUCTION_CLASSIFIED")).toBe("COLLECTED");
+    for (const from of ["REQUESTED", "AWAITING_RETURN", "COLLECTED"] as const) {
+      expect(() => nextStatus(from, "DEDUCTION_CLASSIFIED")).toThrow(InvalidTransitionError);
+    }
+  });
+
+  it("closes a disputed B/L when the agency pays the difference", () => {
+    expect(nextStatus("DISPUTED", "DIFFERENCE_PAID")).toBe("COLLECTED");
+    for (const from of ["REQUESTED", "DEDUCTION_OPEN", "COLLECTED"] as const) {
+      expect(() => nextStatus(from, "DIFFERENCE_PAID")).toThrow(InvalidTransitionError);
+    }
+  });
+});
+
+describe("approved write-off", () => {
+  it("closes any open B/L", () => {
+    for (const from of ["PAID", "REQUESTED", "AWAITING_RETURN", "DEDUCTION_OPEN", "DISPUTED"] as const) {
+      expect(nextStatus(from, "WRITE_OFF_APPROVED")).toBe("COLLECTED");
+    }
+    expect(() => nextStatus("COLLECTED", "WRITE_OFF_APPROVED")).toThrow(InvalidTransitionError);
+  });
+});
+
 describe("allocation reversal (admin)", () => {
   it("returns the B/L to its status before the allocation", () => {
     expect(statusAfterReversal("COLLECTED", "REQUESTED")).toBe("REQUESTED");
     expect(statusAfterReversal("DEDUCTION_OPEN", "AWAITING_RETURN")).toBe("AWAITING_RETURN");
     expect(statusAfterReversal("DISPUTED", "REQUESTED")).toBe("REQUESTED");
+    // Reversing the payment of a disputed difference reopens the dispute.
+    expect(statusAfterReversal("COLLECTED", "DISPUTED")).toBe("DISPUTED");
   });
 
   it("only applies to statuses an allocation leads to, back to a status that takes allocations", () => {

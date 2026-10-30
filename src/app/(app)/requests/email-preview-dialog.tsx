@@ -62,6 +62,9 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
   const [kept, setKept] = useState<Set<number>>(() => new Set(draft.attachments.map((a) => a.documentId)));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Rule 12: B/Ls whose payment lacks its receipt or invoice go only after an explicit confirmation.
+  const [evidenceConfirmed, setEvidenceConfirmed] = useState(false);
+  const evidenceMissing = draft.missingEvidence.length > 0;
 
   const totalBytes = draft.attachments.filter((a) => kept.has(a.documentId)).reduce((sum, a) => sum + a.sizeBytes, 0);
   const tooLarge = totalBytes > draft.maxAttachmentBytes;
@@ -77,6 +80,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
       subject,
       body,
       documentIds: [...kept],
+      confirmMissingEvidence: evidenceConfirmed,
     });
     setBusy(false);
     if (!result.ok) {
@@ -100,7 +104,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
         <span className="text-muted-foreground text-xs">{t("requests.covers")}:</span>
         {draft.items.map((item) => (
           <Badge key={item.blId} variant="outline" className="font-mono">
-            {item.blNo} · {t(`requests.kinds.${item.kind}`)} {item.attemptNo}
+            {item.blNo} · {t(`requests.kinds.${item.type}.${item.kind}`)} {item.attemptNo}
           </Badge>
         ))}
       </div>
@@ -145,6 +149,15 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
           {t("requests.attachmentsTotal", { size: mb(totalBytes), max: mb(draft.maxAttachmentBytes) })}
         </span>
       </fieldset>
+      {evidenceMissing && (
+        <div role="alert" className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
+          <span>{t("requests.evidenceWarning", { bls: draft.missingEvidence.join(", ") })}</span>
+          <label className="flex items-center gap-2">
+            <Checkbox checked={evidenceConfirmed} onCheckedChange={(checked) => setEvidenceConfirmed(checked === true)} />
+            {t("requests.evidenceConfirm")}
+          </label>
+        </div>
+      )}
       {error && (
         <p role="alert" className="text-destructive text-sm">
           {error}
@@ -154,7 +167,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
         <Button variant="ghost" onClick={onSkip} disabled={busy}>
           {t("requests.skip")}
         </Button>
-        <Button onClick={send} disabled={busy || tooLarge}>
+        <Button onClick={send} disabled={busy || tooLarge || (evidenceMissing && !evidenceConfirmed)}>
           {t("requests.send")}
         </Button>
       </DialogFooter>

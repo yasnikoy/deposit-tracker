@@ -3,6 +3,7 @@ import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { businessDaysBetween, istanbulToday, type IsoDate } from "@/domain/business-days";
 import type { EmailLinkSource } from "@/domain/records";
+import type { ReplyTypeCode } from "@/domain/replies";
 import type { Role } from "@/domain/roles";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
@@ -24,6 +25,7 @@ import {
 } from "./db/schema";
 import { importMessage, parseMessage } from "./email/inbound";
 import type { Mailbox, MailboxSummary } from "./email/mailbox";
+import { deductionTarget, type DeductionTarget } from "./deductions";
 import { DomainError } from "./errors";
 import { getSetting } from "./settings";
 
@@ -151,7 +153,10 @@ export type ReplyDetail = {
     status: string;
     voided: boolean;
     linkedBy: EmailLinkSource;
-    reply: { typeName: string; repliedOn: IsoDate; byName: string } | null;
+    reply: { typeName: string; code: ReplyTypeCode | null; repliedOn: IsoDate; byName: string } | null;
+    currency: string;
+    /** After a "deduction statement received" reply: the deductions that can be entered now. */
+    deductionTarget: DeductionTarget | null;
   }[];
   suggestions: { blId: number; blNo: string; agencyName: string; status: string }[];
 };
@@ -176,7 +181,7 @@ export function getReplyDetail(db: DbOrTx, actor: AuthUser, emailId: number): Re
     .orderBy(documents.id)
     .all();
   const recorded = db
-    .select({ blId: replies.blId, typeName: replyTypes.name, repliedOn: replies.repliedOn, byName: users.displayName })
+    .select({ blId: replies.blId, typeName: replyTypes.name, code: replyTypes.code, repliedOn: replies.repliedOn, byName: users.displayName })
     .from(replies)
     .innerJoin(replyTypes, eq(replyTypes.id, replies.replyTypeId))
     .innerJoin(users, eq(users.id, replies.createdBy))
@@ -197,7 +202,9 @@ export function getReplyDetail(db: DbOrTx, actor: AuthUser, emailId: number): Re
         status: bl.status,
         voided: bl.voidedAt !== null,
         linkedBy: link.linkedBy,
-        reply: reply ? { typeName: reply.typeName, repliedOn: reply.repliedOn, byName: reply.byName } : null,
+        reply: reply ? { typeName: reply.typeName, code: reply.code, repliedOn: reply.repliedOn, byName: reply.byName } : null,
+        currency: bl.currency,
+        deductionTarget: reply?.code === "STATEMENT_RECEIVED" ? deductionTarget(db, bl) : null,
       };
     });
   const suggestions = db

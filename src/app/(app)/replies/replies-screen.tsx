@@ -17,6 +17,7 @@ import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import { cn } from "@/lib/utils";
 import type { ReplyDetail, ReplyListRow, ReplyLists } from "@/server/replies";
+import { DeductionDialog, type DeductionTypeOption } from "../bls/deduction-dialog";
 import { acceptSuggestionAction, dismissSuggestionAction, recordEmailRepliesAction, replyDetailAction } from "./actions";
 
 export type ReplyTab = keyof ReplyLists;
@@ -70,6 +71,8 @@ export function RepliesScreen({
   layout,
   canRecord,
   canLink,
+  deductionTypes,
+  canRecordDeduction,
 }: {
   tab: ReplyTab;
   lists: ReplyLists;
@@ -79,9 +82,13 @@ export function RepliesScreen({
   layout: TableLayout | null;
   canRecord: boolean;
   canLink: boolean;
+  deductionTypes: DeductionTypeOption[];
+  canRecordDeduction: boolean;
 }) {
   const router = useRouter();
   const rows = lists[tab];
+  // The linked B/L whose deductions from this email's statement are being entered.
+  const [deducting, setDeducting] = useState<ReplyDetail["links"][number] | null>(null);
   const [openId, setOpenId] = useState<number | null>(initialDetail?.email.id ?? null);
   const [detail, setDetail] = useState<ReplyDetail | null>(initialDetail);
   // The table's order when the email was opened, for previous/next.
@@ -200,6 +207,8 @@ export function RepliesScreen({
               replyTypes={replyTypes}
               canRecord={canRecord}
               canLink={canLink}
+              canRecordDeduction={canRecordDeduction}
+              onDeductions={setDeducting}
               busy={busy}
               onRecord={(blId, replyTypeId) => record([{ emailId: detail.email.id, blId }], replyTypeId)}
               onApplyToAll={(replyType) =>
@@ -214,6 +223,20 @@ export function RepliesScreen({
             <p className="text-muted-foreground">{t("common.loading")}</p>
           )}
         </DetailDialog>
+      )}
+
+      {deducting?.deductionTarget && detail && (
+        <DeductionDialog
+          bl={{ id: deducting.blId, blNo: deducting.blNo, currency: deducting.currency }}
+          target={deducting.deductionTarget}
+          deductionTypes={deductionTypes}
+          statements={detail.attachments.map((a) => ({ documentId: a.documentId, originalName: a.originalName }))}
+          onCancel={() => setDeducting(null)}
+          onDone={() => {
+            setDeducting(null);
+            void refresh();
+          }}
+        />
       )}
 
       {confirm && (
@@ -264,6 +287,8 @@ function ReplyDetailView({
   replyTypes,
   canRecord,
   canLink,
+  canRecordDeduction,
+  onDeductions,
   busy,
   onRecord,
   onApplyToAll,
@@ -273,6 +298,9 @@ function ReplyDetailView({
   replyTypes: ReplyTypeOption[];
   canRecord: boolean;
   canLink: boolean;
+  canRecordDeduction: boolean;
+  /** After a "deduction statement received" reply: enter the deductions from the statement. */
+  onDeductions: (link: ReplyDetail["links"][number]) => void;
   busy: boolean;
   onRecord: (blId: number, replyTypeId: number) => void;
   onApplyToAll: (replyType: ReplyTypeOption) => void;
@@ -319,6 +347,11 @@ function ReplyDetailView({
                     <Badge variant="secondary" className="ml-auto">
                       {link.reply.typeName} · {formatBusinessDate(link.reply.repliedOn)} · {link.reply.byName}
                     </Badge>
+                  )}
+                  {link.deductionTarget && !link.voided && canRecordDeduction && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => onDeductions(link)}>
+                      {t(link.deductionTarget.mode === "STATEMENT" ? "deductions.addFromStatement" : "deductions.classify")}
+                    </Button>
                   )}
                 </div>
                 {!link.reply && !link.voided && canRecord && (

@@ -164,6 +164,11 @@ export function AllocationReview({
                       <Link href={`/bls/${c.blId}`} className="font-mono hover:underline">
                         {c.blNo}
                       </Link>
+                      {c.disputedEntryId !== null && (
+                        <Badge variant="destructive" className="ml-2" title={t("allocations.review.disputedHint")}>
+                          {t("allocations.review.disputedDifference")}
+                        </Badge>
+                      )}
                     </td>
                     <td className="py-1">{formatBusinessDate(c.firstRequestOn)}</td>
                     <td className="py-1 text-right">{money(c.depositMinor)}</td>

@@ -19,6 +19,8 @@ export function addLedgerEntry(
     depositPaymentId?: number | null;
     refundAllocationId?: number | null;
     deduction?: { typeId: number; source: DeductionSource } | null;
+    /** The agency's deduction statement. */
+    documentId?: number | null;
     createdBy: number | null;
   },
   now: Date = new Date(),
@@ -30,6 +32,7 @@ export function addLedgerEntry(
       ...rest,
       depositPaymentId: entry.depositPaymentId ?? null,
       refundAllocationId: entry.refundAllocationId ?? null,
+      documentId: entry.documentId ?? null,
       deductionTypeId: deduction?.typeId ?? null,
       deductionSource: deduction?.source ?? null,
       createdAt: now.toISOString(),
@@ -38,8 +41,18 @@ export function addLedgerEntry(
     .get();
 }
 
-/** Cancels an entry with its negation; the unique index allows this once per entry. */
-export function compensateLedgerEntry(tx: DbOrTx, entry: LedgerEntry, createdBy: number | null, now: Date = new Date()): LedgerEntry {
+/**
+ * Cancels an entry with its negation; the unique index allows this once per entry. A disputed
+ * deduction paid by a later refund is cancelled under that refund's allocation
+ * (`byAllocationId`), so reversing the allocation brings the deduction back.
+ */
+export function compensateLedgerEntry(
+  tx: DbOrTx,
+  entry: LedgerEntry,
+  createdBy: number | null,
+  now: Date = new Date(),
+  byAllocationId?: number,
+): LedgerEntry {
   if (entry.compensatesEntryId !== null) throw new Error("A compensating entry cannot itself be compensated");
   return tx
     .insert(ledgerEntries)
@@ -50,13 +63,25 @@ export function compensateLedgerEntry(tx: DbOrTx, entry: LedgerEntry, createdBy:
       currency: entry.currency,
       entryDate: entry.entryDate,
       depositPaymentId: entry.depositPaymentId,
-      refundAllocationId: entry.refundAllocationId,
+      refundAllocationId: byAllocationId ?? entry.refundAllocationId,
       deductionTypeId: entry.deductionTypeId,
       deductionSource: entry.deductionSource,
+      documentId: entry.documentId,
       compensatesEntryId: entry.id,
       createdBy,
       createdAt: now.toISOString(),
     })
+    .returning()
+    .get();
+}
+
+/** Enters a compensated entry again as a new row (append-only), dispute included. */
+export function reinstateLedgerEntry(tx: DbOrTx, entry: LedgerEntry, createdBy: number | null, now: Date = new Date()): LedgerEntry {
+  if (entry.compensatesEntryId !== null) throw new Error("Only original entries can be reinstated");
+  const { id: _id, createdBy: _createdBy, createdAt: _createdAt, ...copy } = entry;
+  return tx
+    .insert(ledgerEntries)
+    .values({ ...copy, createdBy, createdAt: now.toISOString() })
     .returning()
     .get();
 }

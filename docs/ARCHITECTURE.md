@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — Architecture
 
-Oct 20, 2026 · updated Oct 29, 2026 (see Change log)
+Oct 20, 2026 · updated Oct 30, 2026 (see Change log)
 
 ## Purpose and scope
 
@@ -52,6 +52,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Testing | Vitest for unit and domain tests; Playwright for a small set of end-to-end flows (create B/L, send request, allocate refund, bulk reply) |
 | Logging | pino structured logs to daily rotating files in the data folder, kept 30 days; streams run in-process (no worker-thread transports) so the standalone build is self-contained |
 | Rendering | Next.js Cache Components are off: every screen is session-bound and shows live data, so pages render dynamically on each request |
+| Versioning | Semantic Versioning, with `package.json` as the single source. 0.x during the build (0.6.0 = build step 6, 0.7.0 = step 7, …); 1.0.0 at go-live, once this document is implemented. From then on MAJOR = an update that needs manual steps or breaks compatibility, MINOR = new features, PATCH = fixes only. `pnpm version minor\|patch` raises it and tags the commit (`v0.7.0`). The version is shown in the app header and written to the log at every start; from build step 8 also on the health page and in the portable zip's name (`deposit-tracker-<version>-win-x64.zip`). The change log of this document serves as release notes |
 | Packaging | pnpm for development. `pnpm build:portable` produces one zip: a portable Node.js runtime, the Next.js standalone build with prebuilt native modules for Windows x64, and start/stop/backup/create-admin `.cmd` scripts |
 
 ## Roles and permissions
@@ -60,8 +61,8 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 
 | Role | Can do | Cannot do |
 | --- | --- | --- |
-| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
-| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, undo own recent actions. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
+| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
+| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
 A user holding both accountant and operations roles gets a continuous flow: after saving a deposit payment, the same screen continues to B/L creation with agency, amount, currency and extracted B/L number prefilled. The audit log records each step under its own role.
@@ -81,6 +82,7 @@ A B/L moves from payment through repeated requests to collection; it is closed o
 | `REQUESTED` | `AWAITING_RETURN` | Reply type *container not yet returned* recorded |
 | `AWAITING_RETURN` | `REQUESTED` | Follow-up request sent successfully |
 | `REQUESTED` / `AWAITING_RETURN` | `COLLECTED` | Confirmed allocations + classified deductions = deposit |
+| `REQUESTED` / `AWAITING_RETURN` | `COLLECTED` | Deductions from a statement take the whole deposit (e.g. the agency applied it to one of its invoices); no refund follows |
 | `REQUESTED` / `AWAITING_RETURN` | `DEDUCTION_OPEN` | Confirmed allocation leaves a shortfall marked `UNEXPLAINED` |
 | `DEDUCTION_OPEN` | `COLLECTED` | Every `UNEXPLAINED` deduction replaced by a real type, and the balance closes |
 | `DEDUCTION_OPEN` | `DISPUTED` | A deduction is marked disputed |
@@ -109,7 +111,7 @@ These invariants live in code, are enforced in the domain layer and database con
 9. Status transitions follow the lifecycle above; no transition may be skipped or forced from the UI, by inline editing, bulk actions or undo. Status labels and colours are configurable; the transitions are not.
 10. The app never moves, deletes or marks as read any email in the shared mailbox.
 11. A B/L is created only from a deposit payment record, and each payment record has at most one active (non-voided) B/L. The single exception is a migrated record with an `OPENING_BALANCE` ledger entry.
-12. Every bank payment and bank refund record requires an uploaded bank receipt; every offset record requires the uploaded invoice; every opening-balance record requires the original deposit receipt.
+12. Every bank refund record requires an uploaded bank receipt and every offset refund the uploaded invoice; every opening-balance record requires the original deposit receipt. A deposit payment may be saved, and its B/L created, without its receipt (bank) or invoice (offset); it can be attached later, also after requests went out, and a request email for a B/L without it is sent only after an explicit confirmation.
 13. A deposit's amount or currency cannot change while it has a confirmed allocation.
 14. A refund request cannot be sent or recorded for a B/L without an uploaded form (when the corresponding rule setting is on), and a B/L being drafted by one user is locked for others.
 15. Records are never deleted. Payments, refunds and B/Ls can only be voided, with a reason, and only while they have no confirmed allocation; voiding a payment requires its B/L to be voided first.
@@ -123,12 +125,13 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | Table | Purpose | Key fields |
 | --- | --- | --- |
 | `agencies` | Shipping lines / agencies | name (unique, case-insensitive), active, email recipients (one to/cc list for all request types), bank sender aliases, bl\_number\_patterns (list of regular expressions), form\_template\_document\_id, batch\_sending (bool), request\_channel (EMAIL, PORTAL), portal\_url, nullable setting overrides, notes |
-| `deposit_payments` | Outgoing deposit, opened by accountant from a receipt or invoice | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), evidence\_file\_id, extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
+| `deposit_payments` | Outgoing deposit, opened by accountant, with its receipt or invoice or without it for now | agency\_id, amount, currency, paid\_at, kind (BANK, OFFSET), evidence\_file\_id (null until attached), extracted\_fields (json), extracted\_bl\_numbers (json list), bl\_no\_hint (accountant note), void fields |
 | `bills_of_lading` | One deposit per B/L, created from a deposit payment | bl\_no, deposit\_payment\_id (unique among non-voided; null only for migrated records), agency\_id, currency, deposit\_amount, paid\_at, status, locked\_by, locked\_at, nullable setting overrides, void fields |
 | `containers` | Containers under a B/L | bl\_id, container\_no, type |
-| `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), disputed (bool), dispute\_note, approved\_by (write-offs), amount, date, source refs, compensates\_entry\_id (undo) |
+| `ledger_entries` | Every money movement on a B/L (B/L level only); append-only: a correction writes a compensating entry (negated amount, `compensates_entry_id`) plus a new entry, and an entry can be compensated once. Amounts are positive for every type (payments, deductions and allocations alike); only compensating entries are negative | bl\_id, type (PAYMENT, OFFSET, DEDUCTION, REFUND\_ALLOCATION, OPENING\_BALANCE), amount (signed), currency, deduction\_type\_id, deduction\_source (STATEMENT, SHORTFALL, WRITE\_OFF), document\_id (the agency's deduction statement; mandatory for STATEMENT), disputed (bool) and dispute\_note (set once on an unexplained deduction, never cleared: the entry is compensated instead), date, source refs, refund\_allocation\_id, compensates\_entry\_id (undo) |
 | `refunds` | Incoming money entered by accountant | agency\_id, amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id, unallocated\_reason (set when operations leaves the remainder on purpose), void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), bl\_status\_before (restored on reversal), confirmed\_by, role\_used, reversed\_by, reversed\_at, reversal\_reason. Each confirmed row also writes a REFUND\_ALLOCATION ledger entry; a shortfall deduction confirmed with it references the same allocation |
+| `write_offs` | Write-off proposals (rule 16) | bl\_id, amount (what the B/L lacked when proposed), currency, reason, state (PROPOSED, APPROVED, REJECTED), proposed\_by, decided\_by, decided\_at, decision\_note (mandatory on rejection), ledger\_entry\_id (the WRITE\_OFF deduction written on approval). One open proposal per B/L |
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
 | `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), received\_at (incoming only). Whether an incoming email is processed is computed from `replies`, never stored |
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
@@ -146,7 +149,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
-| `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, BATCH, BATCH\_LINE, REPLY\_QUOTE), subject, body with placeholders and section blocks |
+| `email_templates` | Turkish templates with sections for batched emails | key (REFUND\_REQUEST, FOLLOW\_UP, DEDUCTION\_STATEMENT, BATCH, BATCH\_LINE, REPLY\_QUOTE, DAILY\_UNPROCESSED), subject, body with placeholders and section blocks |
 | `deduction_types`, `reply_types`, `bank_accounts`, `currencies` | Configurable lists | name, active, sort order; reply types also carry a system code (NOT\_RETURNED, APPROVED, STATEMENT\_RECEIVED, INFO; null for types an admin adds) |
 | `users`, `user_roles`, `audit_log` | Users with one or more roles; every state change | username (unique, case-insensitive), display name, password hash, must\_change\_password, active, failed\_login\_count, locked\_at; user\_id + role; actor, role used, action, entity, before/after, reason, undo\_of, at |
 | `sessions` | Login sessions | id (SHA-256 of the cookie token), user\_id, created\_at, last\_seen\_at, revoked\_at |
@@ -415,6 +418,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Open items before go-live**
 
+- [ ] Release 1.0.0 (`pnpm version major`) once this document is implemented
 - [ ] Name of the bank and 3–5 sample PDF receipts (incoming and outgoing, including transfer descriptions with B/L numbers) for the receipt parser
 - [ ] B/L number formats of each agency, to set up the patterns
 - [ ] Blank refund forms of each agency, converted to `.docx` templates with placeholders
@@ -441,6 +445,21 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 30, 2026 — deposit receipts may follow later; versioning**
+
+- Rule 12 relaxed for deposit payments (refunds and opening balances unchanged): a bank payment or offset can be saved without its receipt or invoice, and its B/L created. The accountant who entered it (Accounting list) or operations (B/L detail) attaches it later, at any time while the payment is active, also after requests went out; the file then takes the B/L's name and later requests attach it. A replacement goes through a payment correction.
+- The due list marks such B/Ls ("Dekont yok"); the email preview lists them and sends only after the user confirms sending without that attachment (the server refuses otherwise).
+- Versioning decided: SemVer from `package.json`, starting at 0.6.0 (build step 6); 1.0.0 at go-live. Shown in the header and logged at start; the health page and zip name follow in build step 8.
+
+**Oct 30, 2026 — build step 6b (deductions, disputes, write-offs, statement requests)**
+
+- Deductions from a statement are entered per B/L (B/L detail, or the Replies screen after a *deduction statement received* reply) while it is `REQUESTED` or `AWAITING_RETURN`: one or more lines with a real type (not the system types) and the statement, which is a new upload, a statement already on the B/L, or an attachment of an agency email linked to it. They lower the expected amount and change no status, unless they take the whole deposit (e.g. the agency applied it to one of its invoices): then the B/L is `COLLECTED` without a refund, by rule 1 (classified deductions = deposit), not written off. They can never exceed what is still expected.
+- An unexplained shortfall is classified by replacing it with one or more real-type deductions that add up to it exactly (statement optional); they keep the allocation they came with, so a reversal still removes them. With no unexplained deduction left and the balance closed, the B/L moves to `COLLECTED` (rules 1, 4).
+- Disputes: operations disputes the unexplained deduction with a note (`DEDUCTION_OPEN` → `DISPUTED`); the flag is set once on the ledger entry. Clearing the dispute means accepting the deduction: it is classified as above with a mandatory note (`DISPUTED` → `COLLECTED`). If the agency pays the difference, the refund is allocated to the disputed B/L for exactly the disputed amount (no partial payment, no new difference on it); the disputed deduction is compensated under that allocation and the B/L is `COLLECTED`. Reversing that allocation enters the disputed deduction again and returns the B/L to `DISPUTED`. Allocations on one B/L are reversed newest first.
+- Write-offs live in their own `write_offs` table instead of an `approved_by` column on the ledger: operations proposes one with a reason for what the B/L still lacks (the expected amount plus unexplained or disputed deductions); nothing changes until an admin approves it on the new *Silme onayları* page (menu badge shows waiting proposals). Approval replaces the unexplained deductions by one `WRITE_OFF` deduction and closes any open B/L; it is refused if the B/L changed since the proposal (the admin rejects with a reason and operations proposes again). Rejection changes nothing.
+- Deduction-statement requests: a `DEDUCTION_OPEN` B/L with an undisputed unexplained deduction is due for a statement request the statement-request delay after the shortfall was confirmed, then after the statement follow-up interval since the last statement request or a later reply (both overridable like the other timings, upcoming window shared). They appear in the due list with their own badge and the deduction as amount, need no uploaded form, always go by email (also for portal agencies), change no status, and count attempts separately. One new template, `DEDUCTION_STATEMENT`, serves the first request and follow-ups; follow-ups reply in the statement thread. Batch agencies get refund and statement first requests in one email, each in its section; a statement line shows the deduction as its amount.
+- Statement files are uploaded with the document kind `DEDUCTION_STATEMENT` and kept on the B/L.
 
 **Oct 29, 2026 — build step 6a (refunds and allocation)**
 

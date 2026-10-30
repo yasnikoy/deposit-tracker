@@ -4,7 +4,7 @@ import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
 import type { StoredBlStatus } from "@/domain/bl-lifecycle";
-import type { AllocationState, BlStatus, DeductionSource, LedgerType, PaymentKind } from "@/domain/records";
+import type { AllocationState, BlStatus, DeductionSource, DeductionTypeCode, LedgerType, PaymentKind } from "@/domain/records";
 import { OVERRIDABLE_SETTING_KEYS, type OverridableSettingKey } from "@/domain/settings/definitions";
 import { matchBl, parseBlSearch, type BlMatchField } from "@/lib/bl-search";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
@@ -36,8 +36,10 @@ import { activeLockers } from "./draft-locks";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
 import { replyHistory } from "./reply-history";
-import { refundRequestStats, timingResolver } from "./requests";
+import { requestStats, timingResolver } from "./requests";
+import { deductionTarget, type DeductionTarget } from "./deductions";
 import { getSetting } from "./settings";
+import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
 
 export type BlOverview = BlBalance & {
   id: number;
@@ -74,7 +76,7 @@ function toOverviews(db: DbOrTx, viewer: AuthUser, rows: BlRow[], now: Date): Bl
   const today = istanbulToday(now);
   const timing = timingResolver(db);
   const agencyRows = new Map(db.select().from(agencies).all().map((a) => [a.id, a]));
-  const stats = refundRequestStats(db, ids);
+  const stats = requestStats(db, ids, "REFUND");
   const history = replyHistory(db, ids);
 
   const entries = db
@@ -184,8 +186,15 @@ export type BlLedgerLine = {
   compensated: boolean;
   createdAt: string;
   createdByName: string | null;
-  /** Deductions: type name and where it came from (statement, shortfall, write-off). */
-  deduction: { typeName: string; source: DeductionSource } | null;
+  /** Deductions: type and where it came from (statement, shortfall, write-off), the statement, a dispute. */
+  deduction: {
+    typeName: string;
+    code: DeductionTypeCode | null;
+    source: DeductionSource;
+    documentId: number | null;
+    disputed: boolean;
+    disputeNote: string | null;
+  } | null;
 };
 
 /** A confirmed (or reversed) split of a refund onto this B/L. */
@@ -230,7 +239,8 @@ export type TimelineEvent = {
 
 export type BlDetail = {
   bl: BlOverview;
-  payment: { id: number; kind: PaymentKind; evidenceDocumentId: number; evidenceName: string; createdByName: string } | null;
+  /** The source payment; its receipt or invoice may still be missing (rule 12). */
+  payment: { id: number; kind: PaymentKind; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
   ledger: BlLedgerLine[];
   allocations: BlAllocation[];
   documents: BlDocument[];
@@ -239,6 +249,11 @@ export type BlDetail = {
   timeline: TimelineEvent[];
   /** Request-timing overrides of this B/L, and what each falls back to (agency, then global). */
   overrides: { values: AgencyOverrides; inherited: Record<OverridableSettingKey, number> };
+  /** Deductions a user can enter now (from a statement, or classifying an unexplained one). */
+  deductionTarget: DeductionTarget | null;
+  writeOffs: WriteOffRow[];
+  /** What a write-off proposed now would cover (what is owed plus unexplained deductions). */
+  writeOffAmountMinor: number;
   form: {
     /** Whether the agency has a template, so a prefilled form can be downloaded. */
     templateAvailable: boolean;
@@ -261,17 +276,18 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
           kind: depositPayments.kind,
           evidenceDocumentId: depositPayments.evidenceDocumentId,
           evidenceName: documents.originalName,
+          createdBy: depositPayments.createdBy,
           createdByName: users.displayName,
         })
         .from(depositPayments)
-        .innerJoin(documents, eq(documents.id, depositPayments.evidenceDocumentId))
+        .leftJoin(documents, eq(documents.id, depositPayments.evidenceDocumentId))
         .innerJoin(users, eq(users.id, depositPayments.createdBy))
         .where(eq(depositPayments.id, found.bl.depositPaymentId))
         .get() ?? null)
     : null;
 
   const ledgerRows = db
-    .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name })
+    .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name, deductionTypeCode: deductionTypes.code })
     .from(ledgerEntries)
     .leftJoin(users, eq(users.id, ledgerEntries.createdBy))
     .leftJoin(deductionTypes, eq(deductionTypes.id, ledgerEntries.deductionTypeId))
@@ -280,7 +296,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .orderBy(desc(ledgerEntries.id))
     .all();
   const compensatedIds = new Set(ledgerRows.map((r) => r.entry.compensatesEntryId).filter((v) => v !== null));
-  const ledger = ledgerRows.map(({ entry, createdByName, deductionTypeName }) => ({
+  const ledger = ledgerRows.map(({ entry, createdByName, deductionTypeName, deductionTypeCode }) => ({
     id: entry.id,
     type: entry.type,
     amountMinor: entry.amountMinor,
@@ -290,7 +306,17 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     compensated: compensatedIds.has(entry.id),
     createdAt: entry.createdAt,
     createdByName,
-    deduction: deductionTypeName && entry.deductionSource ? { typeName: deductionTypeName, source: entry.deductionSource } : null,
+    deduction:
+      deductionTypeName && entry.deductionSource
+        ? {
+            typeName: deductionTypeName,
+            code: deductionTypeCode,
+            source: entry.deductionSource,
+            documentId: entry.documentId,
+            disputed: entry.disputed,
+            disputeNote: entry.disputeNote,
+          }
+        : null,
   }));
 
   const blDocuments = db
@@ -311,7 +337,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   if (found.bl.depositPaymentId) {
     entityConditions.push(and(eq(auditLog.entityType, "deposit_payment"), eq(auditLog.entityId, String(found.bl.depositPaymentId))));
   }
-  const documentIds = [...blDocuments.map((d) => d.id), ...(payment ? [payment.evidenceDocumentId] : [])].map(String);
+  const documentIds = [...blDocuments.map((d) => d.id), ...(payment?.evidenceDocumentId ? [payment.evidenceDocumentId] : [])].map(String);
   if (documentIds.length > 0) {
     entityConditions.push(and(eq(auditLog.entityType, "document"), inArray(auditLog.entityId, documentIds)));
   }
@@ -365,7 +391,21 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
       reversalReason: allocation.reversalReason,
     }));
 
-  return { bl, payment, ledger, allocations, documents: blDocuments, emails: blEmails(db, id), replies: blReplies(db, id), timeline, overrides, form };
+  return {
+    bl,
+    payment,
+    ledger,
+    allocations,
+    documents: blDocuments,
+    emails: blEmails(db, id),
+    replies: blReplies(db, id),
+    timeline,
+    overrides,
+    deductionTarget: deductionTarget(db, found.bl),
+    writeOffs: blWriteOffs(db, id),
+    writeOffAmountMinor: found.bl.voidedAt || found.bl.status === "COLLECTED" ? 0 : writeOffAmount(db, found.bl),
+    form,
+  };
 }
 
 function blEmails(db: DbOrTx, blId: number): BlEmail[] {

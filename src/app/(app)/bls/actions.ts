@@ -1,14 +1,17 @@
 "use server";
 
 import { blSearchSchema, createBlsSchema, generateFormSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
+import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
 import { voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { searchBls, type BlSearchResult } from "@/server/bl-overview";
 import { createBls, updateBl, voidBl, type CreateBlsResult } from "@/server/bls";
 import { getDb } from "@/server/db/client";
+import { classifyDeduction, disputeDeduction, recordStatementDeductions } from "@/server/deductions";
 import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
+import { proposeWriteOff } from "@/server/write-offs";
 
 /** Each row is validated by createBls with the shared row schema; invalid rows come back with errors. */
 export async function createBlsAction(input: unknown): Promise<ActionResult<CreateBlsResult>> {
@@ -39,4 +42,24 @@ export async function generateBlFormAction(input: unknown): Promise<ActionResult
 export async function uploadBlFormAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(uploadFormSchema, input, (data) => uploadBlForm(getDb(), user, data));
+}
+
+export async function recordStatementDeductionsAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(recordStatementDeductionsSchema, input, (data) => recordStatementDeductions(getDb(), user, data));
+}
+
+export async function classifyDeductionAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(classifyDeductionSchema, input, (data) => classifyDeduction(getDb(), user, data));
+}
+
+export async function disputeDeductionAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(disputeDeductionSchema, input, (data) => disputeDeduction(getDb(), user, data));
+}
+
+export async function proposeWriteOffAction(input: unknown): Promise<ActionResult<number>> {
+  const { user } = await requireSession();
+  return runAction(proposeWriteOffSchema, input, (data) => proposeWriteOff(getDb(), user, data));
 }

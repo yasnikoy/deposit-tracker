@@ -30,7 +30,7 @@ const TABS: { tab: DueTab; href: string }[] = [
 ];
 
 /** A row can go into an email when it is an email request, has its form (if required) and nobody else is drafting it. */
-const selectable = (row: DueRow, formRequired: boolean) => row.channel === "EMAIL" && (!formRequired || !!row.form) && !row.lockedBy;
+const selectable = (row: DueRow) => row.channel === "EMAIL" && (!row.needsForm || !!row.form) && !row.lockedBy;
 
 /** Due (today and overdue) and upcoming requests, grouped by agency. */
 export function DueRequestsScreen({
@@ -56,7 +56,7 @@ export function DueRequestsScreen({
   const count = (list: DueTab) => (list === "FAILED" ? lists.FAILED.length : lists[list].reduce((n, g) => n + g.rows.length, 0));
   const groups = tab === "FAILED" ? [] : lists[tab];
   // Selection only keeps rows that are still listed and selectable after a refresh.
-  const selectableIds = new Set(groups.flatMap((g) => g.rows.filter((r) => selectable(r, lists.formRequired)).map((r) => r.blId)));
+  const selectableIds = new Set(groups.flatMap((g) => g.rows.filter((r) => selectable(r)).map((r) => r.blId)));
   const chosen = [...selected].filter((id) => selectableIds.has(id));
 
   const toggle = (ids: number[], on: boolean) =>
@@ -115,7 +115,6 @@ export function DueRequestsScreen({
             <AgencyGroup
               key={group.agencyId}
               group={group}
-              formRequired={lists.formRequired}
               canRecordPortal={canRecordPortal}
               canForms={canForms}
               selection={canSend ? { selected, toggle } : null}
@@ -162,7 +161,9 @@ function FailedList({ failed, onRetry }: { failed: FailedRequest[]; onRetry?: (b
               </Link>
             </td>
             <td className="px-3 py-1.5">{item.agencyName}</td>
-            <td className="px-3 py-1.5">{item.attemptNo}</td>
+            <td className="px-3 py-1.5 whitespace-nowrap">
+              {t(`requests.types.${item.type}`)} {item.attemptNo}
+            </td>
             <td className="px-3 py-1.5">{formatTimestamp(item.queuedAt)}</td>
             <td className="text-destructive px-3 py-1.5 text-xs">{item.failureReason}</td>
             <td className="px-3 py-1.5">
@@ -181,20 +182,18 @@ function FailedList({ failed, onRetry }: { failed: FailedRequest[]; onRetry?: (b
 
 function AgencyGroup({
   group,
-  formRequired,
   canRecordPortal,
   canForms,
   selection,
   onRecordPortal,
 }: {
   group: DueGroup;
-  formRequired: boolean;
   canRecordPortal: boolean;
   canForms: boolean;
   selection: { selected: Set<number>; toggle: (ids: number[], on: boolean) => void } | null;
   onRecordPortal: (row: DueRow) => void;
 }) {
-  const ids = group.rows.filter((row) => selectable(row, formRequired)).map((row) => row.blId);
+  const ids = group.rows.filter((row) => selectable(row)).map((row) => row.blId);
   const all = ids.length > 0 && ids.every((id) => selection?.selected.has(id));
   const some = ids.some((id) => selection?.selected.has(id));
   return (
@@ -238,7 +237,7 @@ function AgencyGroup({
                   <Checkbox
                     aria-label={`${t("table.selectRow")} – ${row.blNo}`}
                     checked={selection.selected.has(row.blId)}
-                    disabled={!selectable(row, formRequired)}
+                    disabled={!selectable(row)}
                     onCheckedChange={(checked) => selection.toggle([row.blId], checked === true)}
                   />
                 </td>
@@ -247,6 +246,11 @@ function AgencyGroup({
                 <Link href={`/bls/${row.blId}`} className="font-mono hover:underline">
                   {row.blNo}
                 </Link>
+                {row.evidenceMissing && (
+                  <Badge variant="outline" className="ml-2 border-amber-400 text-amber-800 dark:text-amber-300" title={t("requests.evidenceMissingHint")}>
+                    {t("requests.evidenceMissing")}
+                  </Badge>
+                )}
                 {row.lockedBy && (
                   <Badge variant="secondary" className="ml-2" title={t("requests.lockedBy", { user: row.lockedBy })}>
                     <Lock /> {t("requests.lockedBy", { user: row.lockedBy })}
@@ -254,7 +258,10 @@ function AgencyGroup({
                 )}
               </td>
               <td className="px-3 py-1.5 whitespace-nowrap">
-                <Badge variant={row.kind === "FIRST" ? "secondary" : "outline"}>{t(`requests.kinds.${row.kind}`)}</Badge> {row.attemptNo}
+                <Badge variant={row.type === "DEDUCTION_STATEMENT" ? "destructive" : row.kind === "FIRST" ? "secondary" : "outline"}>
+                  {t(`requests.kinds.${row.type}.${row.kind}`)}
+                </Badge>{" "}
+                {row.attemptNo}
               </td>
               <td className="px-3 py-1.5">{formatBusinessDate(row.paidAt)}</td>
               <td className="px-3 py-1.5">{formatBusinessDate(row.dueDate)}</td>
@@ -268,9 +275,9 @@ function AgencyGroup({
                   <span className="text-muted-foreground">{t("common.none")}</span>
                 )}
               </td>
-              <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatMoney(row.depositMinor, row.currency)}</td>
+              <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatMoney(row.amountMinor, row.currency)}</td>
               <td className="px-3 py-1.5">
-                <FormCell row={row} formRequired={formRequired} editable={canForms} />
+                <FormCell row={row} editable={canForms} />
               </td>
               <td className="px-3 py-1.5">
                 {row.channel === "PORTAL" && (
@@ -281,7 +288,7 @@ function AgencyGroup({
                       </a>
                     )}
                     {canRecordPortal && (
-                      <Button size="sm" variant="outline" onClick={() => onRecordPortal(row)} disabled={formRequired && !row.form}>
+                      <Button size="sm" variant="outline" onClick={() => onRecordPortal(row)} disabled={row.needsForm && !row.form}>
                         {t("requests.recordPortal")}
                       </Button>
                     )}
@@ -297,7 +304,7 @@ function AgencyGroup({
 }
 
 /** The uploaded form, or a prefilled download plus a drop target for the signed scan. */
-function FormCell({ row, formRequired, editable }: { row: DueRow; formRequired: boolean; editable: boolean }) {
+function FormCell({ row, editable }: { row: DueRow; editable: boolean }) {
   const router = useRouter();
   if (row.form) {
     return (
@@ -306,7 +313,9 @@ function FormCell({ row, formRequired, editable }: { row: DueRow; formRequired: 
       </a>
     );
   }
-  if (!editable) return <span className={cn(formRequired && "text-amber-700 dark:text-amber-400")}>{t("requests.noForm")}</span>;
+  // A deduction-statement request goes without the refund form.
+  if (row.type === "DEDUCTION_STATEMENT") return <span className="text-muted-foreground">{t("requests.formNotNeeded")}</span>;
+  if (!editable) return <span className={cn(row.needsForm && "text-amber-700 dark:text-amber-400")}>{t("requests.noForm")}</span>;
 
   const download = async () => {
     const result = await generateBlFormAction({ blId: row.blId });

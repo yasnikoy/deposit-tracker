@@ -64,6 +64,20 @@
       "when": 1793290853881,
       "tag": "0008_refunds_allocations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793377728387,
+      "tag": "0009_deductions_write_offs",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793380330045,
+      "tag": "0010_payment_evidence_optional",
+      "breakpoints": true
     }
   ]
 }

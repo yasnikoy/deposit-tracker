@@ -34,6 +34,7 @@ import { BlQuickCreate } from "../bls/bl-quick-create";
 import { blCandidatesOf } from "../bls/bl-warnings";
 import { discardQueueItemAction, voidPaymentAction } from "./actions";
 import { CorrectPaymentDialog } from "./correct-payment-dialog";
+import { EvidenceDrop } from "./evidence-drop";
 import { PaymentForm, type ReferenceData, type SavedPayment } from "./payment-form";
 
 export type AccountingTab = "new" | "queue" | "records" | "refund" | "refunds";
@@ -315,11 +316,15 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
           const payment = row.original;
           return (
             <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
-              <Button asChild variant="ghost" size="icon" className="size-7" aria-label={t("payments.receipt")}>
-                <a href={`/api/files/${payment.evidenceDocumentId}`} target="_blank" rel="noreferrer">
-                  <FileText />
-                </a>
-              </Button>
+              {payment.evidenceDocumentId !== null ? (
+                <Button asChild variant="ghost" size="icon" className="size-7" aria-label={t("payments.receipt")}>
+                  <a href={`/api/files/${payment.evidenceDocumentId}`} target="_blank" rel="noreferrer">
+                    <FileText />
+                  </a>
+                </Button>
+              ) : (
+                !payment.voidedAt && <EvidenceDrop paymentId={payment.id} kind={payment.kind} compact />
+              )}
               {!payment.voidedAt && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

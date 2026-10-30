@@ -1,5 +1,6 @@
 import "server-only";
 import path from "node:path";
+import { APP_VERSION } from "@/lib/version";
 import { getDb } from "./db/client";
 import { migrateWithBackup } from "./db/migrate";
 import { getEnv } from "./env";
@@ -52,5 +53,5 @@ export async function startServer(): Promise<void> {
     ...emailJobHandlers(db, transport),
     ...recurringJobHandlers(db, { mailbox: () => mailboxFromSettings(db), transport }),
   });
-  logger.info({ dataDir: env.dataDir, emailMode: env.EMAIL_MODE }, "server started");
+  logger.info({ version: APP_VERSION, dataDir: env.dataDir, emailMode: env.EMAIL_MODE }, "server started");
 }
