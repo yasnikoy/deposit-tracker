@@ -9,8 +9,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="tr" className="h-full antialiased">
-      <body className="min-h-full font-sans text-sm">
+    // Browser extensions add classes to <html>/<body> before React loads (e.g. "vc-init");
+    // ignore attribute differences on these two elements only, not inside the page.
+    <html lang="tr" className="h-full antialiased" suppressHydrationWarning>
+      <body className="min-h-full font-sans text-sm" suppressHydrationWarning>
         {children}
         <Toaster position="bottom-right" richColors />
       </body>
