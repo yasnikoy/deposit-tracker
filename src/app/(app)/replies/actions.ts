@@ -30,17 +30,17 @@ export async function replyDetailAction(input: unknown): Promise<ActionResult<Re
   return runAction(z.object({ emailId: z.number().int().positive() }), input, (data) => getReplyDetail(getDb(), user, data.emailId));
 }
 
-export async function recordEmailRepliesAction(input: unknown): Promise<ActionResult<number>> {
+export async function recordEmailRepliesAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(recordEmailRepliesSchema, input, (data) => recordEmailReplies(getDb(), user, data));
 }
 
-export async function recordReplyWithoutEmailAction(input: unknown): Promise<ActionResult<void>> {
+export async function recordReplyWithoutEmailAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(recordReplyWithoutEmailSchema, input, (data) => recordReplyWithoutEmail(getDb(), user, data));
 }
 
-export async function acceptSuggestionAction(input: unknown): Promise<ActionResult<void>> {
+export async function acceptSuggestionAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(emailBlSchema, input, (data) => acceptSuggestion(getDb(), user, data));
 }
@@ -58,7 +58,7 @@ export async function searchMailboxAction(input: unknown): Promise<ActionResult<
   });
 }
 
-export async function linkMailboxMessageAction(input: unknown): Promise<ActionResult<number>> {
+export async function linkMailboxMessageAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(linkMailboxMessageSchema, input, (data) => {
     const db = getDb();

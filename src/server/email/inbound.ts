@@ -71,7 +71,11 @@ export async function parseMessage(raw: Buffer): Promise<ParsedMessage> {
 function blsOfEmails(tx: DbOrTx, emailIds: number[]): number[] {
   if (emailIds.length === 0) return [];
   const fromRequests = tx.select({ blId: requests.blId }).from(requests).where(inArray(requests.emailId, emailIds)).all();
-  const fromLinks = tx.select({ blId: emailBlLinks.blId }).from(emailBlLinks).where(inArray(emailBlLinks.emailId, emailIds)).all();
+  const fromLinks = tx
+    .select({ blId: emailBlLinks.blId })
+    .from(emailBlLinks)
+    .where(and(inArray(emailBlLinks.emailId, emailIds), isNull(emailBlLinks.unlinkedAt)))
+    .all();
   const ids = [...new Set([...fromRequests, ...fromLinks].map((r) => r.blId))];
   if (ids.length === 0) return [];
   return tx

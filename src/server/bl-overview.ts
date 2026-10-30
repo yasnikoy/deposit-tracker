@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, or } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
@@ -39,6 +39,7 @@ import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
 import { getSetting } from "./settings";
+import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
 
 export type BlOverview = BlBalance & {
@@ -211,7 +212,8 @@ export type BlAllocation = {
   reversalReason: string | null;
 };
 
-export type BlDocument = { id: number; kind: string; originalName: string; uploadedAt: string; uploadedByName: string };
+/** `withdrawn`: an upload taken back by undo; the file stays listed. */
+export type BlDocument = { id: number; kind: string; originalName: string; uploadedAt: string; uploadedByName: string; withdrawn: boolean };
 
 /** A message of the B/L's request chain: our sent requests and the agency emails linked to it. */
 export type BlEmail = {
@@ -225,7 +227,7 @@ export type BlEmail = {
   attachments: { id: number; originalName: string }[];
 };
 
-export type BlReply = { id: number; typeName: string; repliedOn: string; byName: string; emailId: number | null; note: string | null };
+export type BlReply = { id: number; typeName: string; repliedOn: string; byName: string; emailId: number | null; note: string | null; undone: boolean };
 
 export type TimelineEvent = {
   id: number;
@@ -235,6 +237,12 @@ export type TimelineEvent = {
   reason: string | null;
   /** System notes shown with the event, e.g. a confirmed duplicate warning or a dry-run send. */
   notes: ("duplicateConfirmed" | "dryRun")[];
+  /** The viewer can still undo this event (own, undoable, within the window). */
+  undoable: boolean;
+  /** A later undo took this event back. */
+  undone: boolean;
+  /** For an undo: the action it took back. */
+  undoOfAction: string | null;
 };
 
 export type BlDetail = {
@@ -326,6 +334,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
       originalName: documents.originalName,
       uploadedAt: documents.uploadedAt,
       uploadedByName: users.displayName,
+      withdrawn: sql<boolean>`${documents.withdrawnAt} IS NOT NULL`.mapWith(Boolean),
     })
     .from(documents)
     .innerJoin(users, eq(users.id, documents.uploadedBy))
@@ -341,19 +350,19 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   if (documentIds.length > 0) {
     entityConditions.push(and(eq(auditLog.entityType, "document"), inArray(auditLog.entityId, documentIds)));
   }
-  const timeline = db
-    .select({ id: auditLog.id, at: auditLog.at, action: auditLog.action, actorName: users.displayName, reason: auditLog.reason, after: auditLog.after })
+  const timelineRows = db
+    .select({ id: auditLog.id, at: auditLog.at, action: auditLog.action, actorName: users.displayName, reason: auditLog.reason, after: auditLog.after, undoOf: auditLog.undoOf })
     .from(auditLog)
     .leftJoin(users, eq(users.id, auditLog.actorUserId))
     .where(or(...entityConditions))
     .orderBy(desc(auditLog.at), desc(auditLog.id))
     .all()
-    .map(({ after, ...event }) => {
-      const flags = (after ?? {}) as { duplicateConfirmed?: boolean; dryRun?: boolean };
+    .map(({ after, undoOf, ...event }) => {
+      const flags = (after ?? {}) as { duplicateConfirmed?: boolean; dryRun?: boolean; undoneAction?: string };
       const notes: TimelineEvent["notes"] = [];
       if (flags.duplicateConfirmed) notes.push("duplicateConfirmed");
       if (flags.dryRun) notes.push("dryRun");
-      return { ...event, notes };
+      return { ...event, notes, undoOf, undoOfAction: undoOf !== null ? (flags.undoneAction ?? null) : null };
     });
 
   const template = db.select({ id: agencies.formTemplateDocumentId }).from(agencies).where(eq(agencies.id, found.bl.agencyId)).get();
@@ -369,6 +378,10 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
       OVERRIDABLE_SETTING_KEYS.map((key) => [key, getSetting(key, { agencyId: found.bl.agencyId }, db)]),
     ) as Record<OverridableSettingKey, number>,
   };
+
+  const undone = new Set(timelineRows.map((e) => e.undoOf).filter((id) => id !== null));
+  const undoable = undoableAuditIds(db, actor, timelineRows.filter((e) => !undone.has(e.id)).map((e) => e.id), now);
+  const timeline: TimelineEvent[] = timelineRows.map(({ undoOf: _undoOf, ...event }) => ({ ...event, undoable: undoable.has(event.id), undone: undone.has(event.id) }));
 
   const allocations = db
     .select({ allocation: refundAllocations, valueDate: refunds.valueDate, currency: refunds.currency, confirmedByName: users.displayName })
@@ -416,7 +429,12 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
     .all()
     .map((r) => r.emailId)
     .filter((id): id is number => id !== null);
-  const linkedIds = db.select({ emailId: emailBlLinks.emailId }).from(emailBlLinks).where(eq(emailBlLinks.blId, blId)).all().map((l) => l.emailId);
+  const linkedIds = db
+    .select({ emailId: emailBlLinks.emailId })
+    .from(emailBlLinks)
+    .where(and(eq(emailBlLinks.blId, blId), isNull(emailBlLinks.unlinkedAt)))
+    .all()
+    .map((l) => l.emailId);
   const ids = [...new Set([...sentIds, ...linkedIds])];
   if (ids.length === 0) return [];
   const files = db
@@ -445,7 +463,15 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
 
 function blReplies(db: DbOrTx, blId: number): BlReply[] {
   return db
-    .select({ id: replies.id, typeName: replyTypes.name, repliedOn: replies.repliedOn, byName: users.displayName, emailId: replies.emailId, note: replies.note })
+    .select({
+      id: replies.id,
+      typeName: replyTypes.name,
+      repliedOn: replies.repliedOn,
+      byName: users.displayName,
+      emailId: replies.emailId,
+      note: replies.note,
+      undone: sql<boolean>`${replies.undoneAt} IS NOT NULL`.mapWith(Boolean),
+    })
     .from(replies)
     .innerJoin(replyTypes, eq(replyTypes.id, replies.replyTypeId))
     .innerJoin(users, eq(users.id, replies.createdBy))

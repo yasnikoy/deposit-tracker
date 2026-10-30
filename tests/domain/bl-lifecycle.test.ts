@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InvalidTransitionError, nextStatus, statusAfterReversal } from "@/domain/bl-lifecycle";
+import { InvalidTransitionError, nextStatus, statusAfterReversal, statusAfterUndo } from "@/domain/bl-lifecycle";
 
 describe("refund request sent (email sent or portal request recorded)", () => {
   it("moves a paid B/L to REQUESTED and brings an awaiting-return B/L back to REQUESTED", () => {
@@ -105,5 +105,29 @@ describe("allocation reversal (admin)", () => {
   it("only applies to statuses an allocation leads to, back to a status that takes allocations", () => {
     expect(() => statusAfterReversal("REQUESTED", "REQUESTED")).toThrow(InvalidTransitionError);
     expect(() => statusAfterReversal("COLLECTED", "PAID")).toThrow(InvalidTransitionError);
+  });
+});
+
+describe("undo of an action that moved the B/L (within the undo window)", () => {
+  it("returns a 'not yet returned' reply or a settling statement to the status before it", () => {
+    expect(statusAfterUndo({ current: "AWAITING_RETURN", before: "REQUESTED", after: "AWAITING_RETURN" })).toBe("REQUESTED");
+    expect(statusAfterUndo({ current: "COLLECTED", before: "AWAITING_RETURN", after: "COLLECTED" })).toBe("AWAITING_RETURN");
+  });
+
+  it("changes nothing when the action did not move the B/L", () => {
+    expect(statusAfterUndo({ current: "AWAITING_RETURN", before: "AWAITING_RETURN", after: "AWAITING_RETURN" })).toBe("AWAITING_RETURN");
+  });
+
+  it("is rejected once the B/L moved on, and never undoes allocations, disputes or write-offs", () => {
+    expect(() => statusAfterUndo({ current: "REQUESTED", before: "REQUESTED", after: "AWAITING_RETURN" })).toThrow(InvalidTransitionError);
+    expect(() => statusAfterUndo({ current: "COLLECTED", before: "REQUESTED", after: "COLLECTED", })).not.toThrow();
+    for (const [before, after] of [
+      ["REQUESTED", "DEDUCTION_OPEN"],
+      ["DEDUCTION_OPEN", "DISPUTED"],
+      ["DISPUTED", "COLLECTED"],
+      ["PAID", "REQUESTED"],
+    ] as const) {
+      expect(() => statusAfterUndo({ current: after, before, after })).toThrow(InvalidTransitionError);
+    }
   });
 });

@@ -56,13 +56,13 @@ function linkStates(db: DbOrTx, emailIds?: number[]): LinkState[] {
     .select({ emailId: emailBlLinks.emailId, blId: emailBlLinks.blId, blNo: billsOfLading.blNo, voidedAt: billsOfLading.voidedAt })
     .from(emailBlLinks)
     .innerJoin(billsOfLading, eq(billsOfLading.id, emailBlLinks.blId))
-    .where(emailIds ? inArray(emailBlLinks.emailId, emailIds) : undefined)
+    .where(and(isNull(emailBlLinks.unlinkedAt), emailIds ? inArray(emailBlLinks.emailId, emailIds) : undefined))
     .all();
   const recorded = new Set(
     db
       .select({ emailId: replies.emailId, blId: replies.blId })
       .from(replies)
-      .where(isNotNull(replies.emailId))
+      .where(and(isNotNull(replies.emailId), isNull(replies.undoneAt)))
       .all()
       .map((r) => `${r.emailId}:${r.blId}`),
   );
@@ -185,13 +185,13 @@ export function getReplyDetail(db: DbOrTx, actor: AuthUser, emailId: number): Re
     .from(replies)
     .innerJoin(replyTypes, eq(replyTypes.id, replies.replyTypeId))
     .innerJoin(users, eq(users.id, replies.createdBy))
-    .where(eq(replies.emailId, emailId))
+    .where(and(eq(replies.emailId, emailId), isNull(replies.undoneAt)))
     .all();
   const links = db
     .select({ link: emailBlLinks, bl: billsOfLading })
     .from(emailBlLinks)
     .innerJoin(billsOfLading, eq(billsOfLading.id, emailBlLinks.blId))
-    .where(eq(emailBlLinks.emailId, emailId))
+    .where(and(eq(emailBlLinks.emailId, emailId), isNull(emailBlLinks.unlinkedAt)))
     .orderBy(billsOfLading.blNo)
     .all()
     .map(({ link, bl }) => {
@@ -243,33 +243,52 @@ function activeBl(tx: DbOrTx, blId: number): BlRow {
   return bl;
 }
 
-/** Links an incoming email to a B/L; the first link also gives the email its agency. */
-function linkEmail(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, emailId: number, bl: BlRow, source: Exclude<EmailLinkSource, "THREAD">, now: Date) {
+/**
+ * Links an incoming email to a B/L; the first link also gives the email its agency. Returns
+ * the audit row (for undo), or null when the pair was linked already. A link undone earlier
+ * is made again in place (the audit log keeps both steps).
+ */
+function linkEmail(
+  tx: DbOrTx,
+  actor: AuthUser,
+  roleUsed: Role | null,
+  emailId: number,
+  bl: BlRow,
+  source: Exclude<EmailLinkSource, "THREAD">,
+  now: Date,
+): number | null {
   const at = now.toISOString();
-  const exists = tx.select().from(emailBlLinks).where(and(eq(emailBlLinks.emailId, emailId), eq(emailBlLinks.blId, bl.id))).get();
-  if (!exists) tx.insert(emailBlLinks).values({ emailId, blId: bl.id, linkedBy: source, linkedByUser: actor.id, createdAt: at }).run();
+  const row = tx.select().from(emailBlLinks).where(and(eq(emailBlLinks.emailId, emailId), eq(emailBlLinks.blId, bl.id))).get();
+  const exists = !!row && row.unlinkedAt === null;
+  if (!row) tx.insert(emailBlLinks).values({ emailId, blId: bl.id, linkedBy: source, linkedByUser: actor.id, createdAt: at }).run();
+  else if (!exists) {
+    tx.update(emailBlLinks)
+      .set({ linkedBy: source, linkedByUser: actor.id, createdAt: at, unlinkedAt: null, unlinkedBy: null })
+      .where(and(eq(emailBlLinks.emailId, emailId), eq(emailBlLinks.blId, bl.id)))
+      .run();
+  }
   tx.update(emails).set({ agencyId: bl.agencyId }).where(and(eq(emails.id, emailId), eq(emails.direction, "IN"), isNull(emails.agencyId))).run();
   // An open suggestion for the same pair is settled by the link.
   tx.update(emailMatchSuggestions)
     .set({ state: "ACCEPTED", resolvedBy: actor.id, resolvedAt: at })
     .where(and(eq(emailMatchSuggestions.emailId, emailId), eq(emailMatchSuggestions.blId, bl.id), eq(emailMatchSuggestions.state, "OPEN")))
     .run();
-  if (!exists) {
-    writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "email.link", entityType: "bill_of_lading", entityId: bl.id, after: { emailId, source } }, now);
-  }
+  if (exists) return null;
+  return writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "email.link", entityType: "bill_of_lading", entityId: bl.id, after: { emailId, source } }, now);
 }
 
-/** Accepts a possible match with one click: the email is linked to that B/L (rule 6). */
-export function acceptSuggestion(db: Db, actor: AuthUser, input: { emailId: number; blId: number }, now: Date = new Date()): void {
+/** Accepts a possible match with one click: the email is linked to that B/L (rule 6). Returns the audit row for undo. */
+export function acceptSuggestion(db: Db, actor: AuthUser, input: { emailId: number; blId: number }, now: Date = new Date()): number[] {
   const roleUsed = authorize(actor, "email.link");
-  db.transaction((tx) => {
+  return db.transaction((tx) => {
     const suggestion = tx
       .select()
       .from(emailMatchSuggestions)
       .where(and(eq(emailMatchSuggestions.emailId, input.emailId), eq(emailMatchSuggestions.blId, input.blId)))
       .get();
     if (!suggestion || suggestion.state !== "OPEN") throw new DomainError("replies.errors.suggestionGone");
-    linkEmail(tx, actor, roleUsed, input.emailId, activeBl(tx, input.blId), "SUGGESTION", now);
+    const auditId = linkEmail(tx, actor, roleUsed, input.emailId, activeBl(tx, input.blId), "SUGGESTION", now);
+    return auditId === null ? [] : [auditId];
   });
 }
 
@@ -295,14 +314,14 @@ function hasSentRequest(tx: DbOrTx, blId: number): boolean {
     .get();
 }
 
-/** Records one reply on a B/L and applies the lifecycle (only "not yet returned" moves it). */
+/** Records one reply on a B/L and applies the lifecycle (only "not yet returned" moves it); returns the audit row. */
 function recordReply(
   tx: DbOrTx,
   actor: AuthUser,
   roleUsed: Role,
   input: { bl: BlRow; replyTypeId: number; repliedOn: IsoDate; emailId: number | null; note: string | null },
   now: Date,
-): void {
+): number {
   const { bl } = input;
   const type = tx.select().from(replyTypes).where(eq(replyTypes.id, input.replyTypeId)).get();
   if (!type || !type.active) throw new DomainError("replies.errors.replyType");
@@ -333,7 +352,7 @@ function recordReply(
     .returning()
     .get();
   if (status !== bl.status) tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
-  writeAudit(
+  return writeAudit(
     tx,
     {
       actorUserId: actor.id,
@@ -352,30 +371,37 @@ function recordReply(
 /**
  * Records a reply type for linked B/Ls of incoming emails: one B/L, "apply to all" of an
  * email, or a bulk action over several emails. All or nothing; the reply date is the day the
- * email arrived.
+ * email arrived. Returns the audit rows, one per B/L, for undo.
  */
 export function recordEmailReplies(
   db: Db,
   actor: AuthUser,
   input: { items: { emailId: number; blId: number }[]; replyTypeId: number },
   now: Date = new Date(),
-): number {
+): number[] {
   const roleUsed = authorize(actor, "reply.record")!;
   return db.transaction((tx) => {
     const seen = new Set<string>();
+    const auditIds: number[] = [];
     for (const item of input.items) {
       const key = `${item.emailId}:${item.blId}`;
       if (seen.has(key)) continue;
       seen.add(key);
       const link = tx.select().from(emailBlLinks).where(and(eq(emailBlLinks.emailId, item.emailId), eq(emailBlLinks.blId, item.blId))).get();
-      if (!link) throw new DomainError("replies.errors.notLinked");
+      if (!link || link.unlinkedAt) throw new DomainError("replies.errors.notLinked");
       const bl = activeBl(tx, item.blId);
-      const done = tx.select({ id: replies.id }).from(replies).where(and(eq(replies.emailId, item.emailId), eq(replies.blId, item.blId))).get();
+      const done = tx
+        .select({ id: replies.id })
+        .from(replies)
+        .where(and(eq(replies.emailId, item.emailId), eq(replies.blId, item.blId), isNull(replies.undoneAt)))
+        .get();
       if (done) throw new DomainError("replies.errors.alreadyRecorded", { bl: bl.blNo });
       const email = tx.select({ receivedAt: emails.receivedAt }).from(emails).where(eq(emails.id, item.emailId)).get()!;
-      recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: istanbulToday(new Date(email.receivedAt!)), emailId: item.emailId, note: null }, now);
+      auditIds.push(
+        recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: istanbulToday(new Date(email.receivedAt!)), emailId: item.emailId, note: null }, now),
+      );
     }
-    return seen.size;
+    return auditIds;
   });
 }
 
@@ -385,13 +411,13 @@ export function recordReplyWithoutEmail(
   actor: AuthUser,
   input: { blId: number; replyTypeId: number; repliedOn: IsoDate; note: string | null },
   now: Date = new Date(),
-): void {
+): number[] {
   const roleUsed = authorize(actor, "reply.record")!;
-  db.transaction((tx) => {
+  return db.transaction((tx) => {
     const bl = activeBl(tx, input.blId);
     if (input.repliedOn > istanbulToday(now)) throw new DomainError("replies.errors.futureDate");
     if (input.repliedOn < bl.paidAt) throw new DomainError("replies.errors.beforePayment");
-    recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: input.repliedOn, emailId: null, note: input.note }, now);
+    return [recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: input.repliedOn, emailId: null, note: input.note }, now)];
   });
 }
 
@@ -415,7 +441,7 @@ export async function searchMailboxForBl(
       ? db
           .select({ emailId: emailBlLinks.emailId })
           .from(emailBlLinks)
-          .where(and(eq(emailBlLinks.blId, input.blId), inArray(emailBlLinks.emailId, stored.map((s) => s.id))))
+          .where(and(eq(emailBlLinks.blId, input.blId), isNull(emailBlLinks.unlinkedAt), inArray(emailBlLinks.emailId, stored.map((s) => s.id))))
           .all()
           .map((l) => l.emailId)
       : [],
@@ -439,7 +465,7 @@ export async function linkMailboxMessage(
   mailbox: Mailbox | null,
   input: { blId: number; uid: number; uidValidity: string },
   now: Date = new Date(),
-): Promise<number> {
+): Promise<number[]> {
   const roleUsed = authorize(actor, "email.link");
   if (!mailbox) throw new DomainError("replies.errors.noMailbox");
   const message = await mailbox.fetch(input.uid, input.uidValidity);
@@ -451,7 +477,7 @@ export async function linkMailboxMessage(
     const email = tx.select({ direction: emails.direction }).from(emails).where(eq(emails.id, result.emailId)).get()!;
     // Our own sent emails already belong to their B/Ls through their requests.
     if (email.direction !== "IN") throw new DomainError("replies.errors.ownEmail");
-    linkEmail(tx, actor, roleUsed, result.emailId, bl, "MANUAL", now);
-    return result.emailId;
+    const auditId = linkEmail(tx, actor, roleUsed, result.emailId, bl, "MANUAL", now);
+    return auditId === null ? [] : [auditId];
   });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
@@ -8,6 +8,7 @@ import { BlStatusBadge } from "@/components/bl-status-badge";
 import { OverridesEditor } from "@/components/overrides-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { isTranslationKey, t } from "@/i18n";
 import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
@@ -17,6 +18,7 @@ import { EvidenceDrop } from "../../accounting/evidence-drop";
 import { BalanceStrip } from "../balance-strip";
 import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
 import { updateBlOverridesAction } from "../../requests/actions";
+import { undoAction } from "../../undo-actions";
 import { FormSection } from "../form-section";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
 import type { DeductionTypeOption } from "../deduction-dialog";
@@ -168,7 +170,7 @@ export function BlDetailScreen({
           ) : (
             <ul className="flex flex-col gap-1">
               {documents.map((doc) => (
-                <li key={doc.id} className="flex items-center gap-2">
+                <li key={doc.id} className={cn("flex items-center gap-2", doc.withdrawn && "text-muted-foreground line-through")} title={doc.withdrawn ? t("undo.undone") : undefined}>
                   <a href={`/api/files/${doc.id}`} target="_blank" rel="noreferrer" className="underline">
                     {doc.originalName}
                   </a>
@@ -187,8 +189,27 @@ export function BlDetailScreen({
           ) : (
             <ol className="flex flex-col gap-2 border-l pl-4">
               {timeline.map((event) => (
-                <li key={event.id}>
-                  <div>{actionLabel(event.action)}</div>
+                <li key={event.id} className={cn(event.undone && "text-muted-foreground")}>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(event.undone && "line-through")}>
+                      {event.undoOfAction ? t("undo.timeline", { action: actionLabel(event.undoOfAction) }) : actionLabel(event.action)}
+                    </span>
+                    {event.undoable && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={async () => {
+                          const result = await undoAction({ auditIds: [event.id] });
+                          if (!result.ok) return void toast.error(t(result.error, result.params));
+                          toast.success(t("undo.done"));
+                          router.refresh();
+                        }}
+                      >
+                        <Undo2 className="size-3.5" /> {t("undo.action")}
+                      </Button>
+                    )}
+                  </div>
                   <div className="text-muted-foreground text-xs">
                     {formatTimestamp(event.at)} · {event.actorName ?? t("timeline.system")}
                   </div>

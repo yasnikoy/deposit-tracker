@@ -241,7 +241,7 @@ describe("recording reply types", () => {
     const { emailId, agencyMessageId } = await importedReply([a, b]);
 
     expect(() => recordEmailReplies(db, acc, { items: [{ emailId, blId: a }], replyTypeId: typeId("NOT_RETURNED") }, NOW)).toThrow(ForbiddenError);
-    expect(recordEmailReplies(db, ops, { items: [{ emailId, blId: a }, { emailId, blId: b }], replyTypeId: typeId("NOT_RETURNED") }, NOW)).toBe(2);
+    expect(recordEmailReplies(db, ops, { items: [{ emailId, blId: a }, { emailId, blId: b }], replyTypeId: typeId("NOT_RETURNED") }, NOW)).toHaveLength(2);
     expect([status(a), status(b)]).toEqual(["AWAITING_RETURN", "AWAITING_RETURN"]);
     expect(() => recordEmailReplies(db, ops, { items: [{ emailId, blId: a }], replyTypeId: typeId("INFO") }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "replies.errors.alreadyRecorded" }),
@@ -309,7 +309,8 @@ describe("manual link from the B/L detail", () => {
 
     const found = await searchMailboxForBl(db, ops, mailbox, { blId: p, from: "portal.example", subject: "Başvuru" });
     expect(found.results.map((r) => r.subject)).toEqual(["Başvurunuz alındı"]);
-    const emailId = await linkMailboxMessage(db, ops, mailbox, { blId: p, uid: found.results[0].uid, uidValidity: found.uidValidity }, NOW);
+    expect(await linkMailboxMessage(db, ops, mailbox, { blId: p, uid: found.results[0].uid, uidValidity: found.uidValidity }, NOW)).toHaveLength(1);
+    const emailId = (await searchMailboxForBl(db, ops, mailbox, { blId: p, from: "", subject: "" })).results[0].emailId!;
     expect(getReplyDetail(db, ops, emailId).links[0]).toMatchObject({ blNo: "PRTL1000001", linkedBy: "MANUAL" });
     expect((await searchMailboxForBl(db, ops, mailbox, { blId: p, from: "", subject: "" })).results[0]).toMatchObject({ emailId, linked: true });
     await expect(searchMailboxForBl(db, acc, mailbox, { blId: p, from: "", subject: "" })).rejects.toThrow(ForbiddenError);

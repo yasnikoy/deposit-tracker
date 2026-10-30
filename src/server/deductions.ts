@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { blBalance } from "@/domain/balances";
 import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { istanbulToday } from "@/domain/business-days";
@@ -76,7 +76,7 @@ function statementDocument(tx: DbOrTx, actor: AuthUser, bl: BlRow, documentId: n
     .select({ documentId: emailAttachments.documentId })
     .from(emailAttachments)
     .innerJoin(emailBlLinks, eq(emailBlLinks.emailId, emailAttachments.emailId))
-    .where(and(eq(emailAttachments.documentId, documentId), eq(emailBlLinks.blId, bl.id)))
+    .where(and(eq(emailAttachments.documentId, documentId), eq(emailBlLinks.blId, bl.id), isNull(emailBlLinks.unlinkedAt)))
     .get();
   if (!fromLinkedEmail) throw new DomainError("deductions.errors.statementDocument");
   return documentId;
@@ -88,9 +88,9 @@ function statementDocument(tx: DbOrTx, actor: AuthUser, bl: BlRow, documentId: n
  * the status does not change. When they take the whole deposit (e.g. the agency applied it to
  * one of its invoices), the balance is closed and the B/L is collected without a refund.
  */
-export function recordStatementDeductions(db: Db, actor: AuthUser, input: RecordStatementDeductionsInput, now: Date = new Date()): void {
+export function recordStatementDeductions(db: Db, actor: AuthUser, input: RecordStatementDeductionsInput, now: Date = new Date()): number[] {
   const roleUsed = authorize(actor, "deduction.record");
-  db.transaction((tx) => {
+  return db.transaction((tx) => {
     const bl = activeBl(tx, input.blId);
     if (!BEFORE_PAYMENT.includes(bl.status as StoredBlStatus)) throw new DomainError("deductions.errors.statementStatus", { bl: bl.blNo });
     const types = realTypes(tx, input.lines);
@@ -101,7 +101,7 @@ export function recordStatementDeductions(db: Db, actor: AuthUser, input: Record
     }
     const documentId = statementDocument(tx, actor, bl, input.documentId);
     const entryDate = istanbulToday(now);
-    input.lines.forEach((line, i) =>
+    const entries = input.lines.map((line, i) =>
       addLedgerEntry(
         tx,
         {
@@ -122,7 +122,7 @@ export function recordStatementDeductions(db: Db, actor: AuthUser, input: Record
       status = nextStatus(status, "STATEMENT_SETTLED");
       tx.update(billsOfLading).set({ status, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
     }
-    writeAudit(
+    const auditId = writeAudit(
       tx,
       {
         actorUserId: actor.id,
@@ -135,11 +135,14 @@ export function recordStatementDeductions(db: Db, actor: AuthUser, input: Record
           status,
           expectedMinor: before.expectedMinor - total,
           documentId,
+          // The entries an undo compensates.
+          entryIds: entries.map((e) => e.id),
           lines: input.lines.map((l, i) => ({ deductionType: types[i].name, amountMinor: l.amountMinor })),
         },
       },
       now,
     );
+    return [auditId];
   });
 }
 

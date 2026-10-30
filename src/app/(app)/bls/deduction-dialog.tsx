@@ -2,6 +2,7 @@
 
 import { Plus, X } from "lucide-react";
 import { useState, type FormEvent } from "react";
+import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
@@ -63,13 +64,18 @@ export function DeductionDialog({
     if (disputed && !note.trim()) return setError(t("deductions.errors.clearNote"));
     const payload = lines.map((l, i) => ({ deductionTypeId: l.deductionTypeId!, amountMinor: parsed[i]! }));
     setBusy(true);
-    const result =
-      target.mode === "CLASSIFY"
-        ? await classifyDeductionAction({ entryId: target.entryId, lines: payload, documentId, note })
-        : await recordStatementDeductionsAction({ blId: bl.id, documentId, lines: payload });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    toast.success(t(classify ? "deductions.classified" : "deductions.recorded"));
+    if (target.mode === "CLASSIFY") {
+      const result = await classifyDeductionAction({ entryId: target.entryId, lines: payload, documentId, note });
+      setBusy(false);
+      if (!result.ok) return setError(t(result.error, result.params));
+      toast.success(t("deductions.classified"));
+    } else {
+      // Statement deductions can be undone within the window.
+      const result = await recordStatementDeductionsAction({ blId: bl.id, documentId, lines: payload });
+      setBusy(false);
+      if (!result.ok) return setError(t(result.error, result.params));
+      toastWithUndo(t("deductions.recorded"), result.data, onDone);
+    }
     onDone();
   };
 

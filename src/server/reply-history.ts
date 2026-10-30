@@ -1,5 +1,5 @@
 import "server-only";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { IsoDate } from "@/domain/business-days";
 import { countsAsAnswer } from "@/domain/replies";
 import type { DbOrTx } from "./db/client";
@@ -20,7 +20,7 @@ export function replyHistory(db: DbOrTx, blIds: number[]): Map<number, ReplyHist
     .select({ blId: replies.blId, id: replies.id, repliedOn: replies.repliedOn, replyTypeId: replyTypes.id, typeName: replyTypes.name, code: replyTypes.code })
     .from(replies)
     .innerJoin(replyTypes, eq(replyTypes.id, replies.replyTypeId))
-    .where(inArray(replies.blId, blIds))
+    .where(and(inArray(replies.blId, blIds), isNull(replies.undoneAt)))
     .all()
     .sort((a, b) => a.repliedOn.localeCompare(b.repliedOn) || a.id - b.id);
   for (const row of rows) {

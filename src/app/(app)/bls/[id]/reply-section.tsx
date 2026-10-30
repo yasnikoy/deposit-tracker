@@ -4,7 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { toastWithUndo } from "@/components/undo-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -105,7 +105,7 @@ export function ReplySection({
         ) : (
           <ul className="flex flex-col gap-1">
             {detail.replies.map((reply) => (
-              <li key={reply.id}>
+              <li key={reply.id} className={reply.undone ? "text-muted-foreground line-through" : undefined} title={reply.undone ? t("undo.undone") : undefined}>
                 <span className="font-medium">{reply.typeName}</span> · {formatBusinessDate(reply.repliedOn)}
                 <span className="text-muted-foreground text-xs">
                   {" "}
@@ -151,7 +151,7 @@ function RecordReplyDialog({
     const result = await recordReplyWithoutEmailAction({ blId, replyTypeId, repliedOn, note });
     setBusy(false);
     if (!result.ok) return setError(t(result.error, result.params));
-    toast.success(t("blReplies.recorded"));
+    toastWithUndo(t("blReplies.recorded"), result.data, onDone);
     onDone();
   };
 
@@ -230,7 +230,7 @@ function MailboxLinkDialog({ blId, onCancel, onDone }: { blId: number; onCancel:
     const result = await linkMailboxMessageAction({ blId, uid, uidValidity: found.uidValidity });
     setBusy(false);
     if (!result.ok) return setError(t(result.error, result.params));
-    toast.success(t("replies.linked"));
+    toastWithUndo(t("replies.linked"), result.data, onDone);
     onDone();
   };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,7 @@ export function EditBlDialog({ bl, onCancel, onSaved }: { bl: EditableBl; onCanc
       const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
       return setError(t(field ?? result.error, result.params));
     }
-    toast.success(t("bls.updated"));
+    toastWithUndo(t("bls.updated"), result.data, onSaved);
     onSaved();
   };
 

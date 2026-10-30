@@ -161,9 +161,9 @@ const containerNumbers = (tx: DbOrTx, blId: number) =>
     .map((c) => c.containerNo);
 
 /** Edits the B/L number (only before any request is sent) and the container list. */
-export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: string; containers: string[] }, now: Date = new Date()): void {
+export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: string; containers: string[] }, now: Date = new Date()): number[] {
   const roleUsed = authorize(actor, "bl.update");
-  db.transaction((tx) => {
+  return db.transaction((tx) => {
     const bl = requireBl(tx, input.id);
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     const beforeContainers = containerNumbers(tx, bl.id);
@@ -180,7 +180,7 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
         tx.insert(containers).values(input.containers.map((containerNo) => ({ blId: bl.id, containerNo }))).run();
       }
     }
-    writeAudit(
+    const auditId = writeAudit(
       tx,
       {
         actorUserId: actor.id,
@@ -193,6 +193,7 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
       },
       now,
     );
+    return [auditId];
   });
 }
 

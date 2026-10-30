@@ -4,6 +4,7 @@ import { Download, ExternalLink, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
@@ -341,7 +342,7 @@ function FormCell({ row, editable }: { row: DueRow; editable: boolean }) {
           if (!upload.response.document) return;
           const result = await uploadBlFormAction({ blId: row.blId, documentId: upload.response.document.id });
           if (!result.ok) return void toast.error(t(result.error, result.params));
-          toast.success(t("forms.formUploaded"));
+          toastWithUndo(t("forms.formUploaded"), result.data, () => router.refresh());
           router.refresh();
         }}
       />

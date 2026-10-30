@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { blBalance } from "@/domain/balances";
 import { renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import type { RequestKind } from "@/domain/due-requests";
@@ -81,7 +81,7 @@ function lastThread(tx: DbOrTx, blId: number, type: RequestType): ThreadEmail | 
     .select(fields)
     .from(emailBlLinks)
     .innerJoin(emails, eq(emails.id, emailBlLinks.emailId))
-    .where(and(eq(emailBlLinks.blId, blId), eq(emails.direction, "IN")))
+    .where(and(eq(emailBlLinks.blId, blId), isNull(emailBlLinks.unlinkedAt), eq(emails.direction, "IN")))
     .orderBy(desc(emails.receivedAt), desc(emails.id))
     .get();
   const statementReply = type === "DEDUCTION_STATEMENT" && received && sent?.sentAt && received.receivedAt! > sent.sentAt;

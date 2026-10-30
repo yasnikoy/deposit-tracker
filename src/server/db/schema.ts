@@ -270,9 +270,13 @@ export const documents = sqliteTable(
     // Null for files the app imported from the mailbox (email attachments, raw messages).
     uploadedBy: integer("uploaded_by").references(() => users.id),
     uploadedAt: timestamp("uploaded_at").notNull(),
+    // An undone upload (rule 17): the file stays, but no longer counts (e.g. as the current form).
+    withdrawnAt: timestamp("withdrawn_at"),
+    withdrawnBy: integer("withdrawn_by").references(() => users.id),
   },
   (t) => [
     check("documents_kind", sql`${t.kind} IN (${sqlList(DOCUMENT_KINDS)})`),
+    check("documents_withdrawn", sql`(${t.withdrawnAt} IS NULL) = (${t.withdrawnBy} IS NULL)`),
     check("documents_owner", sql`(${t.ownerType} IS NULL) = (${t.ownerId} IS NULL)`),
     check("documents_size", sql`${t.sizeBytes} > 0`),
     uniqueIndex("documents_stored_path_unique").on(t.storedPath),
@@ -658,9 +662,13 @@ export const emailBlLinks = sqliteTable(
     // Null for thread links, which the mailbox poller makes.
     linkedByUser: integer("linked_by_user").references(() => users.id),
     createdAt: timestamp("created_at").notNull(),
+    // An undone link by hand (rule 17); linking the pair again clears it.
+    unlinkedAt: timestamp("unlinked_at"),
+    unlinkedBy: integer("unlinked_by").references(() => users.id),
   },
   (t) => [
     primaryKey({ columns: [t.emailId, t.blId] }),
+    check("email_bl_links_unlinked", sql`(${t.unlinkedAt} IS NULL) = (${t.unlinkedBy} IS NULL) AND (${t.unlinkedAt} IS NULL OR ${t.linkedBy} <> 'THREAD')`),
     check("email_bl_links_linked_by", sql`${t.linkedBy} IN (${sqlList(EMAIL_LINK_SOURCES)})`),
     check("email_bl_links_user", sql`(${t.linkedBy} = 'THREAD') = (${t.linkedByUser} IS NULL)`),
     index("email_bl_links_bl").on(t.blId),
@@ -715,11 +723,15 @@ export const replies = sqliteTable(
       .references(() => users.id),
     roleUsed: text("role_used", { enum: ROLES }).notNull(),
     createdAt: timestamp("created_at").notNull(),
+    // An undone reply (rule 17) stays in the history but counts for nothing.
+    undoneAt: timestamp("undone_at"),
+    undoneBy: integer("undone_by").references(() => users.id),
   },
   (t) => [
     check("replies_replied_on", sql`${t.repliedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
     check("replies_role_used", sql`${t.roleUsed} IN (${roleList})`),
-    uniqueIndex("replies_email_bl_unique").on(t.emailId, t.blId).where(sql`${t.emailId} IS NOT NULL`),
+    check("replies_undone", sql`(${t.undoneAt} IS NULL) = (${t.undoneBy} IS NULL)`),
+    uniqueIndex("replies_email_bl_unique").on(t.emailId, t.blId).where(sql`${t.emailId} IS NOT NULL AND ${t.undoneAt} IS NULL`),
     index("replies_bl").on(t.blId),
   ],
 );

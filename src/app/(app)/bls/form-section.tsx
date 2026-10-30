@@ -3,6 +3,7 @@
 import { Download } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,7 @@ export function FormSection({ blId, form, editable }: { blId: number; form: BlDe
               if (!upload.response.document) return;
               const result = await uploadBlFormAction({ blId, documentId: upload.response.document.id });
               if (!result.ok) return setError(t(result.error, result.params));
-              toast.success(t("forms.formUploaded"));
+              toastWithUndo(t("forms.formUploaded"), result.data, () => router.refresh());
               router.refresh();
             }}
           />

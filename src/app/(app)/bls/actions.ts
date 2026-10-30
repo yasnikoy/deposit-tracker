@@ -19,7 +19,7 @@ export async function createBlsAction(input: unknown): Promise<ActionResult<Crea
   return runAction(createBlsSchema, input, (data) => createBls(getDb(), user, data.rows));
 }
 
-export async function updateBlAction(input: unknown): Promise<ActionResult<void>> {
+export async function updateBlAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(updateBlSchema, input, (data) => updateBl(getDb(), user, data));
 }
@@ -39,12 +39,12 @@ export async function generateBlFormAction(input: unknown): Promise<ActionResult
   return runAction(generateFormSchema, input, (data) => generateBlForm(getDb(), user, data));
 }
 
-export async function uploadBlFormAction(input: unknown): Promise<ActionResult<void>> {
+export async function uploadBlFormAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(uploadFormSchema, input, (data) => uploadBlForm(getDb(), user, data));
 }
 
-export async function recordStatementDeductionsAction(input: unknown): Promise<ActionResult<void>> {
+export async function recordStatementDeductionsAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(recordStatementDeductionsSchema, input, (data) => recordStatementDeductions(getDb(), user, data));
 }

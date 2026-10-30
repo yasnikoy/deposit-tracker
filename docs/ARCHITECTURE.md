@@ -52,7 +52,7 @@ These choices are fixed for v1 so implementation can start without further debat
 | Testing | Vitest for unit and domain tests; Playwright for a small set of end-to-end flows (create B/L, send request, allocate refund, bulk reply) |
 | Logging | pino structured logs to daily rotating files in the data folder, kept 30 days; streams run in-process (no worker-thread transports) so the standalone build is self-contained |
 | Rendering | Next.js Cache Components are off: every screen is session-bound and shows live data, so pages render dynamically on each request |
-| Versioning | Semantic Versioning, with `package.json` as the single source. 0.x during the build (0.6.0 = build step 6, 0.7.0 = step 7, …); 1.0.0 at go-live, once this document is implemented. From then on MAJOR = an update that needs manual steps or breaks compatibility, MINOR = new features, PATCH = fixes only. `pnpm version minor\|patch` raises it and tags the commit (`v0.7.0`). The version is shown in the app header and written to the log at every start; from build step 8 also on the health page and in the portable zip's name (`deposit-tracker-<version>-win-x64.zip`). The change log of this document serves as release notes |
+| Versioning | Semantic Versioning, with `package.json` as the single source. 0.x during the build (0.6.0 = build step 6, 0.7.0 = step 7, …; a later part of a step raises the patch number, e.g. 0.6.1 = step 6c); 1.0.0 at go-live, once this document is implemented. From then on MAJOR = an update that needs manual steps or breaks compatibility, MINOR = new features, PATCH = fixes only. `pnpm version minor\|patch` raises it and tags the commit (`v0.7.0`). The version is shown in the app header and written to the log at every start; from build step 8 also on the health page and in the portable zip's name (`deposit-tracker-<version>-win-x64.zip`). The change log of this document serves as release notes |
 | Packaging | pnpm for development. `pnpm build:portable` produces one zip: a portable Node.js runtime, the Next.js standalone build with prebuilt native modules for Windows x64, and start/stop/backup/create-admin `.cmd` scripts |
 
 ## Roles and permissions
@@ -89,6 +89,7 @@ A B/L moves from payment through repeated requests to collection; it is closed o
 | `DISPUTED` | `COLLECTED` | Difference paid (allocated) or dispute cleared with a note, and the balance closes |
 | any open status | `COLLECTED` | Admin approves a `WRITE_OFF` deduction that closes the balance |
 | `COLLECTED` / `DEDUCTION_OPEN` / `DISPUTED` | status before the allocation | Admin reverses a confirmed allocation; status is recomputed from the remaining history |
+| `AWAITING_RETURN` / `COLLECTED` | status before the action | The user undoes, within the undo window, the *not yet returned* reply or the settling statement deduction that caused the move, while the B/L is still where it left it |
 
 No status change: a failed send, an *approved, payment to follow* reply, a *deduction statement received* reply, deductions recorded from a statement before payment, voiding (a flag, not a status). The stored `status` column never holds `DUE`.
 
@@ -138,11 +139,11 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `standing_documents` | Signature circular and power of attorney; the newest per slot is current | slot (SIGNATURE\_CIRCULAR, POWER\_OF\_ATTORNEY), document\_id, uploaded\_by |
 | `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, …), payload, run\_at, status, attempts, last\_error |
 | `service_status` | Mail server reachability for the outage banner | service (SMTP, IMAP), failing\_since, last\_error, last\_ok\_at |
-| `email_bl_links` | Incoming emails and the B/Ls they concern (outgoing emails reach their B/Ls through `requests`) | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL), linked\_by\_user (null for THREAD) |
+| `email_bl_links` | Incoming emails and the B/Ls they concern (outgoing emails reach their B/Ls through `requests`) | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL), linked\_by\_user (null for THREAD), unlinked\_at/unlinked\_by (undo of a link by hand) |
 | `email_match_suggestions` | Possible matches: an incoming email outside a known thread that names an open B/L | email\_id, bl\_id, state (OPEN, ACCEPTED, DISMISSED), resolved\_by, resolved\_at |
-| `replies` | An agency answer for one B/L, recorded by operations | bl\_id, reply\_type\_id, replied\_on (business date: the day the email arrived, or the date the user gives), email\_id (null for a reply without email), note, created\_by, role\_used. One per email and B/L |
+| `replies` | An agency answer for one B/L, recorded by operations | bl\_id, reply\_type\_id, replied\_on (business date: the day the email arrived, or the date the user gives), email\_id (null for a reply without email), note, created\_by, role\_used, undone\_at/undone\_by (undo). One in effect per email and B/L |
 | `mailbox_state` | How far the poller has read the inbox folder | folder, uid\_validity, last\_uid, last\_polled\_at |
-| `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by (null for files imported from the mailbox) |
+| `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by (null for files imported from the mailbox), withdrawn\_at/withdrawn\_by (an upload taken back by undo) |
 | `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
 | `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at |
 | `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
@@ -345,7 +346,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 Voided records disappear from working lists, balances and reports, remain visible in timelines and the audit log, and can be shown with a "show voided" filter.
 
-**Undo.** A user can undo their own recent action within the undo window: a recorded reply type, a deduction from a statement or shortfall assignment before confirmation, an email-to-B/L link, a note, a form upload, a container edit or an inline field edit. Undo writes a compensating entry and an audit row referencing the original. Confirmed allocations, sent emails, money records, write-offs and settings cannot be undone this way.
+**Undo.** A user can undo their own recent action within the undo window: a recorded reply type, a deduction from a statement, an email-to-B/L link made by hand or by accepting a match, a form upload, a B/L number or container edit, and (build step 7) a note or an inline field edit. The success message offers "Geri al" for a few seconds, and the B/L timeline offers it on the user's own events for the rest of the window. Undo writes a compensating entry or a set-once flag (reply undone, link unlinked, upload withdrawn; nothing is deleted) and an audit row referencing the original; the timeline shows both. It needs the permission of the original action, takes back several rows of one action together (e.g. a bulk reply), and is refused once the B/L moved on: a link with a recorded reply, a form already sent, an edit changed again, a status changed since. A *not yet returned* reply or a statement deduction that closed the B/L returns the B/L to the status before it. Confirmed allocations, sent emails, money records, write-offs, classifications, disputes and settings cannot be undone this way.
 
 **Allocation suggestions.** Candidates are B/Ls of the same agency and currency, with at least one request sent on or before the value date, still open and not voided. Expected amount per B/L = deposit − recorded deductions − already allocated. The engine returns ranked alternatives:
 
@@ -445,6 +446,14 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 30, 2026 — build step 6c (undo), v0.6.1**
+
+- Undo as described under Undo: one server entry point checks ownership, the window setting, the original action's permission and "not undone yet", then runs the compensation registered for that action. Only the listed actions are registered, so rule 17's exclusions hold by construction.
+- Replies, email links and documents gained set-once undo flags; every query of replies or links "in effect" skips undone ones, and the current form skips withdrawn uploads. Linking an unlinked pair again reactivates it (the audit log keeps both steps); an undone accepted match is offered again.
+- Statement deductions record the ledger entries they wrote, so their undo compensates exactly those.
+- Undo of a status change is a lifecycle rule (new table row): back to the status before the action, only from where the action left the B/L, and only for the moves of a *not yet returned* reply or a settling statement.
+- Classifications and disputes are not undoable (they are not in the list); a mistaken one is fixed by an admin reversing the allocation it belongs to, which removes it with the allocation.
 
 **Oct 30, 2026 — deposit receipts may follow later; versioning**
 

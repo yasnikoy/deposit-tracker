@@ -1247,5 +1247,20 @@
       "decided": "Bu silme önerisi için zaten karar verilmiş.",
       "amountChanged": "Öneriden sonra B/L değişti (dağıtım veya kesinti); öneriyi reddedip yeniden önerin."
     }
+  },
+  "undo": {
+    "action": "Geri al",
+    "done": "İşlem geri alındı.",
+    "undone": "Geri alındı",
+    "timeline": "Geri alındı: {action}",
+    "errors": {
+      "notUndoable": "Bu işlem geri alınamaz (iade dağıtımları, gönderilen e-postalar, para kayıtları, silmeler ve ayarlar geri alınmaz).",
+      "notOwn": "Yalnızca kendi işlemlerinizi geri alabilirsiniz.",
+      "alreadyUndone": "Bu işlem zaten geri alınmış.",
+      "expired": "Geri alma süresi ({minutes} dakika) doldu.",
+      "movedOn": "B/L bu işlemden sonra değişti; işlem artık geri alınamaz.",
+      "replyRecorded": "Bu e-posta için yanıt kaydedilmiş; önce yanıtı geri alın.",
+      "formSent": "Bu form bir talep e-postasıyla gönderildi; geri alınamaz."
+    }
   }
 }

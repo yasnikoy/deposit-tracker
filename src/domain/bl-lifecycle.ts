@@ -14,7 +14,8 @@ export type BlEvent =
   | "DEDUCTION_DISPUTED"
   | "DEDUCTION_CLASSIFIED"
   | "DIFFERENCE_PAID"
-  | "WRITE_OFF_APPROVED";
+  | "WRITE_OFF_APPROVED"
+  | "ACTION_UNDONE";
 
 export class InvalidTransitionError extends Error {
   constructor(
@@ -69,6 +70,8 @@ const TRANSITIONS: Record<BlEvent, Partial<Record<StoredBlStatus, StoredBlStatus
     DISPUTED: "COLLECTED",
   },
   // Rule 16: an admin-approved write-off closes the balance of any open B/L.
+  // Handled by statusAfterUndo: the target is the status before the undone action.
+  ACTION_UNDONE: {},
   WRITE_OFF_APPROVED: {
     PAID: "COLLECTED",
     REQUESTED: "COLLECTED",
@@ -92,4 +95,19 @@ export function nextStatus(from: StoredBlStatus, event: BlEvent): StoredBlStatus
   const to = TRANSITIONS[event][from];
   if (!to) throw new InvalidTransitionError(from, event);
   return to;
+}
+
+/** The only status changes an undo may take back (rule 17): a "not yet returned" reply and a settling statement. */
+const UNDOABLE_EVENTS: readonly BlEvent[] = ["NOT_RETURNED_REPLY", "STATEMENT_SETTLED"];
+
+/**
+ * Undo within the window (rule 17): the B/L returns to its status before the action, but only
+ * while it is still where the action left it, and only for a move an undoable event makes.
+ * Status moves of allocations, disputes and write-offs are never undone this way (rule 9).
+ */
+export function statusAfterUndo(s: { current: StoredBlStatus; before: StoredBlStatus; after: StoredBlStatus }): StoredBlStatus {
+  if (s.current !== s.after) throw new InvalidTransitionError(s.current, "ACTION_UNDONE");
+  if (s.before === s.after) return s.current;
+  if (!UNDOABLE_EVENTS.some((event) => TRANSITIONS[event][s.before] === s.after)) throw new InvalidTransitionError(s.current, "ACTION_UNDONE");
+  return s.before;
 }

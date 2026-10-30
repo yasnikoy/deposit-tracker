@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { blBalance } from "@/domain/balances";
@@ -159,16 +159,16 @@ export function generateBlForm(db: Db, actor: AuthUser, input: { blId: number },
  * Attaches the printed, stamped, signed and scanned form to its B/L. A B/L keeps one
  * current form: a newer upload replaces the older one for future requests.
  */
-export function uploadBlForm(db: Db, actor: AuthUser, input: { blId: number; documentId: number }, now: Date = new Date()): void {
+export function uploadBlForm(db: Db, actor: AuthUser, input: { blId: number; documentId: number }, now: Date = new Date()): number[] {
   const roleUsed = authorize(actor, "bl.uploadForm");
-  db.transaction((tx) => {
+  return db.transaction((tx) => {
     const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get();
     if (!bl) throw new DomainError("errors.notFound");
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     const previous = currentBlForm(tx, bl.id);
     const doc = attachDocument(tx, actor, { documentId: input.documentId, kind: "FORM", ownerType: "bill_of_lading", ownerId: bl.id });
     const renames = nameBlDocuments(tx, bl);
-    writeAudit(
+    const auditId = writeAudit(
       tx,
       {
         actorUserId: actor.id,
@@ -181,6 +181,7 @@ export function uploadBlForm(db: Db, actor: AuthUser, input: { blId: number; doc
       },
       now,
     );
+    return [auditId];
   });
 }
 
@@ -189,7 +190,7 @@ export function currentBlForm(tx: DbOrTx, blId: number): StoredDocument | undefi
   return tx
     .select()
     .from(documents)
-    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, blId), eq(documents.kind, "FORM")))
+    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, blId), eq(documents.kind, "FORM"), isNull(documents.withdrawnAt)))
     .orderBy(desc(documents.id))
     .get();
 }

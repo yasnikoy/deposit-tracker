@@ -4,6 +4,7 @@ import { Paperclip } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
+import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable } from "@/components/data-table/data-table";
@@ -126,7 +127,7 @@ export function RepliesScreen({
     const result = await recordEmailRepliesAction({ items, replyTypeId });
     setBusy(false);
     if (!result.ok) return void toast.error(t(result.error, result.params));
-    toast.success(t("replies.recorded", { count: result.data }));
+    toastWithUndo(t("replies.recorded", { count: result.data.length }), result.data, () => void refresh());
     router.refresh();
     if (openId === null) return;
     const fresh = await replyDetailAction({ emailId: openId });
@@ -143,10 +144,17 @@ export function RepliesScreen({
 
   const suggestion = async (action: "accept" | "dismiss", emailId: number, blId: number) => {
     setBusy(true);
-    const result = await (action === "accept" ? acceptSuggestionAction : dismissSuggestionAction)({ emailId, blId });
-    setBusy(false);
-    if (!result.ok) return void toast.error(t(result.error, result.params));
-    toast.success(t(action === "accept" ? "replies.linked" : "replies.dismissed"));
+    if (action === "accept") {
+      const result = await acceptSuggestionAction({ emailId, blId });
+      setBusy(false);
+      if (!result.ok) return void toast.error(t(result.error, result.params));
+      toastWithUndo(t("replies.linked"), result.data, () => void refresh());
+    } else {
+      const result = await dismissSuggestionAction({ emailId, blId });
+      setBusy(false);
+      if (!result.ok) return void toast.error(t(result.error, result.params));
+      toast.success(t("replies.dismissed"));
+    }
     await refresh();
   };
 
