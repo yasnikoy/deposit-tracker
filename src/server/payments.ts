@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import { matchAgencyBySenderName } from "@/domain/agency";
 import { extractBlNumbers } from "@/domain/bl-number";
 import { istanbulToday } from "@/domain/business-days";
@@ -388,22 +388,34 @@ export function attachPaymentEvidence(db: Db, actor: AuthUser, input: { paymentI
   });
 }
 
-/** The receipt (bank) or invoice (offset) of a payment, if attached. */
-export function paymentEvidence(tx: DbOrTx, paymentId: number | null) {
-  if (paymentId === null) return null;
+/**
+ * The receipt (bank) or invoice (offset) of a B/L's deposit, if attached: its payment's, or
+ * for a migrated B/L (opening balance) the one attached to the B/L itself.
+ */
+export function depositEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }) {
+  const fields = { id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind };
+  if (bl.depositPaymentId === null) {
+    return (
+      tx
+        .select(fields)
+        .from(documents)
+        .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
+        .get() ?? null
+    );
+  }
   return (
     tx
-      .select({ id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind })
+      .select(fields)
       .from(depositPayments)
       .innerJoin(documents, eq(documents.id, depositPayments.evidenceDocumentId))
-      .where(eq(depositPayments.id, paymentId))
+      .where(eq(depositPayments.id, bl.depositPaymentId))
       .get() ?? null
   );
 }
 
-/** A B/L whose payment was saved without its receipt or invoice; requests for it warn (rule 12). */
-export function lacksPaymentEvidence(tx: DbOrTx, bl: { depositPaymentId: number | null }): boolean {
-  return bl.depositPaymentId !== null && paymentEvidence(tx, bl.depositPaymentId) === null;
+/** A B/L whose deposit has no receipt or invoice yet; requests for it warn (rule 12). */
+export function lacksPaymentEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): boolean {
+  return depositEvidence(tx, bl) === null;
 }
 
 // ---- Lists ----

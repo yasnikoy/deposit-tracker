@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import tr from "../../src/i18n/tr.json";
 import { E2E_ADMIN } from "./global-setup";
+import { openAdminPage } from "./helpers";
 
 const ACC = { username: "muhasebe", displayName: "Muhasebe Kullanıcısı", temp: "Gecici-sifre-2", final: "Kalici-sifre-2" };
 
@@ -16,7 +17,7 @@ test.describe.configure({ mode: "serial" });
 
 test("admin changes a setting with a reason; invalid values cannot be saved", async ({ page }) => {
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password, E2E_ADMIN.displayName);
-  await page.getByRole("link", { name: tr.nav.settings }).click();
+  await openAdminPage(page, tr.nav.settings);
 
   const durations = page.locator("#durations");
   await durations.getByLabel(tr.settings.keys.durations.firstRequestDueDays.label).fill("10");
@@ -35,7 +36,7 @@ test("admin changes a setting with a reason; invalid values cannot be saved", as
 
 test("admin enters holidays in bulk and the calculator uses them", async ({ page }) => {
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password, E2E_ADMIN.displayName);
-  await page.getByRole("link", { name: tr.nav.holidays }).click();
+  await openAdminPage(page, tr.nav.holidays);
   await page.getByRole("button", { name: tr.holidays.bulk }).click();
 
   const dialog = page.getByRole("dialog");
@@ -116,7 +117,7 @@ test("operations creates an agency; patterns are tested; only admins set overrid
   await page.getByRole("button", { name: tr.auth.changePassword.submit }).click();
   await expect(page.getByText(`Hoş geldiniz, ${ACC.displayName}.`)).toBeVisible();
 
-  await expect(page.getByRole("link", { name: tr.nav.settings })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: tr.nav.admin })).toHaveCount(0);
   await page.getByRole("link", { name: tr.nav.agencies }).click();
   await expect(page.getByRole("button", { name: tr.agencies.new })).toHaveCount(0);
   await page.getByRole("cell", { name: "MSC Türkiye" }).click();

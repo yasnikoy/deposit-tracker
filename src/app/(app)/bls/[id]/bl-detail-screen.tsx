@@ -142,6 +142,13 @@ export function BlDetailScreen({
                     </span>
                   )}
                 </span>
+              ) : detail.openingBalance ? (
+                <span className="flex flex-wrap items-center gap-2">
+                  {t("openingBalances.source")} · {formatMoney(bl.depositMinor, bl.currency)} ·{" "}
+                  <a href={`/api/files/${detail.openingBalance.documentId}`} target="_blank" rel="noreferrer" className="underline">
+                    {detail.openingBalance.originalName}
+                  </a>
+                </span>
               ) : (
                 t("common.none")
               )}

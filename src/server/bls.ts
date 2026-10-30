@@ -24,7 +24,7 @@ export type CreateBlsResult = {
   errors: BlRowError[];
 };
 
-const blNoTaken = (tx: DbOrTx, blNo: string, exceptId?: number) =>
+export const blNoTaken = (tx: DbOrTx, blNo: string, exceptId?: number) =>
   tx
     .select({ id: billsOfLading.id })
     .from(billsOfLading)

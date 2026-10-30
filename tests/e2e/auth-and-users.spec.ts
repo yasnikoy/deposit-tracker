@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import tr from "../../src/i18n/tr.json";
 import { E2E_ADMIN } from "./global-setup";
+import { openAdminPage } from "./helpers";
 
 const OPS = { username: "ayse", displayName: "Ayşe Yılmaz", temp: "Gecici-sifre-1", final: "Kalici-sifre-1" };
 
@@ -30,7 +31,7 @@ test("admin creates a user and the table layout is remembered", async ({ page })
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await expect(page.getByText(`Hoş geldiniz, ${E2E_ADMIN.displayName}.`)).toBeVisible();
 
-  await page.getByRole("link", { name: tr.nav.users }).click();
+  await openAdminPage(page, tr.nav.users);
   await page.getByRole("button", { name: tr.users.new }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(tr.users.username).fill(OPS.username);
@@ -91,7 +92,7 @@ test("a new user must change the temporary password and cannot reach admin pages
   await page.getByRole("button", { name: tr.auth.changePassword.submit }).click();
   await expect(page.getByText(`Hoş geldiniz, ${OPS.displayName}.`)).toBeVisible();
 
-  await expect(page.getByRole("link", { name: tr.nav.users })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: tr.nav.admin })).toHaveCount(0);
   await page.goto("/admin/users");
   await expect(page.getByText(tr.errors.forbidden)).toBeVisible();
   await logout(page);

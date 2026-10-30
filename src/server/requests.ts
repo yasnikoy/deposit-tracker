@@ -52,14 +52,15 @@ export function requestStats(db: DbOrTx, blIds: number[], type: RequestType): Ma
   const stats = new Map<number, RequestStats>();
   if (blIds.length === 0) return stats;
   const rows = db
-    .select({ blId: requests.blId, sendStatus: requests.sendStatus, requestedOn: requests.requestedOn })
+    .select({ blId: requests.blId, sendStatus: requests.sendStatus, requestedOn: requests.requestedOn, attemptNo: requests.attemptNo })
     .from(requests)
     .where(and(inArray(requests.blId, blIds), eq(requests.type, type)))
     .all();
   for (const row of rows) {
     const s = stats.get(row.blId) ?? { attempts: 0, lastRequestOn: null, sending: false };
     if (row.sendStatus === "SENT") {
-      s.attempts++;
+      // The highest attempt sent: an opening balance brings earlier attempts in one row.
+      s.attempts = Math.max(s.attempts, row.attemptNo);
       if (!s.lastRequestOn || row.requestedOn! > s.lastRequestOn) s.lastRequestOn = row.requestedOn;
     }
     if (row.sendStatus === "QUEUED") s.sending = true;

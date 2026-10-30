@@ -50,6 +50,8 @@ const rules = {
   "allocation.view": only("OPERATIONS", "ADMIN"),
   "allocation.confirm": only("OPERATIONS"),
   "allocation.reverse": only("ADMIN"),
+  // Migrated Excel records: the one money record an admin enters (rules 7 and 11).
+  "openingBalance.create": only("ADMIN"),
   // Operations records and disputes deductions; write-offs need an admin approval (rule 16).
   "deduction.record": only("OPERATIONS"),
   "deduction.dispute": only("OPERATIONS"),

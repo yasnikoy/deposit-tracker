@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { DocumentKind } from "@/domain/records";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
@@ -207,10 +207,11 @@ export type DocumentRename = { documentId: number; from: string; to: string };
  * The caller records the returned renames in its audit row.
  */
 export function nameBlDocuments(tx: DbOrTx, bl: { id: number; blNo: string; depositPaymentId: number | null }): DocumentRename[] {
+  // Forms, and the receipt or invoice of a migrated B/L (opening balance), are owned by the B/L.
   const forms = tx
     .select()
     .from(documents)
-    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), eq(documents.kind, "FORM")))
+    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["FORM", "RECEIPT", "INVOICE"])))
     .all();
   const evidence = bl.depositPaymentId
     ? tx

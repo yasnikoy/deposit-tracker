@@ -13,7 +13,7 @@ import { billsOfLading, containers, emailBlLinks, emails, ledgerEntries, request
 import { DomainError } from "../errors";
 import { currentBlForm } from "../forms";
 import { dueEntries, type DueEntry } from "../requests";
-import { lacksPaymentEvidence, paymentEvidence } from "../payments";
+import { depositEvidence, lacksPaymentEvidence } from "../payments";
 import { getSetting } from "../settings";
 import { currentStandingDocuments } from "../standing-documents";
 import { lockForDraft, releaseDraftLocks } from "../draft-locks";
@@ -176,6 +176,8 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
         }
       : { ...lines[0], agency_name: agency.name, signature };
 
+    // A follow-up with nothing to reply to and no portal reference (e.g. a migrated B/L) takes the first-request subject.
+    const subjectTemplate = templateKey === "FOLLOW_UP" && !values.portal_ref ? getEmailTemplate(tx, "REFUND_REQUEST").subject : template.subject;
     const attachments: DraftAttachment[] = group.flatMap((entry) => blAttachments(tx, entry));
     for (const doc of standing) {
       attachments.push({ documentId: doc.documentId, originalName: doc.originalName, sizeBytes: doc.sizeBytes, kind: "STANDING", blNo: null });
@@ -188,7 +190,7 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       to: agency.toRecipients,
       cc: [...new Set([...agency.ccRecipients, ...defaultCc])],
       bcc: defaultBcc,
-      subject: thread ? replySubject(thread.subject) : renderTemplate(template.subject, values),
+      subject: thread ? replySubject(thread.subject) : renderTemplate(subjectTemplate, values),
       body: renderTemplate(template.body, values) + (thread ? quoteOf(tx, thread) : ""),
       thread: thread && { emailId: thread.emailId, messageId: thread.messageId, references: thread.references, subject: thread.subject },
       attachments,
@@ -239,7 +241,7 @@ function blAttachments(tx: DbOrTx, entry: DueEntry): DraftAttachment[] {
   const result: DraftAttachment[] = [];
   const form = currentBlForm(tx, entry.bl.id);
   if (form) result.push({ documentId: form.id, originalName: form.originalName, sizeBytes: form.sizeBytes, kind: "FORM", blNo: entry.bl.blNo });
-  const evidence = paymentEvidence(tx, entry.bl.depositPaymentId);
+  const evidence = depositEvidence(tx, entry.bl);
   if (evidence) {
     result.push({
       documentId: evidence.id,

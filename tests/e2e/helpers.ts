@@ -41,3 +41,9 @@ export async function pickAgency(page: Page, search: string, name: string) {
   await page.getByRole("combobox", { name: tr.payments.agency }).fill(search);
   await page.getByRole("option", { name: new RegExp(name) }).click();
 }
+
+/** Admin pages live in the header's "Yönetim" menu. */
+export async function openAdminPage(page: Page, label: string) {
+  await page.getByRole("button", { name: tr.nav.admin }).click();
+  await page.getByRole("menuitem", { name: label }).click();
+}

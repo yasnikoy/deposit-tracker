@@ -48,7 +48,9 @@
     "unprocessedBadge": "{count} işlenmemiş yanıt",
     "allocations": "İade dağıtımı",
     "writeOffs": "Silme onayları",
-    "writeOffsBadge": "Onay bekleyen {count} silme önerisi"
+    "writeOffsBadge": "Onay bekleyen {count} silme önerisi",
+    "openingBalance": "Açılış bakiyesi",
+    "admin": "Yönetim"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -787,6 +789,9 @@
         "propose": "Silme önerildi",
         "approve": "Silme onaylandı",
         "reject": "Silme reddedildi"
+      },
+      "openingBalance": {
+        "create": "Açılış bakiyesi girildi (Excel'den aktarıldı)"
       }
     },
     "system": "Sistem",
@@ -1261,6 +1266,29 @@
       "movedOn": "B/L bu işlemden sonra değişti; işlem artık geri alınamaz.",
       "replyRecorded": "Bu e-posta için yanıt kaydedilmiş; önce yanıtı geri alın.",
       "formSent": "Bu form bir talep e-postasıyla gönderildi; geri alınamaz."
+    }
+  },
+  "openingBalances": {
+    "title": "Açılış bakiyesi",
+    "hint": "Excel'de takip edilen açık depozitoları, bir sonraki talepleri geldiğinde buradan tek tek aktarın. B/L ödeme kaydı olmadan, açılış bakiyesiyle oluşur; orijinal depozito dekontu (mahsupta fatura) zorunludur. Daha önce yapılan talep sayısı ve son talep tarihiyle takip buradan devam eder.",
+    "receipt": {
+      "BANK": "Orijinal depozito dekontu",
+      "OFFSET": "Mahsup faturası"
+    },
+    "amount": "Depozito tutarı",
+    "pastAttempts": "Şimdiye kadarki talep sayısı",
+    "lastRequestOn": "Son talep tarihi",
+    "attemptsHelp": "Uygulama dışında yapılan iade talepleri. Bir sonraki talep, son talepten takip aralığı kadar sonra gelir ve bir sonraki numarayı alır. Hiç talep yapılmadıysa 0 girin; ilk talep hemen gelir.",
+    "note": "Not (isteğe bağlı)",
+    "notePlaceholder": "ör. Excel satır 14",
+    "save": "Açılış bakiyesini kaydet",
+    "saved": "B/L açılış bakiyesiyle oluşturuldu.",
+    "createdNow": "Bu oturumda oluşturulanlar",
+    "source": "Açılış bakiyesi (Excel'den)",
+    "errors": {
+      "receipt": "Orijinal dekontu (mahsupta faturayı) yükleyin.",
+      "pastAttempts": "0 ile 50 arasında bir sayı girin.",
+      "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır."
     }
   }
 }

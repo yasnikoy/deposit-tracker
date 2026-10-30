@@ -9,7 +9,7 @@ const id = z.number().int().positive();
 
 export const requiredReasonSchema = z.string().trim().min(1, msg("payments.errors.reason")).max(500);
 
-const paymentFields = {
+export const paymentFields = {
   agencyId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.agency")).transform((v) => v as number),
   amountMinor: z
     .number(msg("payments.errors.amount"))

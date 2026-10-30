@@ -398,7 +398,7 @@ Desktop-only, dense tables; a row opens its details in a large centered dialog o
 | Agencies | Operations | Card: name, bank sender aliases, B/L number patterns (with a test field), one recipient list, batch/single sending, request channel and portal link, form template (admin uploads, shows placeholder check), setting overrides with impact preview, open B/Ls, scorecard summary, notes |
 | Accounting | Accountant | New deposit payment (single, or drop several receipts into the review queue), new refund (receipt or invoice mandatory, prefilled from a PDF receipt, duplicate warning). List of own records with status, linked B/L numbers (read-only, copy button), correct and void actions. For dual-role users, saving a payment continues to B/L creation |
 | Reports | All | Aging, agency scorecard, with CSV download |
-| Settings, users | Admin | As in the Settings section, with impact preview; standing documents upload; write-off approvals |
+| Settings, users | Admin | As in the Settings section, with impact preview; standing documents upload; write-off approvals; opening-balance form. The admin pages share one "Yönetim" menu in the header |
 
 ## Operations and deployment
 
@@ -438,7 +438,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Removed after review:** escalation, snooze, auto-confirm of allocations, bank-fee tolerance.
 
-**Migration:** fewer than 50 open Excel records exist. Each is entered by hand through the admin-only opening-balance form when its next request becomes due, using the `OPENING_BALANCE` ledger type, past request count and last request date; the original deposit receipt is mandatory (it is needed for the request anyway). Until then those records stay in the Excel file.
+**Migration:** fewer than 50 open Excel records exist. Each is entered by hand through the admin-only opening-balance form when its next request becomes due, using the `OPENING_BALANCE` ledger type, past request count and last request date; the original deposit receipt is mandatory (it is needed for the request anyway). Until then those records stay in the Excel file. The form (Yönetim → Açılış bakiyesi) creates a B/L without a payment record, attaches the receipt (or, for an offset, the invoice) to the B/L, and records the past requests as one sent request carrying the last attempt number and date; earlier attempts have no row of their own. With no past request the B/L starts as `PAID` (its first request is due at once), otherwise as `REQUESTED`, and follow-ups, replies and allocation continue from there. A follow-up with no earlier email to reply to uses the first-request subject.
 
 - [x] Export this document to the repo as docs/ARCHITECTURE.md
 - [ ] Update `CLAUDE.md` to match this version
@@ -446,6 +446,13 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 30, 2026 — build step 6d (opening balances), v0.6.2; build step 6 complete**
+
+- Opening-balance form as described under Migration (admin only; rules 7, 11 and 12 exceptions as stated). No new table: the B/L, its `OPENING_BALANCE` entry, the receipt owned by the B/L and one request row hold the record; the audit row keeps the note (e.g. the Excel line).
+- Request attempts count as the highest attempt number sent rather than the number of sent rows (the same for B/Ls created in the app), so a migrated B/L continues with the next number.
+- A B/L's deposit receipt is its payment's, or for a migrated B/L its own; requests attach it, and it is renamed "Dekont <B/L>" like the other files.
+- Header: the admin pages (settings, templates, holidays, lists, users, write-off approvals, opening balance) moved into one "Yönetim" menu, which carries the write-off badge, because the header no longer fit a desktop screen for users with admin and operations roles.
 
 **Oct 30, 2026 — build step 6c (undo), v0.6.1**
 

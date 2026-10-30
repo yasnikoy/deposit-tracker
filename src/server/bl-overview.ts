@@ -38,6 +38,7 @@ import { currentBlForm } from "./forms";
 import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
+import { depositEvidence } from "./payments";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
@@ -249,6 +250,8 @@ export type BlDetail = {
   bl: BlOverview;
   /** The source payment; its receipt or invoice may still be missing (rule 12). */
   payment: { id: number; kind: PaymentKind; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
+  /** A migrated B/L (no payment record): its original receipt or invoice. */
+  openingBalance: { documentId: number; originalName: string } | null;
   ledger: BlLedgerLine[];
   allocations: BlAllocation[];
   documents: BlDocument[];
@@ -293,6 +296,9 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
         .where(eq(depositPayments.id, found.bl.depositPaymentId))
         .get() ?? null)
     : null;
+
+  const openingEvidence = found.bl.depositPaymentId === null ? depositEvidence(db, found.bl) : null;
+  const openingBalance = openingEvidence ? { documentId: openingEvidence.id, originalName: openingEvidence.originalName } : null;
 
   const ledgerRows = db
     .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name, deductionTypeCode: deductionTypes.code })
@@ -407,6 +413,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   return {
     bl,
     payment,
+    openingBalance,
     ledger,
     allocations,
     documents: blDocuments,
