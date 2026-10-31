@@ -273,3 +273,38 @@ test("allocate refund: the accountant enters a short refund; operations confirms
   await page.goto("/bls");
   await expect(page.getByRole("row").filter({ hasText: BL_NO })).toContainText(tr.bls.statuses.COLLECTED);
 });
+
+test("exports: a table's current view as CSV, selected rows copied for Excel, reports as CSV", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  // The office LAN serves plain HTTP (not a secure context): copy must work without the Clipboard API.
+  await page.addInitScript(() => Object.defineProperty(window, "isSecureContext", { value: false }));
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/bls");
+  await page.getByPlaceholder(tr.table.search).fill(BL_NO);
+  await expect(page.locator("tbody tr")).toHaveCount(1);
+
+  const [tableCsv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: tr.table.downloadCsv }).click()]);
+  expect(tableCsv.suggestedFilename()).toMatch(/^all-bls-\d{4}-\d{2}-\d{2}\.csv$/);
+  const lines = fs.readFileSync(await tableCsv.path(), "utf8").split("\r\n");
+  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.expected};${tr.bls.collected};${tr.bls.attempts};${tr.bls.lastRequestOn};${tr.bls.lastReply};${tr.bls.daysWaiting};${tr.bls.containers}`);
+  expect(lines[1]).toContain(`${BL_NO};${AGENCY};${tr.bls.statuses.COLLECTED};`);
+  expect(lines[1]).toContain(";2.500,00;USD;");
+  expect(lines).toHaveLength(3);
+
+  await page.getByRole("checkbox", { name: tr.table.selectRow }).click();
+  await page.getByRole("button", { name: tr.common.copy, exact: true }).click();
+  await expect(page.getByText("1 satır kopyalandı")).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  // The copy-command fallback goes through a textarea, which turns CRLF into LF; Excel accepts both.
+  expect(copied.split(/\r?\n/)[1]).toContain(`${BL_NO}\t${AGENCY}\t${tr.bls.statuses.COLLECTED}\t`);
+
+  await page.getByRole("link", { name: tr.nav.reports }).click();
+  const scorecard = page.getByRole("heading", { name: tr.reports.scorecard.title }).locator("..");
+  const [reportCsv] = await Promise.all([page.waitForEvent("download"), scorecard.getByRole("link", { name: tr.table.downloadCsv }).click()]);
+  expect(reportCsv.suggestedFilename()).toMatch(/^scorecard-\d{4}-\d{2}-\d{2}\.csv$/);
+  const report = fs.readFileSync(await reportCsv.path(), "utf8");
+  expect(report.split("\r\n")[0]).toContain(";Demuraj / detention;Demuraj / detention (oran);");
+  // Hapag: one refunded B/L, 100 demurrage on a 2,500 deposit.
+  expect(report).toContain(`${AGENCY};USD;1;`);
+  expect(report).toContain(";100,00;%4;");
+});

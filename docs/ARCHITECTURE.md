@@ -458,6 +458,15 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Oct 31, 2026 — build step 7b (CSV export and copy), v0.7.1**
+
+- Every shared table has "CSV indir" for the current view (visible data columns in their order, column filters, table search and sort; action columns left out). Every shared table also selects rows, and the selection bar offers "Kopyala" (tab-separated, header row included, rows in the order shown). Cells use the same display text as search and filters.
+- The serializer (`src/lib/csv.ts`) is pure and shared: tables export on the client, reports and the 7c email attachments on the server. Text Excel would run as a formula (leading `=`, `+`, `@`, or `-` not followed by a number) gets a leading apostrophe.
+- Aging and scorecard download from `/api/reports/<name>`, laid out for Excel: separate amount and B/L-count columns per aging bucket, and an amount and a rate column per deduction type.
+- Amount columns in the accountant's payment and refund lists and in refund allocation now show the number with a separate currency column, like All B/Ls, so exported amounts stay numbers in Excel.
+- Copying works over plain HTTP: the office LAN is not a secure context, so without the Clipboard API the copy command is used. This also fixes the existing B/L-number copy button.
+- The due-requests list is a grouped work list, not a shared table, and has no export. Its B/Ls can be exported from All B/Ls.
+
 **Oct 31, 2026 — build step 7a (dashboard, reports), v0.7.0**
 
 - Dashboard as described under Screens: open balance and collected this month per currency, and three columns of counts that open their lists. A count whose list the viewer may not open is left out. Problem counts open All B/Ls filtered by status (`/bls?status=…`); a table opened with such a filter does not save the user's layout during that visit.

@@ -23,7 +23,7 @@ import {
 import { PAYMENT_KINDS, type PaymentKind } from "@/domain/records";
 import { t, type TranslationKey } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
-import { formatMoney } from "@/lib/money";
+import { formatAmount, formatMoney } from "@/lib/money";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { RefundListItem } from "@/server/refunds";
 import { MyRefunds, RefundForm } from "./refunds-tab";
@@ -266,10 +266,11 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
       }),
       col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("amountMinor", {
-        meta: { label: "payments.amount", align: "end" },
+        meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
         sortFn: "basic",
-        cell: ({ row }) => formatMoney(row.original.amountMinor, row.original.currency),
+        cell: ({ getValue }) => formatAmount(getValue()),
       }),
+      col.accessor("currency", { meta: { label: "payments.currency", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("kind", {
         meta: {
           label: "payments.kind",

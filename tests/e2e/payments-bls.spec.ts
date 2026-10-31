@@ -183,7 +183,7 @@ test("the accountant corrects and voids own records; receipts open from the list
   expect(response.status()).toBe(200);
   expect(response.headers()["content-type"]).toBe("application/pdf");
 
-  const queued = table.getByRole("row").filter({ hasText: "1.500,00 USD" });
+  const queued = table.getByRole("row").filter({ hasText: "1.500,00" });
   await queued.getByRole("button", { name: tr.common.actions }).click();
   await page.getByRole("menuitem", { name: tr.payments.correct }).click();
   const dialog = page.getByRole("dialog");
@@ -193,7 +193,7 @@ test("the accountant corrects and voids own records; receipts open from the list
   await dialog.getByLabel(tr.common.reasonRequired).fill("Dekonttaki tutar 1.600");
   await dialog.getByRole("button", { name: tr.payments.correct }).click();
   await expect(page.getByText(tr.payments.corrected)).toBeVisible();
-  await expect(table.getByRole("cell", { name: "1.600,00 USD" })).toBeVisible();
+  await expect(table.getByRole("cell", { name: "1.600,00", exact: true })).toBeVisible();
 
   // The payment whose B/L was voided can now be voided itself.
   const awaiting = table.getByRole("row").filter({ hasText: tr.payments.statuses.awaitingBl });

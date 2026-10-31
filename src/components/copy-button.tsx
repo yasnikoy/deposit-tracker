@@ -4,6 +4,7 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
+import { copyText } from "@/lib/clipboard";
 
 export function CopyButton({ value }: { value: string }) {
   return (
@@ -14,7 +15,7 @@ export function CopyButton({ value }: { value: string }) {
       aria-label={`${t("common.copy")}: ${value}`}
       onClick={async (event) => {
         event.stopPropagation();
-        await navigator.clipboard.writeText(value);
+        await copyText(value);
         toast.success(t("common.copied"));
       }}
     >

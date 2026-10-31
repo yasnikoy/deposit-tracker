@@ -244,15 +244,16 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
       }),
       col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("amountMinor", {
-        meta: { label: "payments.amount", align: "end" },
+        meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
         sortFn: "basic",
-        cell: ({ row }) => formatMoney(row.original.amountMinor, row.original.currency),
+        cell: ({ getValue }) => formatAmount(getValue()),
       }),
       col.accessor("remainderMinor", {
-        meta: { label: "refunds.remainder", align: "end" },
+        meta: { label: "refunds.remainder", align: "end", toText: (v) => formatAmount(v as number) },
         sortFn: "basic",
-        cell: ({ row }) => formatMoney(row.original.remainderMinor, row.original.currency),
+        cell: ({ getValue }) => formatAmount(getValue()),
       }),
+      col.accessor("currency", { meta: { label: "payments.currency", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("kind", {
         meta: { label: "payments.kind", toText: (v) => t(`refunds.kinds.${v as PaymentKind}`) },
         cell: ({ getValue }) => t(`refunds.kinds.${getValue()}`),

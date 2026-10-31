@@ -1,15 +1,29 @@
+import { Download } from "lucide-react";
 import { Forbidden } from "@/components/forbidden";
-import type { AgingBucket } from "@/domain/reports";
-import { t } from "@/i18n";
+import { Button } from "@/components/ui/button";
+import { t, type TranslationKey } from "@/i18n";
 import { formatAmount } from "@/lib/money";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
+import { bucketLabel, formatDecimal as decimal, formatRate as percent } from "@/server/report-exports";
 import { agencyScorecardFor, agingReportFor } from "@/server/reports";
 
-const bucketLabel = (bucket: AgingBucket) => (bucket.to === null ? t("reports.aging.bucketOpen", { from: bucket.from }) : t("reports.aging.bucket", { from: bucket.from, to: bucket.to }));
-const percent = (rate: number | null) => (rate === null ? "" : `%${(rate * 100).toLocaleString("tr-TR", { maximumFractionDigits: 1 })}`);
-const decimal = (value: number | null) => (value === null ? "" : value.toLocaleString("tr-TR", { maximumFractionDigits: 1 }));
+/** Section title with the CSV download of the same report. */
+function ReportHeading({ title, report, empty }: { title: TranslationKey; report: "aging" | "scorecard"; empty: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <h2 className="font-semibold">{t(title)}</h2>
+      {!empty && (
+        <Button asChild variant="ghost" size="sm">
+          <a href={`/api/reports/${report}`} download>
+            <Download /> {t("table.downloadCsv")}
+          </a>
+        </Button>
+      )}
+    </div>
+  );
+}
 
 /** Aging and agency scorecard; computed from the ledger and request history, voided records excluded. */
 export default async function ReportsPage() {
@@ -25,7 +39,7 @@ export default async function ReportsPage() {
       <h1 className="text-lg font-semibold">{t("reports.title")}</h1>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">{t("reports.aging.title")}</h2>
+        <ReportHeading title="reports.aging.title" report="aging" empty={aging.rows.length === 0} />
         <p className="text-muted-foreground text-sm">{t("reports.aging.hint")}</p>
         {aging.rows.length === 0 ? (
           <p className="text-muted-foreground">{t("reports.aging.empty")}</p>
@@ -68,7 +82,7 @@ export default async function ReportsPage() {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="font-semibold">{t("reports.scorecard.title")}</h2>
+        <ReportHeading title="reports.scorecard.title" report="scorecard" empty={scorecard.length === 0} />
         <p className="text-muted-foreground text-sm">{t("reports.scorecard.hint")}</p>
         {scorecard.length === 0 ? (
           <p className="text-muted-foreground">{t("reports.scorecard.empty")}</p>

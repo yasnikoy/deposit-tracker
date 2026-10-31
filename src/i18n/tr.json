@@ -161,7 +161,9 @@
     "filterPlaceholder": "Süz…",
     "clearFilters": "Filtreleri temizle",
     "sortAscending": "Artan sırala",
-    "sortDescending": "Azalan sırala"
+    "sortDescending": "Azalan sırala",
+    "downloadCsv": "CSV indir",
+    "copiedRows": "{count} satır kopyalandı; Excel'e yapıştırabilirsiniz."
   },
   "shortcuts": {
     "title": "Klavye kısayolları",
@@ -1334,6 +1336,12 @@
       "writeOffs": "Silinen (oran)",
       "open": "Açık bakiye",
       "empty": "Henüz B/L yok."
+    },
+    "csv": {
+      "count": "{label} (B/L)",
+      "rate": "{label} (oran)",
+      "writeOff": "Silinen",
+      "openCount": "Açık B/L"
     }
   }
 }

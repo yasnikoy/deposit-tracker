@@ -24,7 +24,7 @@ export type DataColumnMeta = {
   /** Column title in headers and column menus. */
   label: TranslationKey;
   align?: "start" | "end";
-  /** Display text of a value, used by search and filters (and later CSV export). Defaults to String(value). */
+  /** Display text of a value, used by search, filters, CSV export and copy. Defaults to String(value). */
   toText?: (value: unknown) => string;
   /** Per-column filter: free text, or a choice list matched against the raw value (or any array element). */
   filter?: "text" | { options: FilterOption[] };
@@ -38,12 +38,15 @@ const collator = new Intl.Collator("tr-TR", { sensitivity: "base", numeric: true
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRow = Row<any, any>;
 
-function cellText(row: AnyRow, columnId: string): string {
-  const value = row.getValue(columnId);
+/** A cell value as the table shows it in text: what search, filters and exports use. */
+export function valueText(value: unknown, meta: DataColumnMeta | undefined): string {
   if (value === null || value === undefined) return "";
-  const toText = (row.table.getColumn(columnId)?.columnDef.meta as DataColumnMeta | undefined)?.toText;
-  if (toText) return toText(value);
+  if (meta?.toText) return meta.toText(value);
   return Array.isArray(value) ? value.join(" ") : String(value);
+}
+
+function cellText(row: AnyRow, columnId: string): string {
+  return valueText(row.getValue(columnId), row.table.getColumn(columnId)?.columnDef.meta as DataColumnMeta | undefined);
 }
 
 /** Turkish case- and accent-insensitive "contains" on the column's display text. */

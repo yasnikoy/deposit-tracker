@@ -9,6 +9,7 @@ import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
 import { createRefund } from "@/server/refunds";
 import { agencyScorecardFor, agingReportFor, dashboardSummary } from "@/server/reports";
+import { agingGrid, scorecardGrid } from "@/server/report-exports";
 import { recordPortalRequest } from "@/server/requests";
 import { approveWriteOff, proposeWriteOff } from "@/server/write-offs";
 import { createTestDb, makeUser } from "../support/db";
@@ -125,5 +126,70 @@ describe("reports", () => {
 
   it("are open to every role, but only to signed-in users with a role", () => {
     expect(() => agingReportFor(db, { ...ops, roles: [] }, NOW)).toThrow(ForbiddenError);
+  });
+});
+
+describe("report CSV", () => {
+  it("lays aging out with an amount and a B/L count column per bucket, Turkish numbers", () => {
+    const grid = agingGrid(agingReportFor(db, acc, NOW));
+    expect(grid.headers).toEqual([
+      "Acente",
+      "Para birimi",
+      "0–20 iş günü",
+      "0–20 iş günü (B/L)",
+      "21–40 iş günü",
+      "21–40 iş günü (B/L)",
+      "41–60 iş günü",
+      "41–60 iş günü (B/L)",
+      "61+ iş günü",
+      "61+ iş günü (B/L)",
+      "Toplam",
+      "Toplam (B/L)",
+    ]);
+    expect(grid.rows[1]).toEqual(["Hat Lojistik", "USD", "0,00", "0", "0,00", "0", "1.700,00", "2", "0,00", "0", "1.700,00", "2"]);
+  });
+
+  it("lays the scorecard out with an amount and a rate column per deduction type, in every row", () => {
+    const row = { agencyId: 1, agencyName: "Hat", refundedCount: 0, avgDaysToRefund: null, avgAttempts: null, openCount: 0, openBalanceMinor: 0 };
+    const grid = scorecardGrid([
+      { ...row, currency: "EUR", deductions: [], writeOff: { amountMinor: 0, rate: null }, openCount: 1, openBalanceMinor: 40000 },
+      {
+        ...row,
+        currency: "USD",
+        refundedCount: 3,
+        avgDaysToRefund: 12.5,
+        avgAttempts: 1,
+        deductions: [
+          { typeName: "Demuraj", amountMinor: 70000, rate: 0.1 },
+          { typeName: "Temizlik", amountMinor: 3500, rate: 0.005 },
+        ],
+        writeOff: { amountMinor: 0, rate: 0 },
+      },
+    ]);
+    expect(grid.headers).toEqual([
+      "Acente",
+      "Para birimi",
+      "İade alınan B/L",
+      "Ort. iş günü",
+      "Ort. talep",
+      "Demuraj",
+      "Demuraj (oran)",
+      "Temizlik",
+      "Temizlik (oran)",
+      "Silinen",
+      "Silinen (oran)",
+      "Açık bakiye",
+      "Açık B/L",
+    ]);
+    expect(grid.rows).toEqual([
+      ["Hat", "EUR", "0", "", "", "", "", "", "", "0,00", "", "400,00", "1"],
+      ["Hat", "USD", "3", "12,5", "1", "700,00", "%10", "35,00", "%0,5", "0,00", "%0", "0,00", "0"],
+    ]);
+  });
+
+  it("exports the real scorecard with the write-off columns", () => {
+    approveWriteOff(db, admin, { writeOffId: proposeWriteOff(db, ops, { blId: c, reason: "Takibe değmez" }, NOW), note: null }, NOW);
+    const usdRow = scorecardGrid(agencyScorecardFor(db, ops, NOW)).rows.find((r) => r[1] === "USD");
+    expect(usdRow).toEqual(["Hat Lojistik", "USD", "3", "57", "1", "700,00", "%10", "1.000,00", "1"]);
   });
 });

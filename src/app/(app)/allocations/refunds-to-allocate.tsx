@@ -6,7 +6,7 @@ import { dataTableColumns } from "@/components/data-table/features";
 import { Badge } from "@/components/ui/badge";
 import { t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
-import { formatMoney } from "@/lib/money";
+import { formatAmount } from "@/lib/money";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { RefundListItem } from "@/server/refunds";
 
@@ -19,15 +19,16 @@ const columns = col.columns([
   }),
   col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
   col.accessor("amountMinor", {
-    meta: { label: "payments.amount", align: "end" },
+    meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
     sortFn: "basic",
-    cell: ({ row }) => formatMoney(row.original.amountMinor, row.original.currency),
+    cell: ({ getValue }) => formatAmount(getValue()),
   }),
   col.accessor("remainderMinor", {
-    meta: { label: "refunds.remainder", align: "end" },
+    meta: { label: "refunds.remainder", align: "end", toText: (v) => formatAmount(v as number) },
     sortFn: "basic",
-    cell: ({ row }) => formatMoney(row.original.remainderMinor, row.original.currency),
+    cell: ({ getValue }) => formatAmount(getValue()),
   }),
+  col.accessor("currency", { meta: { label: "payments.currency", filter: "text" }, sortFn: "turkishText" }),
   col.accessor("status", {
     meta: { label: "payments.status", toText: (v) => t(`refunds.statuses.${v as RefundListItem["status"]}`) },
     cell: ({ getValue }) => <Badge variant="outline">{t(`refunds.statuses.${getValue()}`)}</Badge>,
