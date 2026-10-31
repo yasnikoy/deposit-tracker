@@ -375,3 +375,55 @@ test("notes: operations mentions a colleague on a B/L, adds a bulk note; the col
   await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
   await expect(bell).not.toContainText("1");
 });
+
+test("inline editing: containers on All B/Ls (undone from the toast), an agency's CC list; R and N on the B/L detail", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/bls");
+  await page.getByPlaceholder(tr.table.search).fill(PORTAL_BL_NO);
+  const row = page.getByRole("row").filter({ hasText: PORTAL_BL_NO });
+  // Requested already: the B/L number is locked, containers are not.
+  await expect(row.getByRole("button", { name: `${tr.table.editCell}: ${tr.bls.blNo}` })).toHaveCount(0);
+  await row.getByRole("button", { name: `${tr.table.editCell}: ${tr.bls.containers}` }).click();
+  const editor = page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`);
+  await editor.fill("CSQU 305438-3");
+  await editor.press("Enter");
+  await expect(page.getByText(tr.table.edited)).toBeVisible();
+  await expect(row).toContainText("CSQU3054383");
+  await page.getByRole("button", { name: tr.undo.action }).click();
+  await expect(row).not.toContainText("CSQU3054383");
+
+  // F2 edits the first editable cell of the active row; Esc leaves it unchanged.
+  await row.click();
+  await page.keyboard.press("Escape");
+  await page.locator("tbody").locator("..").locator("..").focus();
+  await page.keyboard.press("F2");
+  await expect(page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`)).toHaveCount(0);
+
+  await page.goto("/agencies");
+  const agencyRow = page.getByRole("row").filter({ hasText: AGENCY });
+  await agencyRow.getByRole("button", { name: `${tr.table.editCell}: ${tr.agencies.ccRecipients}` }).click();
+  const cc = page.getByLabel(`${tr.agencies.ccRecipients} — ${tr.table.editCell}`);
+  await cc.fill("gecersiz");
+  await cc.press("Enter");
+  await expect(page.getByText(tr.agencies.errors.email)).toBeVisible();
+  await cc.fill("muhasebe@firma.example");
+  await cc.press("Enter");
+  await expect(agencyRow).toContainText("muhasebe@firma.example");
+
+  // Shortcuts on the B/L detail.
+  await page.goto("/bls");
+  await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).click();
+  await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
+  // The heading is server-rendered; the shortcut listener needs the page to hydrate first.
+  await expect(async () => {
+    await page.keyboard.press("n");
+    await expect(page.getByLabel(tr.notes.add)).toBeFocused({ timeout: 500 });
+  }).toPass({ timeout: 10_000 });
+  await page.getByLabel(tr.notes.add).press("Escape");
+  await page.locator("body").click({ position: { x: 5, y: 300 } });
+  await page.keyboard.press("r");
+  await expect(page.getByRole("dialog").getByRole("heading", { name: tr.blReplies.record })).toBeVisible();
+});

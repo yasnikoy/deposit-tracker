@@ -11,12 +11,14 @@ import { DetailDialog, detailNavigation } from "@/components/detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { parseContainerList } from "@/domain/containers";
 import { BL_STATUSES } from "@/domain/records";
 import { t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
 import { formatAmount } from "@/lib/money";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { BlOverview } from "@/server/bl-overview";
+import { updateBlAction } from "./actions";
 import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
 import { BalanceStrip } from "./balance-strip";
 import { BulkNoteDialog } from "./bulk-note-dialog";
@@ -25,9 +27,18 @@ import type { MentionableUser } from "./note-editor";
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
 const col = dataTableColumns<BlOverview>();
-const columns = col.columns([
+/** Inline editing (rule 11: never money or status): the B/L number while still PAID, and containers. */
+const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor("blNo", {
-    meta: { label: "bls.blNo", filter: "text" },
+    meta: {
+      label: "bls.blNo",
+      filter: "text",
+      edit: {
+        editable: (b: BlOverview) => canEdit && !b.voidedAt && b.status === "PAID",
+        text: (b: BlOverview) => b.blNo,
+        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, blNo: text.trim(), containers: b.containers }),
+      },
+    },
     sortFn: "turkishText",
     cell: ({ row }) => (
       <span className="inline-flex items-center gap-2">
@@ -87,7 +98,18 @@ const columns = col.columns([
     sortFn: "basic",
     cell: ({ getValue }) => getValue() ?? t("common.none"),
   }),
-  col.accessor((b) => b.containers.join(", "), { id: "containers", meta: { label: "bls.containers", filter: "text" } }),
+  col.accessor((b) => b.containers.join(", "), {
+    id: "containers",
+    meta: {
+      label: "bls.containers",
+      filter: "text",
+      edit: {
+        editable: (b: BlOverview) => canEdit && !b.voidedAt,
+        text: (b: BlOverview) => b.containers.join(", "),
+        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, blNo: b.blNo, containers: parseContainerList(text) }),
+      },
+    },
+  }),
 ]);
 
 type Dialog = { kind: "edit" | "void"; bl: BlOverview } | null;
@@ -117,6 +139,7 @@ export function AllBlsScreen({
   // The table's order when the row was opened, for previous/next.
   const [order, setOrder] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const columns = useMemo(() => buildColumns(canEdit), [canEdit]);
   const [noteFor, setNoteFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
   const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
   const open = bls.find((b) => b.id === openId) ?? null;
@@ -139,6 +162,16 @@ export function AllBlsScreen({
           setOpenId(b.id);
         }}
         rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
+        shortcuts={
+          canAddNote
+            ? {
+                n: (rows, clear) => {
+                  const active = rows.filter((b) => !b.voidedAt);
+                  if (active.length > 0) setNoteFor({ bls: active, clear });
+                },
+              }
+            : undefined
+        }
         bulkActions={
           canAddNote
             ? (selected, clear) => {

@@ -12,9 +12,12 @@ import { t } from "@/i18n";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { AgencyListItem } from "@/server/agencies";
+import { updateAgencyContactAction } from "./actions";
 import { AgencyForm } from "./agency-form";
 import { FormTemplateCard } from "./form-template-card";
 import { OverridesForm } from "./overrides-form";
+
+const splitList = (text: string) => text.split(/[,;\s]+/).map((part) => part.trim()).filter(Boolean);
 
 export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean; updateFormTemplate: boolean };
 
@@ -79,8 +82,36 @@ export function AgenciesScreen({
         meta: { label: "agencies.patternCount", align: "end", searchable: false },
         sortFn: "basic",
       }),
+      // Contact fields are edited inline (F2 or the pencil); the whole card is validated on the server.
+      ...(["toRecipients", "ccRecipients"] as const).map((field) =>
+        col.accessor((a) => a[field].join(", "), {
+          id: field,
+          meta: {
+            label: `agencies.${field}` as const,
+            filter: "text" as const,
+            edit: {
+              editable: () => permissions.update,
+              text: (a: AgencyListItem) => a[field].join(", "),
+              save: (a: AgencyListItem, text: string) => updateAgencyContactAction({ id: a.id, field, value: splitList(text) }),
+            },
+          },
+        }),
+      ),
+      col.accessor((a) => a.notes ?? "", {
+        id: "notes",
+        meta: {
+          label: "agencies.notes",
+          filter: "text",
+          edit: {
+            editable: () => permissions.update,
+            text: (a: AgencyListItem) => a.notes ?? "",
+            save: (a: AgencyListItem, text: string) => updateAgencyContactAction({ id: a.id, field: "notes", value: text }),
+          },
+        },
+        cell: ({ getValue }) => <span className="block max-w-64 truncate">{getValue()}</span>,
+      }),
     ]);
-  }, []);
+  }, [permissions.update]);
 
   return (
     <>

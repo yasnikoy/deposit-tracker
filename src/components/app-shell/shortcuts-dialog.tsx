@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { t, type TranslationKey } from "@/i18n";
+import { isTyping } from "@/lib/keyboard";
 
 const SHORTCUTS: { keys: string[]; label: TranslationKey }[] = [
   { keys: ["↑", "↓", "Home", "End"], label: "shortcuts.moveRows" },
@@ -10,18 +11,13 @@ const SHORTCUTS: { keys: string[]; label: TranslationKey }[] = [
   { keys: ["Space"], label: "shortcuts.toggleRow" },
   { keys: ["←", "→"], label: "shortcuts.previousNext" },
   { keys: ["Esc"], label: "shortcuts.closeDetail" },
+  { keys: ["F2"], label: "shortcuts.editCell" },
+  { keys: ["R"], label: "shortcuts.recordReply" },
+  { keys: ["N"], label: "shortcuts.addNote" },
   { keys: ["/", "Ctrl+K"], label: "shortcuts.globalSearch" },
   { keys: ["?"], label: "shortcuts.showHelp" },
 ];
 
-function isTyping(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement ||
-    (target instanceof HTMLElement && target.isContentEditable)
-  );
-}
 
 /** "?" anywhere outside a text field shows the shortcut list. */
 export function ShortcutsDialog() {

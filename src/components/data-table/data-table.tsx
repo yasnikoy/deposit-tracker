@@ -10,10 +10,12 @@ import {
   type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Copy, Download, Filter, RotateCcw } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Columns3, Copy, Download, Filter, Pencil, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { saveTableLayoutAction } from "@/app/(app)/preferences-actions";
+import { toastWithUndo } from "@/components/undo-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -62,6 +64,8 @@ export type DataTableProps<TData extends RowData> = {
   bulkActions?: (selected: TData[], clearSelection: () => void) => ReactNode;
   /** Extra controls on the right of the toolbar, e.g. a "new" button. */
   toolbar?: ReactNode;
+  /** Letter shortcuts of the screen (lower-case key), given the selected rows, or the active row when none is selected. */
+  shortcuts?: Record<string, (rows: TData[], clearSelection: () => void) => void>;
   rowClassName?: (row: TData) => string | undefined;
 };
 
@@ -75,6 +79,7 @@ export function DataTable<TData extends RowData>({
   onOpenRow,
   bulkActions,
   toolbar,
+  shortcuts,
   rowClassName,
 }: DataTableProps<TData>) {
   const start = initialLayout ?? DEFAULT_TABLE_LAYOUT;
@@ -87,7 +92,9 @@ export function DataTable<TData extends RowData>({
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [editing, setEditing] = useState<{ rowId: string; columnId: string; text: string; saving: boolean } | null>(null);
   const bodyRef = useRef<HTMLTableSectionElement>(null);
+  const router = useRouter();
 
   // Every table selects rows: at least for copying them.
   const allColumns = useMemo(() => [selectionColumn<TData>(), ...columns], [columns]);
@@ -169,6 +176,30 @@ export function DataTable<TData extends RowData>({
     URL.revokeObjectURL(url);
   };
 
+  const editOf = (columnId: string) => (table.getColumn(columnId)?.columnDef.meta as DataColumnMeta | undefined)?.edit;
+
+  /** Starts editing a cell, when its column allows it for this row. */
+  const startEdit = (row: (typeof rows)[number], columnId: string) => {
+    const edit = editOf(columnId);
+    if (edit?.editable(row.original)) setEditing({ rowId: row.id, columnId, text: edit.text(row.original), saving: false });
+  };
+
+  const commitEdit = async (row: (typeof rows)[number]) => {
+    if (!editing) return;
+    const edit = editOf(editing.columnId)!;
+    setEditing({ ...editing, saving: true });
+    const result = await edit.save(row.original, editing.text);
+    if (!result.ok) {
+      const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
+      toast.error(t(field ?? result.error, result.params));
+      setEditing({ ...editing, saving: false });
+      return;
+    }
+    setEditing(null);
+    toastWithUndo(t("table.edited"), result.data, () => router.refresh());
+    router.refresh();
+  };
+
   const copySelected = async () => {
     // In the order shown; selected rows a filter now hides come last.
     const shown = rows.filter((row) => row.getIsSelected());
@@ -215,8 +246,17 @@ export function DataTable<TData extends RowData>({
       case " ":
         if (active) active.toggleSelected();
         break;
-      default:
-        return;
+      case "F2": {
+        // Edits the first editable cell of the active row.
+        const column = active && table.getVisibleLeafColumns().find((c) => editOf(c.id)?.editable(active.original));
+        if (active && column) startEdit(active, column.id);
+        break;
+      }
+      default: {
+        const shortcut = shortcuts?.[event.key.toLowerCase()];
+        if (!shortcut || event.ctrlKey || event.metaKey || event.altKey) return;
+        shortcut(selectedRows.length > 0 ? selectedRows : active ? [active.original] : [], clearSelection);
+      }
     }
     event.preventDefault();
   };
@@ -440,6 +480,38 @@ export function DataTable<TData extends RowData>({
                             row.getToggleSelectedHandler()(event);
                           }}
                         />
+                      ) : editing && editing.rowId === row.id && editing.columnId === cell.column.id ? (
+                        <Input
+                          autoFocus
+                          className="h-7 min-w-48"
+                          aria-label={`${meta ? t(meta.label) : cell.column.id} — ${t("table.editCell")}`}
+                          value={editing.text}
+                          disabled={editing.saving}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => setEditing({ ...editing, text: event.target.value })}
+                          onKeyDown={(event) => {
+                            event.stopPropagation();
+                            if (event.key === "Enter") void commitEdit(row);
+                            if (event.key === "Escape") setEditing(null);
+                          }}
+                          onBlur={() => !editing.saving && setEditing(null)}
+                        />
+                      ) : meta?.edit?.editable(row.original) ? (
+                        <span className="group/edit inline-flex items-center gap-1">
+                          <table.FlexRender cell={cell} />
+                          <button
+                            type="button"
+                            className="text-muted-foreground hover:text-foreground opacity-0 group-hover/edit:opacity-100 focus-visible:opacity-100"
+                            aria-label={`${t("table.editCell")}: ${t(meta.label)}`}
+                            title={t("table.editHint")}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              startEdit(row, cell.column.id);
+                            }}
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                        </span>
                       ) : (
                         <table.FlexRender cell={cell} />
                       )}

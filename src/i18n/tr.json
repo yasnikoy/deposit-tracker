@@ -164,7 +164,10 @@
     "sortAscending": "Artan sırala",
     "sortDescending": "Azalan sırala",
     "downloadCsv": "CSV indir",
-    "copiedRows": "{count} satır kopyalandı; Excel'e yapıştırabilirsiniz."
+    "copiedRows": "{count} satır kopyalandı; Excel'e yapıştırabilirsiniz.",
+    "editCell": "Düzenle",
+    "editHint": "Düzenle (satırda F2). Enter kaydeder, Esc vazgeçer.",
+    "edited": "Değişiklik kaydedildi."
   },
   "shortcuts": {
     "title": "Klavye kısayolları",
@@ -175,7 +178,10 @@
     "toggleRow": "Satırı seç / bırak",
     "focusSearch": "Tabloda ara",
     "showHelp": "Bu listeyi göster",
-    "globalSearch": "B/L ara (her yerden)"
+    "globalSearch": "B/L ara (her yerden)",
+    "editCell": "Satırdaki düzenlenebilir alanı düzenle",
+    "recordReply": "B/L ayrıntısında yanıt kaydet",
+    "addNote": "B/L ayrıntısında not ekle; listede seçili B/L'lere not ekle"
   },
   "weekdays": {
     "1": "Pzt",

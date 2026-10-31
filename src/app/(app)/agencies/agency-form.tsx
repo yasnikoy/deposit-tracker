@@ -13,6 +13,7 @@ import { extractBlNumbers } from "@/domain/bl-number";
 import { isTranslationKey, t } from "@/i18n";
 import { agencyInputSchema, type AgencyInput } from "@/lib/schemas/agencies";
 import type { AgencyWithOverrides } from "@/server/agencies";
+import { toastWithUndo } from "@/components/undo-toast";
 import { createAgencyAction, updateAgencyAction } from "./actions";
 
 type FormValues = {
@@ -122,7 +123,7 @@ export function AgencyForm({
     if (agency) {
       const result = await updateAgencyAction({ id: agency.id, agency: input });
       if (!result.ok) return void toast.error(t(result.error, result.params));
-      toast.success(t("agencies.toast.updated"));
+      toastWithUndo(t("agencies.toast.updated"), result.data, () => router.refresh());
       form.reset(values);
     } else {
       const result = await createAgencyAction(input);

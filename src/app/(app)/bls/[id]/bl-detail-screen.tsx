@@ -3,7 +3,7 @@
 import { ArrowLeft, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { BlStatusBadge } from "@/components/bl-status-badge";
 import { OverridesEditor } from "@/components/overrides-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { isTranslationKey, t } from "@/i18n";
 import { formatBusinessDate, formatTimestamp } from "@/lib/format";
+import { isPlainKey, isTyping } from "@/lib/keyboard";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import type { BlDetail } from "@/server/bl-overview";
@@ -75,6 +76,24 @@ export function BlDetailScreen({
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"edit" | "void" | null>(null);
+
+  // R records a reply, N starts a note (when the viewer may), outside text fields and dialogs.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isPlainKey(event) || isTyping(event.target) || document.querySelector('[role="dialog"]')) return;
+      const key = event.key.toLowerCase();
+      const target = key === "r" ? document.getElementById("record-reply") : key === "n" ? document.getElementById("note-body") : null;
+      if (!target) return;
+      event.preventDefault();
+      if (key === "r") target.click();
+      else {
+        target.scrollIntoView({ block: "center" });
+        target.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
   const { bl, payment, ledger, documents, timeline } = detail;
   const done = () => {
     setDialog(null);

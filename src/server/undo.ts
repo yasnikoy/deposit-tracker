@@ -21,6 +21,7 @@ import { DomainError } from "./errors";
 import { nameBlDocuments } from "./files";
 import { activeLedgerEntries, compensateLedgerEntry } from "./ledger";
 import { undoNote } from "./notes";
+import { undoAgencyUpdate } from "./agencies";
 import { getSetting } from "./settings";
 
 type AuditRow = typeof auditLog.$inferSelect;
@@ -30,8 +31,8 @@ type Snapshot = { before: unknown; after: unknown };
 /**
  * Rule 17: the actions a user can take back within the undo window, each with the permission
  * it needs and its compensation. Confirmed allocations, sent emails, money records,
- * write-offs and settings are not listed, so they can never be undone. Inline edits join in
- * build step 7e.
+ * write-offs and settings are not listed, so they can never be undone. Inline edits go
+ * through the same actions (B/L and agency edits), so they are undone the same way.
  */
 const UNDOABLE: Record<string, { permission: Action; undo: (tx: DbOrTx, actor: AuthUser, audit: AuditRow, now: Date) => Snapshot }> = {
   "reply.record": { permission: "reply.record", undo: undoReply },
@@ -40,6 +41,7 @@ const UNDOABLE: Record<string, { permission: Action; undo: (tx: DbOrTx, actor: A
   "form.upload": { permission: "bl.uploadForm", undo: undoFormUpload },
   "bl.update": { permission: "bl.update", undo: undoBlUpdate },
   "note.add": { permission: "note.add", undo: (tx, actor, audit, now) => undoNote(tx, actor, (audit.after as { noteId: number }).noteId, now) },
+  "agency.update": { permission: "agency.update", undo: undoAgencyUpdate },
 };
 
 const isUndone = (tx: DbOrTx, auditId: number) => !!tx.select({ id: auditLog.id }).from(auditLog).where(eq(auditLog.undoOf, auditId)).get();

@@ -459,6 +459,15 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Oct 31, 2026 — build step 7e (inline editing, keyboard shortcuts), v0.7.4; build step 7 complete**
+
+- Inline editing in the shared table. A column declares an `edit` (when the row's cell may be edited, its text, and the save action). The pencil in the cell, or F2 on the active row, opens the editor; Enter saves and Esc cancels. Saves go through the same server actions as the dialogs, so `can()`, validation, audit and undo apply as usual, and the success message offers "Geri al". Editable fields:
+  - All B/Ls: the B/L number while still PAID, and containers.
+  - Agencies: To and CC recipients, and notes. These are saved by `updateAgencyContact`, which validates the whole card again.
+  - Money fields and statuses stay read-only (rule 11).
+- Agency edits (inline or from the card) are now undoable within the undo window. They are refused once the card changed again since. Saving a card without changes reports "Değişiklik yok." and writes no audit row.
+- Shortcuts: on the B/L detail, R opens "Yanıt kaydet" and N jumps to the note field. On All B/Ls, N adds a note to the selected B/Ls (or the active one). F2 edits a cell. The `?` list shows them all. Letter shortcuts never fire inside text fields or open dialogs.
+
 **Oct 31, 2026 — build step 7d (notes, mentions, notifications, weekly summary), v0.7.3**
 
 - Notes on B/Ls (operations, `note.add`). They appear on the B/L detail and its timeline. "Not ekle" is also a bulk action on All B/Ls; its confirmation lists the B/Ls, and one bulk note is one action for undo. An `@username` must name an active user, otherwise the note is refused. A note can be undone within the undo window: it stays visible, struck through.

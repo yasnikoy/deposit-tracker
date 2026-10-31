@@ -16,6 +16,7 @@ import {
   type RowData,
 } from "@tanstack/react-table";
 import type { TranslationKey } from "@/i18n";
+import type { ActionResult } from "@/server/errors";
 import { matchesSearch } from "@/lib/search";
 
 export type FilterOption = { value: string; label: TranslationKey };
@@ -30,7 +31,24 @@ export type DataColumnMeta = {
   filter?: "text" | { options: FilterOption[] };
   /** Set false to leave the column out of the table search. */
   searchable?: boolean;
+  /**
+   * Inline editing of a permitted field (never money or status, rule 11). The server checks
+   * permission, validation and audit again; the saved edit can be undone like any other.
+   */
+  edit?: InlineEdit;
 };
+
+// Row type is open here, like the registry below: each screen declares its own.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export type InlineEdit = {
+  /** Whether this row's cell can be edited now (role and record state). */
+  editable: (row: any) => boolean;
+  /** The text the editor starts with. */
+  text: (row: any) => string;
+  /** Saves the edit; the result carries the audit ids for undo. */
+  save: (row: any, text: string) => Promise<ActionResult<number[]>>;
+};
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const collator = new Intl.Collator("tr-TR", { sensitivity: "base", numeric: true });
 

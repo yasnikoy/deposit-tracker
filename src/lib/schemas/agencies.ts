@@ -65,6 +65,13 @@ export type AgencyInput = z.infer<typeof agencyInputSchema>;
 export const createAgencySchema = agencyInputSchema;
 export const updateAgencySchema = z.object({ id: z.number().int().positive(), agency: agencyInputSchema });
 
+/** Inline edit of one contact field; the whole card is validated again on the server. */
+export const updateAgencyContactSchema = z.discriminatedUnion("field", [
+  z.object({ id: z.number().int().positive(), field: z.literal("toRecipients"), value: z.array(z.string()).max(MAX_LIST, msg("agencies.errors.tooMany")) }),
+  z.object({ id: z.number().int().positive(), field: z.literal("ccRecipients"), value: z.array(z.string()).max(MAX_LIST, msg("agencies.errors.tooMany")) }),
+  z.object({ id: z.number().int().positive(), field: z.literal("notes"), value: z.string().max(2000) }),
+]);
+
 export type AgencyOverrides = { [K in OverridableSettingKey]: number | null };
 
 export const agencyOverridesSchema = z.object(

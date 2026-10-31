@@ -45,7 +45,7 @@ export function ReplySection({
       {(canRecord || canLink) && (
         <div className="flex flex-wrap gap-2">
           {canRecord && (
-            <Button size="sm" variant="outline" onClick={() => setDialog("record")}>
+            <Button id="record-reply" size="sm" variant="outline" onClick={() => setDialog("record")}>
               {t("blReplies.record")}
             </Button>
           )}

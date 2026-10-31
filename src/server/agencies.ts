@@ -1,7 +1,9 @@
 import "server-only";
 import { and, eq, ne, sql } from "drizzle-orm";
+import type { Role } from "@/domain/roles";
 import { OVERRIDABLE_SETTING_KEYS } from "@/domain/settings/definitions";
-import type { AgencyInput, AgencyOverrides } from "@/lib/schemas/agencies";
+import { isTranslationKey } from "@/i18n";
+import { agencyInputSchema, type AgencyInput, type AgencyOverrides } from "@/lib/schemas/agencies";
 import { agencyOverrideFields } from "./agency-overrides";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
@@ -72,31 +74,71 @@ export function createAgency(db: Db, actor: AuthUser, input: AgencyInput, now: D
   });
 }
 
-export function updateAgency(db: Db, actor: AuthUser, input: { id: number; agency: AgencyInput }, now: Date = new Date()): void {
+/** Saves the agency card; returns the audit id, which undo takes back. */
+export function updateAgency(db: Db, actor: AuthUser, input: { id: number; agency: AgencyInput }, now: Date = new Date()): number[] {
   const roleUsed = authorize(actor, "agency.update");
-  db.transaction((tx) => {
-    const before = requireAgency(tx, input.id);
-    if (nameTaken(tx, input.agency.name, input.id)) throw new DomainError("agencies.errors.nameTaken");
-    const after = tx
-      .update(agencies)
-      .set({ ...input.agency, updatedAt: now.toISOString() })
-      .where(eq(agencies.id, input.id))
-      .returning()
-      .get();
-    writeAudit(
-      tx,
-      {
-        actorUserId: actor.id,
-        roleUsed,
-        action: "agency.update",
-        entityType: "agency",
-        entityId: input.id,
-        before: snapshot(before),
-        after: snapshot(after),
-      },
-      now,
-    );
+  return db.transaction((tx) => [saveAgency(tx, actor, roleUsed, input.id, input.agency, now)]);
+}
+
+function saveAgency(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, id: number, input: AgencyInput, now: Date): number {
+  const before = requireAgency(tx, id);
+  if (nameTaken(tx, input.name, id)) throw new DomainError("agencies.errors.nameTaken");
+  const after = tx
+    .update(agencies)
+    .set({ ...input, updatedAt: now.toISOString() })
+    .where(eq(agencies.id, id))
+    .returning()
+    .get();
+  if (JSON.stringify(snapshot(before)) === JSON.stringify(snapshot(after))) throw new DomainError("settings.noChanges");
+  return writeAudit(
+    tx,
+    { actorUserId: actor.id, roleUsed, action: "agency.update", entityType: "agency", entityId: id, before: snapshot(before), after: snapshot(after) },
+    now,
+  );
+}
+
+/** The fields of an agency card that a user enters (AgencyInput), as stored now. */
+function agencyInputOf(row: Agency): AgencyInput {
+  return agencyInputSchema.parse({
+    name: row.name,
+    active: row.active,
+    toRecipients: row.toRecipients,
+    ccRecipients: row.ccRecipients,
+    bankSenderAliases: row.bankSenderAliases,
+    blNumberPatterns: row.blNumberPatterns,
+    batchSending: row.batchSending,
+    requestChannel: row.requestChannel,
+    portalUrl: row.portalUrl ?? "",
+    notes: row.notes ?? "",
   });
+}
+
+export const INLINE_AGENCY_FIELDS = ["toRecipients", "ccRecipients", "notes"] as const;
+
+/** Inline edit of one contact field from the agencies table; validated like the whole card. */
+export function updateAgencyContact(
+  db: Db,
+  actor: AuthUser,
+  input: { id: number; field: (typeof INLINE_AGENCY_FIELDS)[number]; value: string[] | string },
+  now: Date = new Date(),
+): number[] {
+  const roleUsed = authorize(actor, "agency.update");
+  return db.transaction((tx) => {
+    const current = agencyInputOf(requireAgency(tx, input.id));
+    const parsed = agencyInputSchema.safeParse({ ...current, portalUrl: current.portalUrl ?? "", notes: current.notes ?? "", [input.field]: input.value });
+    if (!parsed.success) throw new DomainError(isTranslationKey(parsed.error.issues[0]?.message) ? parsed.error.issues[0].message : "errors.validation");
+    return [saveAgency(tx, actor, roleUsed, input.id, parsed.data, now)];
+  });
+}
+
+/** Undo of an agency edit: the card returns to what it was, unless it changed again since. */
+export function undoAgencyUpdate(tx: DbOrTx, _actor: AuthUser, audit: { entityId: string | null; before: unknown; after: unknown }, now: Date) {
+  const row = requireAgency(tx, Number(audit.entityId));
+  if (JSON.stringify(snapshot(row)) !== JSON.stringify(audit.after)) throw new DomainError("undo.errors.movedOn");
+  const before = audit.before as ReturnType<typeof snapshot>;
+  const restored = agencyInputSchema.parse({ ...before, portalUrl: before.portalUrl ?? "", notes: before.notes ?? "" });
+  tx.update(agencies).set({ ...restored, updatedAt: now.toISOString() }).where(eq(agencies.id, row.id)).run();
+  return { before: audit.after, after: audit.before };
 }
 
 /** Admin-only: per-agency setting overrides; null inherits the global value. */
