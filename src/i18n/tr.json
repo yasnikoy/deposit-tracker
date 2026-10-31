@@ -52,7 +52,8 @@
     "openingBalance": "Açılış bakiyesi",
     "admin": "Yönetim",
     "reports": "Raporlar",
-    "notifications": "Bildirimler"
+    "notifications": "Bildirimler",
+    "system": "Sistem durumu"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -1532,6 +1533,49 @@
       "unknown": "Müşteri bulunamadı veya pasif.",
       "nameTaken": "Bu adla bir müşteri zaten kayıtlı.",
       "codeTaken": "Bu kodla bir müşteri zaten kayıtlı."
+    }
+  },
+  "system": {
+    "title": "Sistem durumu",
+    "app": "Uygulama",
+    "version": "Sürüm",
+    "startedAt": "Çalışmaya başladı",
+    "address": "Adres (ekibin açacağı)",
+    "emailMode": "E-posta gönderimi",
+    "emailLive": "Gerçek gönderim",
+    "emailDryRun": "Deneme modu: gönderilmiyor",
+    "dataDir": "Veri klasörü",
+    "databaseSize": "Veritabanı boyutu",
+    "diskFree": "Diskte boş alan",
+    "backups": "Yedekler",
+    "backupNow": "Şimdi yedekle",
+    "backupRunning": "Yedekleniyor…",
+    "backupDone": "Yedek alındı.",
+    "backupSecondFailed": "Yerel yedek alındı, ikinci konuma yazılamadı: {error}",
+    "backupLocal": "Son yerel yedek",
+    "backupStale": "Güncel değil",
+    "backupSecond": "İkinci konum",
+    "backupSecondUnset": "Ayarlanmamış (Ayarlar → Yedekler)",
+    "backupSecondUnreachable": "Erişilemiyor",
+    "backupSecondProblem": "Kontrol edin",
+    "backupNext": "Sonraki yedek",
+    "backupLastFailure": "Son hata",
+    "mail": "E-posta",
+    "mailServers": "Sunucular",
+    "mailFailing": "{since} tarihinden beri hata",
+    "mailOk": "Çalışıyor (son başarılı: {at})",
+    "lastPoll": "Gelen kutusu son okuma",
+    "jobs": "Zamanlanmış işler",
+    "jobsPending": "Bekleyen",
+    "jobsFailed": "Son 7 günde başarısız",
+    "none": "Yok",
+    "jobKinds": {
+      "SEND_EMAIL": "E-posta gönderimi",
+      "COPY_TO_SENT_FOLDER": "Gönderilmişler klasörüne kopya",
+      "IMAP_POLL": "Gelen kutusu okuma",
+      "DAILY_UNPROCESSED_EMAIL": "Günlük işlenmemiş yanıt e-postası",
+      "WEEKLY_SUMMARY_EMAIL": "Haftalık özet e-postası",
+      "BACKUP": "Yedekleme"
     }
   }
 }

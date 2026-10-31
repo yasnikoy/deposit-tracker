@@ -140,7 +140,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
 | `report_emails` | Operations report emails (an `emails` row with no agency and no requests) | email\_id, sections, filters as chosen |
 | `standing_documents` | Signature circular and power of attorney; the newest per slot is current | slot (SIGNATURE\_CIRCULAR, POWER\_OF\_ATTORNEY), document\_id, uploaded\_by |
-| `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, …), payload, run\_at, status, attempts, last\_error |
+| `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, IMAP\_POLL, DAILY\_UNPROCESSED\_EMAIL, WEEKLY\_SUMMARY\_EMAIL, BACKUP), payload, run\_at, status, attempts, last\_error |
 | `service_status` | Mail server reachability for the outage banner | service (SMTP, IMAP), failing\_since, last\_error, last\_ok\_at |
 | `email_bl_links` | Incoming emails and the B/Ls they concern (outgoing emails reach their B/Ls through `requests`) | email\_id, bl\_id, linked\_by (THREAD, SUGGESTION, MANUAL), linked\_by\_user (null for THREAD), unlinked\_at/unlinked\_by (undo of a link by hand) |
 | `email_match_suggestions` | Possible matches: an incoming email outside a known thread that names an open B/L | email\_id, bl\_id, state (OPEN, ACCEPTED, DISMISSED), resolved\_by, resolved\_at |
@@ -431,8 +431,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 | Access | Office network only, plain HTTP on port 3000 by the host's IP address: office PCs all carry the name "UserPC" and may not be renamed. The host is on Ethernet; IT is asked for a DHCP reservation so the address never changes. `setup.cmd` prints the address to share. Windows Firewall allows port 3000 on the private network profile only. No port forwarding; guest Wi-Fi kept separate |
 | Outbound network | The PC must reach Yandex SMTP and IMAP; nothing inbound from the internet is needed |
 | Updates | Pull-only, admin-approved, from GitHub Releases of the public repository (see Technical decisions → Updates). The app checks daily and shows a new version to admins (header and health page) with its release notes; "Güncelle" downloads the zip, verifies its signature and stages it next to `app`; `start.cmd` applies it at the next start (by default right away: the app restarts and the scheduled task brings it back). The previous `app` folder is kept, and if the health check fails after start, `start.cmd` switches back to it. Manual update (download, `stop.cmd`, replace `app`, `start.cmd`) stays possible. The `data` folder is never touched by an update |
-| Backups | Daily at a configurable time during office hours (default 12:30), and at the next start if missed: a consistent SQLite backup plus a copy of the files folder, written locally and copied to a second location. Keep 14 daily and 8 weekly copies. Test a restore monthly |
-| Health | `/api/health` endpoint; an admin page shows scheduler status, last IMAP poll and last backup time |
+| Backups | Daily at a configurable time during office hours (default 12:30), and at the next start if missed (a `BACKUP` job): a consistent SQLite online backup (`backups/daily/deposit-YYYY-MM-DD.sqlite`) plus a mirror of the files folder (`backups/files`; uploads never change, so only new files are copied), written in the data folder and, when set, to the second location (`<location>\deposit-tracker-backups`). An unreachable second location never fails the local backup; the health page flags it. Keep the 14 newest daily copies plus the newest copy of each of the 8 newest weeks that have one (pre-migration copies are kept apart). A failed backup is retried once after 30 minutes. `backup.cmd` and the health page's "Şimdi yedekle" take one at any time. The key file is never in a backup. Test a restore monthly |
+| Health | Public `/api/health` (no login; answers `{ ok, version }` after reading the database), which `start.cmd` uses after an update. The admin page Sistem durumu shows version, start time, the address to share (by IP), email mode, data folder, database size and free disk; the newest local and second-location backups (flagged when older than yesterday, unreachable or behind), the next backup and the last failure, with "Şimdi yedekle"; mail server status and the last mailbox poll; pending jobs and failures of the last 7 days |
 | Runbook contents | First setup, configure mail, add users, add an agency form template, update and roll back, back up, restore from backup, move to another PC, back up and restore the key file, what to do when mail is down |
 
 **Open items before go-live**
@@ -468,6 +468,12 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 31, 2026 — build step 8a: backups, health page, links by IP, v0.8.0**
+
+- Daily backup job with catch-up at start, files mirror, second location and retention as described under Operations → Backups; retention is a pure domain rule (`backupsToKeep`), written test-first. The daily-job scheduling is shared by the daily email (missed runs skipped) and the backup (missed runs caught up). Migration 0017 adds the `BACKUP` job kind.
+- Public `/api/health` probe and the admin page Sistem durumu (Operations → Health), with a manual backup button (`backup.run`, admin) and `pnpm backup` (later `backup.cmd`).
+- Links in internal emails use the PC's office-network address instead of its name, since all office PCs are called "UserPC".
 
 **Oct 31, 2026 — refund receipt optional (rule 12), v0.7.6**
 

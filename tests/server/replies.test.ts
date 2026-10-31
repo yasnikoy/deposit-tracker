@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -334,7 +337,7 @@ describe("unprocessed replies and the daily email", () => {
     expect(unprocessedSummary(db, nextDay)).toEqual({ count: 1, overdue: 1, overdueByAgency: [{ agencyName: "Maersk", count: 1 }] });
 
     const mail = transport();
-    const recurring = recurringJobHandlers(db, { mailbox: () => mailbox, transport: () => mail });
+    const recurring = recurringJobHandlers(db, { mailbox: () => mailbox, transport: () => mail, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "deposit-test-")) });
     const all = { ...handlers(mail), ...recurring } as JobHandlers;
     ensureRecurringJobs(db, nextDay);
     const daily = db.select().from(jobs).all().find((j) => j.kind === "DAILY_UNPROCESSED_EMAIL")!;
@@ -354,6 +357,8 @@ describe("unprocessed replies and the daily email", () => {
     expect(mail.sent).toEqual([{ from: "depozito@firma.com.tr", to: ["ekip@firma.com.tr"] }]);
     const pending = db.select().from(jobs).all().filter((j) => j.status === "PENDING");
     expect(pending.map((j) => [j.kind, j.payload.date ?? null]).sort()).toEqual([
+      // The daily backup, still ahead at 12:30 that day.
+      ["BACKUP", "2026-10-25"],
       ["DAILY_UNPROCESSED_EMAIL", "2026-10-26"],
       ["IMAP_POLL", null],
       // The weekly summary waits for its weekday (Monday by default).

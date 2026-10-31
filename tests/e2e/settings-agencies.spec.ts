@@ -125,3 +125,16 @@ test("operations creates an agency; patterns are tested; only admins set overrid
   await expect(panel.getByText(tr.agencies.overridesReadOnly)).toBeVisible();
   await expect(panel.getByText("3 iş günü")).toBeVisible();
 });
+
+test("admin sees the system health and takes a backup by hand; the public probe answers", async ({ page, request }) => {
+  const probe = await request.get("/api/health");
+  expect(probe.ok()).toBe(true);
+  expect(await probe.json()).toMatchObject({ ok: true, version: expect.any(String) });
+
+  await login(page, E2E_ADMIN.username, E2E_ADMIN.password, E2E_ADMIN.displayName);
+  await openAdminPage(page, tr.nav.system);
+  await expect(page.getByRole("heading", { name: tr.system.title })).toBeVisible();
+  await page.getByRole("button", { name: tr.system.backupNow }).click();
+  await expect(page.getByText(tr.system.backupDone)).toBeVisible();
+  await expect(page.getByText(tr.system.backupStale)).toHaveCount(0);
+});

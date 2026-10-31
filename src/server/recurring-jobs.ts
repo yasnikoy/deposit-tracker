@@ -1,5 +1,4 @@
 import "server-only";
-import os from "node:os";
 import { and, eq, inArray } from "drizzle-orm";
 import MailComposer from "nodemailer/lib/mail-composer";
 import { addCalendarDays, istanbulInstant, istanbulToday, onOrAfterWeekday, type IsoDate } from "@/domain/business-days";
@@ -7,6 +6,8 @@ import { renderTemplate } from "@/domain/email-templates";
 import type { JobKind } from "@/domain/records";
 import type { Db, DbOrTx } from "./db/client";
 import { jobs } from "./db/schema";
+import { runBackup } from "./backups";
+import { appBaseUrl } from "./network";
 import { imapPollHandler } from "./email/inbound";
 import type { Mailbox } from "./email/mailbox";
 import { getEmailTemplate } from "./email/templates";
@@ -29,34 +30,45 @@ const pending = (db: DbOrTx, kind: JobKind) =>
     .where(and(eq(jobs.kind, kind), inArray(jobs.status, ["PENDING", "RUNNING"])))
     .all();
 
-/** The daily email of one date runs at the configured Istanbul time of that date. */
-const dailyRunAt = (db: DbOrTx, date: IsoDate) => istanbulInstant(date, getSetting("notifications.dailyUnprocessedTime", {}, db));
+/**
+ * A job that runs once a day at a configured Istanbul time. A missed run (PC off at that time)
+ * is skipped for the daily email, but caught up at the next start for the backup.
+ */
+type DailyJob = { kind: JobKind; timeKey: "notifications.dailyUnprocessedTime" | "backups.dailyTime"; catchUp: boolean };
+const DAILY_EMAIL: DailyJob = { kind: "DAILY_UNPROCESSED_EMAIL", timeKey: "notifications.dailyUnprocessedTime", catchUp: false };
+const DAILY_BACKUP: DailyJob = { kind: "BACKUP", timeKey: "backups.dailyTime", catchUp: true };
+
+/** A daily job of one date runs at the configured Istanbul time of that date. */
+const dailyRunAt = (db: DbOrTx, daily: DailyJob, date: IsoDate) => istanbulInstant(date, getSetting(daily.timeKey, {}, db));
 
 /**
- * Keeps one pending daily-email job, for today if its time is still ahead and it has not run
- * today, otherwise for tomorrow. After the time setting changes, the pending job moves to the
- * new time of its date.
+ * Keeps one pending job of a daily kind: for today if it has not run today and its time is
+ * still ahead (or, for a catch-up kind, already past), otherwise for tomorrow. After the time
+ * setting changes, the pending job moves to the new time of its date.
  */
-export function scheduleDailyEmail(db: DbOrTx, now: Date = new Date()): void {
-  const waiting = pending(db, "DAILY_UNPROCESSED_EMAIL").filter((job) => job.status === "PENDING");
+function scheduleDaily(db: DbOrTx, daily: DailyJob, now: Date): void {
+  const waiting = pending(db, daily.kind).filter((job) => job.status === "PENDING");
   if (waiting.length > 0) {
     for (const job of waiting) {
-      const runAt = dailyRunAt(db, String(job.payload.date)).toISOString();
+      const runAt = dailyRunAt(db, daily, String(job.payload.date)).toISOString();
       if (runAt !== job.runAt) db.update(jobs).set({ runAt, updatedAt: now.toISOString() }).where(eq(jobs.id, job.id)).run();
     }
     return;
   }
-  if (pending(db, "DAILY_UNPROCESSED_EMAIL").length > 0) return;
+  if (pending(db, daily.kind).length > 0) return;
   const today = istanbulToday(now);
   const ranToday = db
     .select({ payload: jobs.payload })
     .from(jobs)
-    .where(and(eq(jobs.kind, "DAILY_UNPROCESSED_EMAIL"), eq(jobs.status, "DONE")))
+    .where(and(eq(jobs.kind, daily.kind), eq(jobs.status, "DONE")))
     .all()
     .some((job) => job.payload.date === today);
-  const date = !ranToday && now < dailyRunAt(db, today) ? today : addCalendarDays(today, 1);
-  enqueueJob(db, "DAILY_UNPROCESSED_EMAIL", { date }, dailyRunAt(db, date), now);
+  const date = !ranToday && (daily.catchUp || now < dailyRunAt(db, daily, today)) ? today : addCalendarDays(today, 1);
+  enqueueJob(db, daily.kind, { date }, dailyRunAt(db, daily, date), now);
 }
+
+export const scheduleDailyEmail = (db: DbOrTx, now: Date = new Date()) => scheduleDaily(db, DAILY_EMAIL, now);
+export const scheduleDailyBackup = (db: DbOrTx, now: Date = new Date()) => scheduleDaily(db, DAILY_BACKUP, now);
 
 const weeklyRunAt = (db: DbOrTx, date: IsoDate) => istanbulInstant(date, getSetting("notifications.weeklySummaryTime", {}, db));
 const weeklyRanOn = (db: DbOrTx, date: IsoDate) =>
@@ -105,12 +117,13 @@ function nextWeeklyDate(db: DbOrTx, date: IsoDate, now: Date): IsoDate {
   return weeklyRunAt(db, next) > now ? next : onOrAfterWeekday(addCalendarDays(next, 1), weekday);
 }
 
-/** At start: one pending mailbox poll (overdue ones simply run now), one daily-email and one weekly-summary job. */
+/** At start: one pending mailbox poll (overdue ones simply run now), one daily-email, one weekly-summary and one backup job. */
 export function ensureRecurringJobs(db: Db, now: Date = new Date()): void {
   db.transaction((tx) => {
     if (pending(tx, "IMAP_POLL").length === 0) enqueueJob(tx, "IMAP_POLL", {}, now, now);
     scheduleDailyEmail(tx, now);
     scheduleWeeklySummary(tx, now);
+    scheduleDailyBackup(tx, now);
   });
 }
 
@@ -126,15 +139,29 @@ function recurring(db: Db, handler: JobHandler, next: (tx: DbOrTx, job: Paramete
 }
 
 /** The next daily run after one for `date`: never in the past, so days the PC was off are not repeated. */
-function nextDailyDate(db: DbOrTx, date: IsoDate, now: Date): IsoDate {
+function nextDailyDate(db: DbOrTx, daily: DailyJob, date: IsoDate, now: Date): IsoDate {
   const today = istanbulToday(now);
   const next = addCalendarDays(date, 1) > today ? addCalendarDays(date, 1) : today;
-  return dailyRunAt(db, next) > now ? next : addCalendarDays(next, 1);
+  return dailyRunAt(db, daily, next) > now ? next : addCalendarDays(next, 1);
 }
 
-/** Where the team opens the app: the host PC on the office network. */
+/** Where the team opens the app: the host PC on the office network, by address. */
 function appLink(path: string): string {
-  return `http://${os.hostname()}:${process.env.PORT ?? "3000"}${path}`;
+  return `${appBaseUrl()}${path}`;
+}
+
+/** The daily backup; a failure is retried once after 30 minutes, then reported on the health page. */
+function backupHandler(db: Db, dataDir: string): JobHandler {
+  return async (job, now) => {
+    try {
+      await runBackup(db, dataDir, now);
+      return { status: "done" };
+    } catch (error) {
+      const message = (error instanceof Error ? error.message : String(error)).slice(0, 500);
+      logger.error({ err: error }, "backup failed");
+      return job.attempts < 2 ? { status: "retry", at: new Date(now.getTime() + 30 * 60_000), error: message } : { status: "failed", error: message };
+    }
+  };
 }
 
 /**
@@ -235,8 +262,8 @@ function weeklySummaryHandler(db: Db, transport: () => MailTransport): JobHandle
 
 export function recurringJobHandlers(
   db: Db,
-  deps: { mailbox: () => Mailbox | null; transport: () => MailTransport },
-): Pick<JobHandlers, "IMAP_POLL" | "DAILY_UNPROCESSED_EMAIL" | "WEEKLY_SUMMARY_EMAIL"> {
+  deps: { mailbox: () => Mailbox | null; transport: () => MailTransport; dataDir: string },
+): Pick<JobHandlers, "IMAP_POLL" | "DAILY_UNPROCESSED_EMAIL" | "WEEKLY_SUMMARY_EMAIL" | "BACKUP"> {
   return {
     IMAP_POLL: recurring(db, imapPollHandler(db, deps.mailbox), (tx, _job, now) => {
       notifyOverdueReplies(tx, now);
@@ -248,8 +275,12 @@ export function recurringJobHandlers(
       enqueueJob(tx, "WEEKLY_SUMMARY_EMAIL", { date }, weeklyRunAt(tx, date), now);
     }),
     DAILY_UNPROCESSED_EMAIL: recurring(db, dailyEmailHandler(db, deps.transport), (tx, job, now) => {
-      const date = nextDailyDate(tx, String(job.payload.date), now);
-      enqueueJob(tx, "DAILY_UNPROCESSED_EMAIL", { date }, dailyRunAt(tx, date), now);
+      const date = nextDailyDate(tx, DAILY_EMAIL, String(job.payload.date), now);
+      enqueueJob(tx, "DAILY_UNPROCESSED_EMAIL", { date }, dailyRunAt(tx, DAILY_EMAIL, date), now);
+    }),
+    BACKUP: recurring(db, backupHandler(db, deps.dataDir), (tx, job, now) => {
+      const date = nextDailyDate(tx, DAILY_BACKUP, String(job.payload.date), now);
+      enqueueJob(tx, "BACKUP", { date }, dailyRunAt(tx, DAILY_BACKUP, date), now);
     }),
   };
 }

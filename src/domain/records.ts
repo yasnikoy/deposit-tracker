@@ -48,7 +48,7 @@ export type EmailDirection = (typeof EMAIL_DIRECTIONS)[number];
 export const STANDING_DOCUMENT_SLOTS = ["SIGNATURE_CIRCULAR", "POWER_OF_ATTORNEY"] as const;
 export type StandingDocumentSlot = (typeof STANDING_DOCUMENT_SLOTS)[number];
 
-export const JOB_KINDS = ["SEND_EMAIL", "COPY_TO_SENT_FOLDER", "IMAP_POLL", "DAILY_UNPROCESSED_EMAIL", "WEEKLY_SUMMARY_EMAIL"] as const;
+export const JOB_KINDS = ["SEND_EMAIL", "COPY_TO_SENT_FOLDER", "IMAP_POLL", "DAILY_UNPROCESSED_EMAIL", "WEEKLY_SUMMARY_EMAIL", "BACKUP"] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 export const JOB_STATUSES = ["PENDING", "RUNNING", "DONE", "FAILED"] as const;
 export type JobStatus = (typeof JOB_STATUSES)[number];

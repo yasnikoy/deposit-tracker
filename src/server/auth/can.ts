@@ -23,6 +23,8 @@ const rules = {
   "user.unlock": only("ADMIN"),
   "settings.view": only("ADMIN"),
   "settings.update": only("ADMIN"),
+  "system.view": only("ADMIN"),
+  "backup.run": only("ADMIN"),
   "holiday.manage": only("ADMIN"),
   "lists.manage": only("ADMIN"),
   "lists.view": ALL_ROLES,

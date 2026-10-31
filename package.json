@@ -1,6 +1,6 @@
 {
   "name": "deposit-tracker",
-  "version": "0.7.6",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -16,7 +16,8 @@
     "create-admin": "tsx --conditions=react-server scripts/create-admin.ts",
     "seed:demo": "tsx --conditions=react-server scripts/seed-demo.ts",
     "import:realdata": "tsx --conditions=react-server scripts/import-realdata.ts",
-    "agency-sim": "tsx --conditions=react-server scripts/agency-simulator.ts"
+    "agency-sim": "tsx --conditions=react-server scripts/agency-simulator.ts",
+    "backup": "tsx --conditions=react-server scripts/backup.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.0",

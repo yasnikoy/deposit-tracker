@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
@@ -172,7 +175,7 @@ describe("weekly summary email", () => {
       },
       NOW,
     );
-    const handlers = recurringJobHandlers(db, { mailbox: () => null, transport: () => mail }) as JobHandlers;
+    const handlers = recurringJobHandlers(db, { mailbox: () => null, transport: () => mail, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "deposit-test-")) }) as JobHandlers;
     await runDueJobs(db, handlers, () => at("2026-10-23T13:30:00Z"));
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["ekip@firma.example"]);

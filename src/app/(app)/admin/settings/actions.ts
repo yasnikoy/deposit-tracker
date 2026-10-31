@@ -11,7 +11,7 @@ import { sendTestEmailSchema, setStandingDocumentSchema, updateEmailTemplateSche
 import { sendTestEmail } from "@/server/email/send";
 import { updateEmailTemplate } from "@/server/email/templates";
 import { mailTransport } from "@/server/email/transport";
-import { scheduleDailyEmail, scheduleWeeklySummary } from "@/server/recurring-jobs";
+import { scheduleDailyBackup, scheduleDailyEmail, scheduleWeeklySummary } from "@/server/recurring-jobs";
 import { setStandingDocument } from "@/server/standing-documents";
 
 // Each value is validated against its own schema in the setting registry by updateSettings.
@@ -27,6 +27,7 @@ export async function updateSettingsAction(input: unknown): Promise<ActionResult
     const changed = updateSettings(db, user, data);
     // The pending daily email moves to the new time of its day.
     if (changed.includes("notifications.dailyUnprocessedTime")) scheduleDailyEmail(db);
+    if (changed.includes("backups.dailyTime")) scheduleDailyBackup(db);
     // The pending weekly summary moves to the new weekday and time.
     if (changed.includes("notifications.weeklySummaryWeekday") || changed.includes("notifications.weeklySummaryTime")) scheduleWeeklySummary(db, new Date(), { move: true });
     return changed;
