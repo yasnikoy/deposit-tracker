@@ -31,8 +31,8 @@ function mirrorFiles(from: string, to: string): number {
   if (!fs.existsSync(from)) return 0;
   let copied = 0;
   for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
-    const src = path.join(from, entry.name);
-    const dest = path.join(to, entry.name);
+    const src = path.join(/*turbopackIgnore: true*/ from, entry.name);
+    const dest = path.join(/*turbopackIgnore: true*/ to, entry.name);
     if (entry.isDirectory()) {
       copied += mirrorFiles(src, dest);
     } else if (entry.isFile() && (!fs.existsSync(dest) || fs.statSync(dest).size !== fs.statSync(src).size)) {
@@ -54,17 +54,17 @@ function prune(dailyDir: string, counts: { keepDaily: number; keepWeekly: number
     counts,
   );
   const old = copies.filter((c) => !keep.has(c.date));
-  for (const c of old) fs.rmSync(path.join(dailyDir, c.name));
+  for (const c of old) fs.rmSync(path.join(/*turbopackIgnore: true*/ dailyDir, c.name));
   return old.length;
 }
 
 /** One backup target: today's database copy, the mirrored files folder, old copies pruned. */
 function writeTarget(dir: string, snapshot: string, filesFrom: string, counts: { keepDaily: number; keepWeekly: number }): BackupTarget {
-  const dailyDir = path.join(dir, "daily");
+  const dailyDir = path.join(/*turbopackIgnore: true*/ dir, "daily");
   fs.mkdirSync(dailyDir, { recursive: true });
-  const file = path.join(dailyDir, path.basename(snapshot));
+  const file = path.join(/*turbopackIgnore: true*/ dailyDir, path.basename(snapshot));
   if (path.resolve(file) !== path.resolve(snapshot)) copyAtomically(snapshot, file);
-  const filesCopied = mirrorFiles(filesFrom, path.join(dir, "files"));
+  const filesCopied = mirrorFiles(filesFrom, path.join(/*turbopackIgnore: true*/ dir, "files"));
   return { dir, file, filesCopied, pruned: prune(dailyDir, counts) };
 }
 
@@ -77,10 +77,10 @@ function writeTarget(dir: string, snapshot: string, filesFrom: string, counts: {
 export async function runBackup(db: Db, dataDir: string, now: Date = new Date()): Promise<BackupResult> {
   const date = istanbulToday(now);
   const counts = { keepDaily: getSetting("backups.keepDaily", {}, db), keepWeekly: getSetting("backups.keepWeekly", {}, db) };
-  const localDir = path.join(dataDir, "backups");
-  const filesDir = path.join(dataDir, "files");
-  fs.mkdirSync(path.join(localDir, "daily"), { recursive: true });
-  const snapshot = path.join(localDir, "daily", `deposit-${date}.sqlite`);
+  const localDir = path.join(/*turbopackIgnore: true*/ dataDir, "backups");
+  const filesDir = path.join(/*turbopackIgnore: true*/ dataDir, "files");
+  fs.mkdirSync(path.join(/*turbopackIgnore: true*/ localDir, "daily"), { recursive: true });
+  const snapshot = path.join(/*turbopackIgnore: true*/ localDir, "daily", `deposit-${date}.sqlite`);
   await db.$client.backup(`${snapshot}.tmp`);
   fs.renameSync(`${snapshot}.tmp`, snapshot);
   const local = writeTarget(localDir, snapshot, filesDir, counts);
@@ -90,7 +90,7 @@ export async function runBackup(db: Db, dataDir: string, now: Date = new Date())
   if (secondLocation) {
     try {
       if (!fs.existsSync(secondLocation)) throw new Error(`not reachable: ${secondLocation}`);
-      second = writeTarget(path.join(secondLocation, SECOND_LOCATION_FOLDER), snapshot, filesDir, counts);
+      second = writeTarget(path.join(/*turbopackIgnore: true*/ secondLocation, SECOND_LOCATION_FOLDER), snapshot, filesDir, counts);
     } catch (error) {
       second = { error: (error instanceof Error ? error.message : String(error)).slice(0, 500) };
     }
@@ -115,7 +115,7 @@ function latestCopy(dailyDir: string): BackupCopy | null {
     .filter((m): m is RegExpExecArray => !!m)
     .sort((a, b) => b[1].localeCompare(a[1]))[0];
   if (!latest) return null;
-  const stat = fs.statSync(path.join(dailyDir, latest[0]));
+  const stat = fs.statSync(path.join(/*turbopackIgnore: true*/ dailyDir, latest[0]));
   return { date: latest[1], at: stat.mtime.toISOString(), sizeBytes: stat.size };
 }
 
@@ -135,10 +135,10 @@ export function backupStatus(db: DbOrTx, dataDir: string): BackupStatus {
     .where(and(eq(jobs.kind, "BACKUP"), eq(jobs.status, "PENDING")))
     .orderBy(jobs.runAt)
     .get();
-  const local = latestCopy(path.join(dataDir, "backups", "daily"));
+  const local = latestCopy(path.join(/*turbopackIgnore: true*/ dataDir, "backups", "daily"));
   return {
     local,
-    second: location ? { location, reachable, latest: reachable ? latestCopy(path.join(location, SECOND_LOCATION_FOLDER, "daily")) : null } : null,
+    second: location ? { location, reachable, latest: reachable ? latestCopy(path.join(/*turbopackIgnore: true*/ location, SECOND_LOCATION_FOLDER, "daily")) : null } : null,
     // A failure older than the newest copy is history, not a problem.
     lastFailure: failed && (!local || failed.at > local.at) ? { at: failed.at, error: failed.error ?? "" } : null,
     nextRunAt: next?.runAt ?? null,

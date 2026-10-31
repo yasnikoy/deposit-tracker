@@ -39,7 +39,7 @@ const sizeOf = (file: string) => (fs.existsSync(file) ? fs.statSync(file).size :
 export function systemHealth(db: Db, actor: AuthUser, now: Date = new Date()): SystemHealth {
   authorize(actor, "system.view");
   const env = getEnv();
-  const dbFile = path.join(env.dataDir, DATABASE_FILE_NAME);
+  const dbFile = path.join(/*turbopackIgnore: true*/ env.dataDir, DATABASE_FILE_NAME);
   let diskFreeBytes: number | null = null;
   try {
     const stat = fs.statfsSync(env.dataDir);
