@@ -38,6 +38,7 @@ import { currentBlForm } from "./forms";
 import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
+import { blNotes, type BlNote } from "./notes";
 import { depositEvidence } from "./payments";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
@@ -70,9 +71,10 @@ export type BlOverview = BlBalance & {
 
 type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string };
 
-function toOverviews(db: DbOrTx, viewer: AuthUser, rows: BlRow[], now: Date): BlOverview[] {
+/** `viewer` null: a scheduled job, which sees no draft locks. */
+function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Date): BlOverview[] {
   if (rows.length === 0) return [];
-  const lockers = activeLockers(db, viewer, now);
+  const lockers = viewer ? activeLockers(db, viewer, now) : new Map<number, string>();
   const ids = rows.map((row) => row.id);
   const calendar: BusinessCalendar = loadCalendar(db);
   const today = istanbulToday(now);
@@ -136,6 +138,15 @@ export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()):
     .all()
     .map(({ bl, agencyName }) => ({ ...bl, agencyName }));
   return toOverviews(db, actor, rows, now);
+}
+
+/** Every B/L for scheduled jobs (e.g. the weekly summary), which run without a signed-in user. */
+export function allBlsForJob(db: DbOrTx, now: Date): BlOverview[] {
+  const rows = blRows(db)
+    .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
+    .all()
+    .map(({ bl, agencyName }) => ({ ...bl, agencyName }));
+  return toOverviews(db, null, rows, now);
 }
 
 export type BlSearchResult = {
@@ -257,6 +268,7 @@ export type BlDetail = {
   documents: BlDocument[];
   emails: BlEmail[];
   replies: BlReply[];
+  notes: BlNote[];
   timeline: TimelineEvent[];
   /** Request-timing overrides of this B/L, and what each falls back to (agency, then global). */
   overrides: { values: AgencyOverrides; inherited: Record<OverridableSettingKey, number> };
@@ -419,6 +431,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     documents: blDocuments,
     emails: blEmails(db, id),
     replies: blReplies(db, id),
+    notes: blNotes(db, id),
     timeline,
     overrides,
     deductionTarget: deductionTarget(db, found.bl),

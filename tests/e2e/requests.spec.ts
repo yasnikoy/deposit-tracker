@@ -339,3 +339,39 @@ test("report email: operations previews a status report; agency addresses are re
   }).toPass({ timeout: 30_000 });
   await expect(page.getByTestId("sent-reports")).toContainText("mudur@firma.example");
 });
+
+test("notes: operations mentions a colleague on a B/L, adds a bulk note; the colleague is notified", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/bls");
+  await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).click();
+  await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await page.getByRole("button", { name: `@${E2E_ADMIN.username}` }).click();
+  await page.getByLabel(tr.notes.add).pressSequentially("portalı kontrol eder misiniz?");
+  await page.getByRole("button", { name: tr.notes.add, exact: true }).click();
+  await expect(page.getByText(tr.notes.saved)).toBeVisible();
+  await expect(page.getByTestId("bl-notes")).toContainText(`@${E2E_ADMIN.username} portalı kontrol eder misiniz?`);
+  await expect(page.locator("ol").getByText(tr.timeline.actions.note.add, { exact: true })).toBeVisible();
+
+  // Bulk: the confirmation lists the B/Ls before the note is added.
+  await page.goto("/bls");
+  for (const blNo of [BL_NO, PORTAL_BL_NO]) await page.getByRole("row").filter({ hasText: blNo }).getByRole("checkbox").check();
+  await page.getByRole("button", { name: tr.notes.bulk }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByTestId("bulk-note-bls")).toContainText(BL_NO);
+  await expect(dialog.getByTestId("bulk-note-bls")).toContainText(PORTAL_BL_NO);
+  await dialog.getByLabel(tr.notes.add).fill("Haftalık kontrol yapıldı.");
+  await dialog.getByRole("button", { name: tr.notes.add }).click();
+  await expect(page.getByText("2 B/L'ye not eklendi.")).toBeVisible();
+
+  await page.getByRole("button", { name: OPS.displayName }).click();
+  await page.getByRole("menuitem", { name: tr.nav.logout }).click();
+  await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
+  const bell = page.getByRole("link", { name: tr.nav.notifications });
+  await expect(bell).toContainText("1");
+  await bell.click();
+  const item = page.getByTestId("notifications").getByRole("link");
+  await expect(item).toContainText(`${OPS.displayName}, B/L ${PORTAL_BL_NO} notunda sizden bahsetti`);
+  await item.click();
+  await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
+  await expect(bell).not.toContainText("1");
+});

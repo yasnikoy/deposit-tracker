@@ -2,6 +2,7 @@
 
 import { blSearchSchema, createBlsSchema, generateFormSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
+import { addNotesSchema } from "@/lib/schemas/notes";
 import { voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
@@ -11,6 +12,7 @@ import { getDb } from "@/server/db/client";
 import { classifyDeduction, disputeDeduction, recordStatementDeductions } from "@/server/deductions";
 import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
+import { addNotes } from "@/server/notes";
 import { proposeWriteOff } from "@/server/write-offs";
 
 /** Each row is validated by createBls with the shared row schema; invalid rows come back with errors. */
@@ -62,4 +64,9 @@ export async function disputeDeductionAction(input: unknown): Promise<ActionResu
 export async function proposeWriteOffAction(input: unknown): Promise<ActionResult<number>> {
   const { user } = await requireSession();
   return runAction(proposeWriteOffSchema, input, (data) => proposeWriteOff(getDb(), user, data));
+}
+
+export async function addNotesAction(input: unknown): Promise<ActionResult<number[]>> {
+  const { user } = await requireSession();
+  return runAction(addNotesSchema, input, (data) => addNotes(getDb(), user, data));
 }

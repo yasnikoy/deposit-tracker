@@ -65,6 +65,17 @@ export function SettingEditor({
       );
     }
 
+    case "weekday":
+      return (
+        <select id={id} className="border-input bg-background h-8 w-40 rounded-md border px-2" value={String(value ?? "")} onChange={(event) => onChange(Number(event.target.value))}>
+          {WEEKDAYS.map((day) => (
+            <option key={day} value={day}>
+              {t(`weekdaysLong.${day}`)}
+            </option>
+          ))}
+        </select>
+      );
+
     case "businessDays":
     case "minutes":
     case "count":

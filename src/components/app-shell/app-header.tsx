@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, CircleUser, KeyRound, LogOut } from "lucide-react";
+import { Bell, ChevronDown, CircleUser, KeyRound, LogOut } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
@@ -39,7 +39,17 @@ function Badge({ badge }: { badge: NavItem["badge"] }) {
 /** Admin pages (settings, lists, users, approvals, …) are grouped in one menu so the header fits a desktop screen. */
 const isAdminPage = (item: NavItem) => item.href.startsWith("/admin/");
 
-export function AppHeader({ nav, user, version }: { nav: NavItem[]; user: { displayName: string; roles: Role[] }; version: string }) {
+export function AppHeader({
+  nav,
+  user,
+  version,
+  unreadNotifications,
+}: {
+  nav: NavItem[];
+  user: { displayName: string; roles: Role[] };
+  version: string;
+  unreadNotifications: number;
+}) {
   const pathname = usePathname();
   // The most specific matching item is active, so "/bls/new" does not also light up "/bls".
   const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
@@ -93,6 +103,16 @@ export function AppHeader({ nav, user, version }: { nav: NavItem[]; user: { disp
       </nav>
       <div className="ml-auto flex items-center gap-2">
         <GlobalSearch />
+        <Link
+          href="/notifications"
+          aria-label={t("nav.notifications")}
+          title={t("nav.notifications")}
+          aria-current={pathname === "/notifications" ? "page" : undefined}
+          className={cn("hover:bg-muted flex items-center rounded-md px-2 py-1", pathname === "/notifications" && "bg-muted")}
+        >
+          <Bell className="size-4" />
+          <Badge badge={{ count: unreadNotifications, alert: true, label: "notifications.badge" }} />
+        </Link>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">

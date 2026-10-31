@@ -12,6 +12,7 @@ import {
 import { REQUEST_CHANNELS } from "../../domain/agency";
 import { HOLIDAY_KINDS } from "../../domain/business-days";
 import { EMAIL_TEMPLATE_KEYS } from "../../domain/email-templates";
+import { NOTIFICATION_KINDS } from "../../domain/notifications";
 import { REPLY_TYPE_CODES } from "../../domain/replies";
 import {
   BL_STATUSES,
@@ -903,3 +904,50 @@ export const reportEmails = sqliteTable("report_emails", {
   sections: text("sections", { mode: "json" }).$type<string[]>().notNull(),
   filters: text("filters", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
 });
+
+/** Team notes on a B/L, with @mentions. Never deleted: an undo sets the flag. */
+export const notes = sqliteTable(
+  "notes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    blId: integer("bl_id")
+      .notNull()
+      .references(() => billsOfLading.id),
+    authorId: integer("author_id")
+      .notNull()
+      .references(() => users.id),
+    body: text("body").notNull(),
+    mentionedUserIds: text("mentioned_user_ids", { mode: "json" }).$type<number[]>().notNull().default(sql`'[]'`),
+    createdAt: timestamp("created_at").notNull(),
+    undoneAt: timestamp("undone_at"),
+    undoneBy: integer("undone_by").references(() => users.id),
+  },
+  (t) => [
+    check("notes_body", sql`length(trim(${t.body})) > 0`),
+    check("notes_undone", sql`(${t.undoneAt} IS NULL) = (${t.undoneBy} IS NULL)`),
+    index("notes_bl").on(t.blId),
+  ],
+);
+
+/** In-app notifications; `detail` keeps what the text needs as it was when the event happened. */
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    kind: text("kind", { enum: NOTIFICATION_KINDS }).notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: integer("entity_id").notNull(),
+    detail: text("detail", { mode: "json" }).$type<Record<string, string | number | null>>().notNull(),
+    createdAt: timestamp("created_at").notNull(),
+    readAt: timestamp("read_at"),
+  },
+  (t) => [
+    check("notifications_kind", sql`${t.kind} IN (${sqlList(NOTIFICATION_KINDS)})`),
+    // An overdue reply notifies each user once.
+    uniqueIndex("notifications_unprocessed_once").on(t.userId, t.entityId).where(sql`${t.kind} = 'UNPROCESSED_REPLY'`),
+    index("notifications_user").on(t.userId, t.readAt),
+  ],
+);

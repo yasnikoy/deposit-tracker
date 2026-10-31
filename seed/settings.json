@@ -53,6 +53,14 @@
     "notifications.dailyUnprocessedEmail": false,
     "notifications.dailyUnprocessedTime": "09:00",
     "notifications.dailyUnprocessedRecipients": [],
+    "notifications.weeklySummaryEmail": false,
+    "notifications.weeklySummaryWeekday": 1,
+    "notifications.weeklySummaryTime": "09:00",
+    "notifications.weeklySummaryRecipients": [],
+    "notifications.inAppMention": true,
+    "notifications.inAppCorrection": true,
+    "notifications.inAppUnprocessedReply": true,
+    "notifications.inAppWriteOff": true,
     "reports.internalDomains": [],
     "reports.defaultRecipients": [],
     "reconciliation.alternativeSuggestions": 3,
@@ -137,6 +145,10 @@
     "DAILY_UNPROCESSED": {
       "subject": "Depozito Takip – işlenmemiş {count} yanıt",
       "body": "Merhaba,\n\nAşağıdaki acentelerden gelen ve {warning_days} iş gününden uzun süredir işlenmemiş yanıtlar var:\n{agency_lines}\n\nYanıtlar ekranı: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
+    },
+    "WEEKLY_SUMMARY": {
+      "subject": "Depozito Takip – haftalık özet {date}",
+      "body": "Merhaba,\n\n{date} itibarıyla haftalık depozito özeti:\n\nAçık bakiye:\n{balance_lines}\n\n{waiting_days} iş gününden uzun bekleyen B/L: {waiting_count}\n{waiting_lines}\n\nİşlenmemiş yanıt: {unprocessed_count} (uyarı süresini geçen: {overdue_count})\n\nUygulama: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
     },
     "REPORT": {
       "subject": "Depozito durum raporu – {date}",

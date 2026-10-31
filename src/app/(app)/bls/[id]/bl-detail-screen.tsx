@@ -25,6 +25,8 @@ import type { DeductionTypeOption } from "../deduction-dialog";
 import { AllocationsSection } from "./allocations-section";
 import { DeductionsSection } from "./deductions-section";
 import { ReplySection } from "./reply-section";
+import { NotesSection } from "./notes-section";
+import type { MentionableUser } from "../note-editor";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -53,6 +55,7 @@ export type BlDetailPermissions = {
   recordDeduction: boolean;
   disputeDeduction: boolean;
   proposeWriteOff: boolean;
+  addNote: boolean;
 };
 
 export function BlDetailScreen({
@@ -60,12 +63,14 @@ export function BlDetailScreen({
   can,
   replyTypes,
   deductionTypes,
+  mentionable,
   today,
 }: {
   detail: BlDetail;
   can: BlDetailPermissions;
   replyTypes: ReplyTypeOption[];
   deductionTypes: DeductionTypeOption[];
+  mentionable: MentionableUser[];
   today: string;
 }) {
   const router = useRouter();
@@ -169,6 +174,10 @@ export function BlDetailScreen({
             canRecord={can.recordReply && !bl.voidedAt}
             canLink={can.linkEmail && !bl.voidedAt}
           />
+        </Section>
+
+        <Section title={t("notes.title")}>
+          <NotesSection blId={bl.id} notes={detail.notes} canAdd={can.addNote && !bl.voidedAt} users={mentionable} />
         </Section>
 
         <Section title={t("bls.detail.documents")}>

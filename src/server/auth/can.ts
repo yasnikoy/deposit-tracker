@@ -64,6 +64,10 @@ const rules = {
   "report.view": ALL_ROLES,
   // The report email to internal addresses.
   "report.sendEmail": only("OPERATIONS"),
+  // Team notes on B/Ls, with @mentions.
+  "note.add": only("OPERATIONS"),
+  // Each user sees and marks read only their own notifications.
+  "notification.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),
   // Accountants follow the Operations work lists read-only.
   "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),

@@ -123,20 +123,28 @@ export function listReplies(db: DbOrTx, actor: AuthUser, now: Date = new Date())
 
 export type UnprocessedSummary = { count: number; overdue: number; overdueByAgency: { agencyName: string; count: number }[] };
 
-/** For the menu badge and the daily email: unprocessed linked replies, and those past the warning. */
-export function unprocessedSummary(db: DbOrTx, now: Date = new Date()): UnprocessedSummary {
+export type UnprocessedReply = { emailId: number; subject: string; agencyName: string | null; receivedAt: string; overdue: boolean };
+
+/** Linked replies with a B/L still lacking its recorded reply type, and whether each is past the warning. */
+export function unprocessedReplies(db: DbOrTx, now: Date = new Date()): UnprocessedReply[] {
   const links = linkStates(db);
   const pendingIds = [...new Set(pendingOf(links).map((l) => l.emailId))];
-  if (pendingIds.length === 0) return { count: 0, overdue: 0, overdueByAgency: [] };
-  const rows = db
-    .select({ receivedAt: emails.receivedAt, agencyName: agencies.name })
+  if (pendingIds.length === 0) return [];
+  const calendar = loadCalendar(db);
+  return db
+    .select({ emailId: emails.id, subject: emails.subject, receivedAt: emails.receivedAt, agencyName: agencies.name })
     .from(emails)
     .leftJoin(agencies, eq(agencies.id, emails.agencyId))
     .where(inArray(emails.id, pendingIds))
-    .all();
-  const calendar = loadCalendar(db);
+    .all()
+    .map((row) => ({ ...row, receivedAt: row.receivedAt!, overdue: isOverdue(db, row.receivedAt!, now, calendar) }));
+}
+
+/** For the menu badge and the daily email: unprocessed linked replies, and those past the warning. */
+export function unprocessedSummary(db: DbOrTx, now: Date = new Date()): UnprocessedSummary {
+  const rows = unprocessedReplies(db, now);
   const byAgency = new Map<string, number>();
-  for (const row of rows.filter((r) => isOverdue(db, r.receivedAt!, now, calendar))) {
+  for (const row of rows.filter((r) => r.overdue)) {
     const name = row.agencyName ?? "—";
     byAgency.set(name, (byAgency.get(name) ?? 0) + 1);
   }

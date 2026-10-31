@@ -12,6 +12,7 @@ import { agencies, billsOfLading, deductionTypes, users, writeOffs } from "./db/
 import { blLedgerBalance, openUnexplained } from "./deductions";
 import { DomainError } from "./errors";
 import { addLedgerEntry, compensateLedgerEntry } from "./ledger";
+import { notify, usersWithRole } from "./notifications";
 
 type BlRow = typeof billsOfLading.$inferSelect;
 
@@ -60,6 +61,18 @@ export function proposeWriteOff(db: Db, actor: AuthUser, input: { blId: number; 
     writeAudit(
       tx,
       { actorUserId: actor.id, roleUsed, action: "writeOff.propose", entityType: "bill_of_lading", entityId: bl.id, after: { writeOffId: row.id, amountMinor }, reason: input.reason },
+      now,
+    );
+    notify(
+      tx,
+      {
+        userIds: usersWithRole(tx, "ADMIN"),
+        actorId: actor.id,
+        kind: "WRITE_OFF_PROPOSED",
+        entityType: "write_off",
+        entityId: row.id,
+        detail: { actor: actor.displayName, blNo: bl.blNo, amountMinor, currency: bl.currency, reason: input.reason },
+      },
       now,
     );
     return row.id;
@@ -128,7 +141,32 @@ export function approveWriteOff(db: Db, actor: AuthUser, input: { writeOffId: nu
       },
       now,
     );
+    notifyDecision(tx, actor, writeOff, bl.blNo, "APPROVED", input.note, now);
   });
+}
+
+/** The proposer learns the outcome. */
+function notifyDecision(
+  tx: DbOrTx,
+  actor: AuthUser,
+  writeOff: typeof writeOffs.$inferSelect,
+  blNo: string,
+  decision: "APPROVED" | "REJECTED",
+  note: string | null,
+  now: Date,
+) {
+  notify(
+    tx,
+    {
+      userIds: [writeOff.proposedBy],
+      actorId: actor.id,
+      kind: "WRITE_OFF_DECIDED",
+      entityType: "bill_of_lading",
+      entityId: writeOff.blId,
+      detail: { actor: actor.displayName, blNo, decision, amountMinor: writeOff.amountMinor, currency: writeOff.currency, note },
+    },
+    now,
+  );
 }
 
 /** Admin rejection with a reason; the B/L stays as it is. */
@@ -145,6 +183,8 @@ export function rejectWriteOff(db: Db, actor: AuthUser, input: { writeOffId: num
       { actorUserId: actor.id, roleUsed, action: "writeOff.reject", entityType: "bill_of_lading", entityId: writeOff.blId, after: { writeOffId: writeOff.id }, reason: input.reason },
       now,
     );
+    const bl = tx.select({ blNo: billsOfLading.blNo }).from(billsOfLading).where(eq(billsOfLading.id, writeOff.blId)).get()!;
+    notifyDecision(tx, actor, writeOff, bl.blNo, "REJECTED", input.reason, now);
   });
 }
 

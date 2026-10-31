@@ -4,7 +4,7 @@ import { businessDaysBetween, istanbulToday } from "@/domain/business-days";
 import { agingBuckets, agingReport, agencyScorecard, type AgingBucket, type AgingRow, type ScorecardRow } from "@/domain/reports";
 import { authorize, can } from "./auth/can";
 import type { AuthUser } from "./auth/types";
-import { listAllBls, type BlOverview } from "./bl-overview";
+import { allBlsForJob, listAllBls, type BlOverview } from "./bl-overview";
 import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
 import { billsOfLading, deductionTypes, ledgerEntries, refundAllocations, refunds } from "./db/schema";
@@ -24,7 +24,16 @@ export type Position = BlOverview & {
 
 /** Every active (not voided) B/L with what is still outstanding on it. */
 export function positions(db: DbOrTx, actor: AuthUser, now: Date): Position[] {
-  return listAllBls(db, actor, now)
+  return positionsOf(db, listAllBls(db, actor, now));
+}
+
+/** The same for scheduled jobs, which run without a signed-in user. */
+export function positionsForJob(db: DbOrTx, now: Date): Position[] {
+  return positionsOf(db, allBlsForJob(db, now));
+}
+
+function positionsOf(db: DbOrTx, bls: BlOverview[]): Position[] {
+  return bls
     .filter((bl) => !bl.voidedAt)
     .map((bl) => {
       const open = bl.status !== "COLLECTED";
@@ -35,7 +44,7 @@ export function positions(db: DbOrTx, actor: AuthUser, now: Date): Position[] {
 
 export type CurrencyTotal = { currency: string; amountMinor: number };
 
-function totalsByCurrency(items: { currency: string; amountMinor: number }[]): CurrencyTotal[] {
+export function totalsByCurrency(items: { currency: string; amountMinor: number }[]): CurrencyTotal[] {
   const totals = new Map<string, number>();
   for (const item of items) totals.set(item.currency, (totals.get(item.currency) ?? 0) + item.amountMinor);
   return [...totals.entries()].map(([currency, amountMinor]) => ({ currency, amountMinor })).sort((a, b) => a.currency.localeCompare(b.currency));

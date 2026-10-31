@@ -19,6 +19,8 @@ import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { BlOverview } from "@/server/bl-overview";
 import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
 import { BalanceStrip } from "./balance-strip";
+import { BulkNoteDialog } from "./bulk-note-dialog";
+import type { MentionableUser } from "./note-editor";
 
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
@@ -97,6 +99,8 @@ export function AllBlsScreen({
   status,
   canEdit,
   canVoid,
+  canAddNote,
+  mentionable,
 }: {
   bls: BlOverview[];
   layout: TableLayout | null;
@@ -104,6 +108,8 @@ export function AllBlsScreen({
   status: BlOverview["status"] | null;
   canEdit: boolean;
   canVoid: boolean;
+  canAddNote: boolean;
+  mentionable: MentionableUser[];
 }) {
   const router = useRouter();
   const [showVoided, setShowVoided] = useState(false);
@@ -111,6 +117,7 @@ export function AllBlsScreen({
   // The table's order when the row was opened, for previous/next.
   const [order, setOrder] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [noteFor, setNoteFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
   const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
   const open = bls.find((b) => b.id === openId) ?? null;
   const done = () => {
@@ -132,6 +139,18 @@ export function AllBlsScreen({
           setOpenId(b.id);
         }}
         rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
+        bulkActions={
+          canAddNote
+            ? (selected, clear) => {
+                const active = selected.filter((b) => !b.voidedAt);
+                return (
+                  <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setNoteFor({ bls: active, clear })}>
+                    {t("notes.bulk")}
+                  </Button>
+                );
+              }
+            : undefined
+        }
         toolbar={
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
@@ -139,6 +158,18 @@ export function AllBlsScreen({
           </label>
         }
       />
+      {noteFor && (
+        <BulkNoteDialog
+          bls={noteFor.bls}
+          users={mentionable}
+          onClose={() => setNoteFor(null)}
+          onDone={() => {
+            noteFor.clear();
+            setNoteFor(null);
+            router.refresh();
+          }}
+        />
+      )}
       {open && (
         <DetailDialog
           title={<span className="font-mono">{open.blNo}</span>}

@@ -8,6 +8,7 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { getEnv } from "@/server/env";
 import { unprocessedSummary } from "@/server/replies";
+import { unreadNotificationCount } from "@/server/notifications";
 import { mailOutages } from "@/server/service-status";
 import { pendingWriteOffCount } from "@/server/write-offs";
 
@@ -49,7 +50,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <AppHeader nav={nav} user={{ displayName: user.displayName, roles: user.roles }} version={APP_VERSION} />
+      <AppHeader nav={nav} user={{ displayName: user.displayName, roles: user.roles }} version={APP_VERSION} unreadNotifications={unreadNotificationCount(db, user)} />
       {outages.map((outage) => (
         <div key={outage.service} role="alert" className="border-b border-amber-300 bg-amber-50 px-4 py-1.5 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           {t(`mail.outage.${outage.service}`, { since: formatTimestamp(outage.since) })}

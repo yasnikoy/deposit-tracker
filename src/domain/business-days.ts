@@ -55,6 +55,11 @@ export function addCalendarDays(date: IsoDate, days: number): IsoDate {
   return fromUtcMs(toUtcMs(date) + days * DAY_MS);
 }
 
+/** The first date on or after `date` that falls on an ISO weekday (1 = Monday … 7 = Sunday). */
+export function onOrAfterWeekday(date: IsoDate, weekday: number): IsoDate {
+  return addCalendarDays(date, (weekday - isoWeekday(date) + 7) % 7);
+}
+
 export function isBusinessDay(date: IsoDate, calendar: BusinessCalendar): boolean {
   if (calendar.weekendDays.includes(isoWeekday(date))) return false;
   const holiday = calendar.holidays.get(date);

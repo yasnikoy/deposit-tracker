@@ -13,6 +13,7 @@ export const EMAIL_TEMPLATE_KEYS = [
   "REPLY_QUOTE",
   "DAILY_UNPROCESSED",
   "REPORT",
+  "WEEKLY_SUMMARY",
 ] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
@@ -31,6 +32,8 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   DAILY_UNPROCESSED: ["count", "warning_days", "agency_lines", "link"],
   // Operations report to internal addresses: the body is the intro; section summaries and the signature follow it.
   REPORT: ["date"],
+  // Optional weekly email to our own team; never sent to agencies.
+  WEEKLY_SUMMARY: ["date", "balance_lines", "waiting_days", "waiting_count", "waiting_lines", "unprocessed_count", "overdue_count", "link"],
 };
 
 /** Section blocks of the batched template; `[[refund]]` depends on `{refund_section}`. */

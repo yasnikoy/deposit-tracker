@@ -20,6 +20,7 @@ import {
 import { DomainError } from "./errors";
 import { attachDocument, nameBlDocuments, type StoredDocument } from "./files";
 import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
+import { notify, operationsOnBl } from "./notifications";
 import type { ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
 
@@ -279,6 +280,26 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
           paidAt: blAfter.paidAt,
         },
         reason: input.reason,
+      },
+      now,
+    );
+    notify(
+      tx,
+      {
+        userIds: operationsOnBl(tx, bl.id),
+        actorId: actor.id,
+        kind: "CORRECTION",
+        entityType: "bill_of_lading",
+        entityId: bl.id,
+        detail: {
+          actor: actor.displayName,
+          blNo: bl.blNo,
+          beforeMinor: bl.depositAmountMinor,
+          beforeCurrency: bl.currency,
+          afterMinor: blAfter.depositAmountMinor,
+          afterCurrency: blAfter.currency,
+          reason: input.reason,
+        },
       },
       now,
     );

@@ -18,6 +18,8 @@ export type SettingKind =
   | "boolean"
   | "time"
   | "weekdays"
+  /** One ISO weekday, 1 = Monday … 7 = Sunday. */
+  | "weekday"
   | "bucketEdges"
   | "fileTypes"
   | "text"
@@ -135,6 +137,15 @@ export const settingDefinitions = {
   "notifications.dailyUnprocessedEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.dailyUnprocessedTime": { group: "notifications", kind: "time", schema: time },
   "notifications.dailyUnprocessedRecipients": { group: "notifications", kind: "emailList", schema: emailList },
+  "notifications.weeklySummaryEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.weeklySummaryWeekday": { group: "notifications", kind: "weekday", schema: int(1, 7) },
+  "notifications.weeklySummaryTime": { group: "notifications", kind: "time", schema: time },
+  "notifications.weeklySummaryRecipients": { group: "notifications", kind: "emailList", schema: emailList },
+  /** In-app notifications are always on; these choose which events notify. */
+  "notifications.inAppMention": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.inAppCorrection": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.inAppUnprocessedReply": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.inAppWriteOff": { group: "notifications", kind: "boolean", schema: z.boolean() },
 
   /** Report email recipients must be in one of these domains (or the sender's own). */
   "reports.internalDomains": { group: "reports", kind: "domainList", schema: domainList },

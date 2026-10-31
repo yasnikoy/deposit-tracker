@@ -51,7 +51,8 @@
     "writeOffsBadge": "Onay bekleyen {count} silme önerisi",
     "openingBalance": "Açılış bakiyesi",
     "admin": "Yönetim",
-    "reports": "Raporlar"
+    "reports": "Raporlar",
+    "notifications": "Bildirimler"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -400,6 +401,38 @@
         "dailyUnprocessedRecipients": {
           "label": "Günlük e-posta alıcıları",
           "help": "Yalnızca şirket içi adresler."
+        },
+        "weeklySummaryEmail": {
+          "label": "Haftalık özet e-postası",
+          "help": "Açıkken her hafta seçilen gün ve saatte açık bakiye, en uzun bekleyen B/L'ler ve işlenmemiş yanıtların özeti gönderilir."
+        },
+        "weeklySummaryWeekday": {
+          "label": "Haftalık özet günü",
+          "help": "Bilgisayar o gün kapalıysa özet açılışta gönderilir."
+        },
+        "weeklySummaryTime": {
+          "label": "Haftalık özet saati",
+          "help": "İstanbul saatiyle."
+        },
+        "weeklySummaryRecipients": {
+          "label": "Haftalık özet alıcıları",
+          "help": "Yalnızca şirket içi adresler."
+        },
+        "inAppMention": {
+          "label": "Bildirim: bahsetme",
+          "help": "Bir notta @kullanıcıadı ile bahsedilen kullanıcı bildirim alır."
+        },
+        "inAppCorrection": {
+          "label": "Bildirim: ödeme düzeltmesi",
+          "help": "Muhasebe bir B/L'nin ödemesini düzelttiğinde, o B/L'de çalışmış operasyon kullanıcıları (yoksa tüm operasyon) bildirim alır."
+        },
+        "inAppUnprocessedReply": {
+          "label": "Bildirim: işlenmemiş yanıt",
+          "help": "Bir acente yanıtı uyarı süresini geçtiğinde her operasyon kullanıcısı bir kez bildirim alır."
+        },
+        "inAppWriteOff": {
+          "label": "Bildirim: silme onayı",
+          "help": "Yeni silme önerisi yöneticilere, onay veya ret öneriyi yapana bildirilir."
         }
       },
       "reports": {
@@ -824,6 +857,9 @@
       },
       "openingBalance": {
         "create": "Açılış bakiyesi girildi (Excel'den aktarıldı)"
+      },
+      "note": {
+        "add": "Not eklendi"
       }
     },
     "system": "Sistem",
@@ -986,7 +1022,8 @@
       "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)",
       "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası",
       "DEDUCTION_STATEMENT": "Kesinti dökümü talebi",
-      "REPORT": "Rapor e-postası"
+      "REPORT": "Rapor e-postası",
+      "WEEKLY_SUMMARY": "Haftalık özet e-postası"
     },
     "help": {
       "REFUND_REQUEST": "Tek B/L için ilk talep.",
@@ -995,6 +1032,7 @@
       "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
       "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
       "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur.",
+      "WEEKLY_SUMMARY": "Ekibe giden iç e-posta; acentelere gönderilmez. {balance_lines} her para birimi için bir satır, {waiting_lines} en uzun bekleyen B/L'ler için birer satırdır (yaşlandırmanın son aralığından uzun bekleyenler; {waiting_days} o sınırdır).",
       "REPORT": "Operasyonun Raporlar ekranından şirket içi adreslere gönderdiği durum raporu; acentelere gönderilmez. Metin, önizlemede değiştirilebilen giriş bölümüdür; altına seçilen bölümlerin özet tabloları ve imza eklenir, tam listeler CSV eki olarak gider.",
       "DEDUCTION_STATEMENT": "Açıklanmayan bir kesinti için acenteden döküm istenir. Takip talepleri aynı metinle, önceki döküm talebine yanıt olarak gider (konu \"Re: …\"). Toplu e-postada bu B/L'ler [[statement]] bölümünde yer alır; satırdaki {amount} kesinti tutarıdır."
     },
@@ -1441,5 +1479,37 @@
         "recipients": "Geçerli e-posta adresleri girin."
       }
     }
+  },
+  "notes": {
+    "title": "Notlar",
+    "add": "Not ekle",
+    "placeholder": "Not yazın… Bir kullanıcıdan bahsetmek için @kullanıcıadı yazın.",
+    "mentionHint": "Bahsetmek için tıklayın:",
+    "saved": "Not eklendi.",
+    "savedBulk": "{count} B/L'ye not eklendi.",
+    "undone": "geri alındı",
+    "empty": "Henüz not yok.",
+    "bulk": "Not ekle",
+    "bulkTitle": "Seçili B/L'lere not ekle",
+    "bulkConfirm": "Bu not aşağıdaki {count} B/L'ye eklenecek:",
+    "errors": {
+      "empty": "Not boş olamaz.",
+      "unknownMention": "Bu kullanıcılar bulunamadı veya pasif: {names}"
+    }
+  },
+  "notifications": {
+    "title": "Bildirimler",
+    "empty": "Bildirim yok.",
+    "markAllRead": "Tümünü okundu say",
+    "badge": "{count} okunmamış bildirim",
+    "texts": {
+      "MENTION": "{author}, B/L {blNo} notunda sizden bahsetti: “{excerpt}”",
+      "CORRECTION": "{actor}, B/L {blNo} ödemesini düzeltti: {before} → {after}. Neden: {reason}",
+      "UNPROCESSED_REPLY": "{agency} yanıtı uyarı süresini geçti ve henüz işlenmedi: {subject}",
+      "WRITE_OFF_PROPOSED": "{actor}, B/L {blNo} için {amount} silme önerdi: {reason}",
+      "WRITE_OFF_APPROVED": "{actor}, B/L {blNo} için {amount} silme önerinizi onayladı.",
+      "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}"
+    },
+    "unknownAgency": "Acentesi bilinmeyen"
   }
 }

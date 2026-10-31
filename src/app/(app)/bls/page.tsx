@@ -6,6 +6,7 @@ import { requireSession } from "@/server/auth/current-user";
 import { listAllBls } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
 import { getTableLayout } from "@/server/preferences";
+import { mentionableUsers } from "@/server/notes";
 import { AllBlsScreen } from "./all-bls-screen";
 
 export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
@@ -25,6 +26,8 @@ export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
         bls={listAllBls(db, user)}
         layout={getTableLayout(db, user.id, "all-bls")}
         canEdit={can(user, "bl.update").allowed}
+        canAddNote={can(user, "note.add").allowed}
+        mentionable={mentionableUsers(db)}
         canVoid={can(user, "bl.void").allowed}
       />
     </>

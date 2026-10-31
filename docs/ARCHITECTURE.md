@@ -147,8 +147,8 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `mailbox_state` | How far the poller has read the inbox folder | folder, uid\_validity, last\_uid, last\_polled\_at |
 | `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by (null for files imported from the mailbox), withdrawn\_at/withdrawn\_by (an upload taken back by undo) |
 | `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
-| `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at |
-| `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_APPROVAL, ...), entity, read\_at |
+| `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at, undone\_at/undone\_by (undo) |
+| `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_PROPOSED, WRITE\_OFF\_DECIDED), entity type and id, detail (what the text needs, kept as it was), created\_at, read\_at. An overdue reply notifies each user once |
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
@@ -458,6 +458,17 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 31, 2026 — build step 7d (notes, mentions, notifications, weekly summary), v0.7.3**
+
+- Notes on B/Ls (operations, `note.add`). They appear on the B/L detail and its timeline. "Not ekle" is also a bulk action on All B/Ls; its confirmation lists the B/Ls, and one bulk note is one action for undo. An `@username` must name an active user, otherwise the note is refused. A note can be undone within the undo window: it stays visible, struck through.
+- In-app notifications: a bell in the header shows the unread count, and the *Bildirimler* page lists the user's notifications. Opening one marks it read. Who is notified:
+  - *Mention*: the mentioned users.
+  - *Correction*: a payment correction that changed a B/L notifies the operations users who worked on that B/L (created it, recorded or sent its requests, recorded its replies, wrote notes). If there are none, all active operations users.
+  - *Unprocessed reply*: once the warning has passed, each active operations user, once per reply. The check runs with every mailbox poll.
+  - *Write-off*: a proposal notifies every active admin; the decision notifies the proposer.
+  - The actor is never notified of their own action. Each kind can be switched off under *Bildirimler*.
+- Weekly summary email (off by default): weekday, time and recipients are settings, and the `WEEKLY_SUMMARY` template is editable. It contains open balance per currency, B/Ls waiting longer than the last aging bucket edge (the same rule as the report email), and unprocessed and overdue reply counts. It runs as a recurring job like the daily email: a missed week runs at the next start, and changing the weekday or time moves the pending job. Scheduled jobs read B/Ls without a signed-in user and without draft locks (`allBlsForJob`).
 
 **Oct 31, 2026 — build step 7c (report email), v0.7.2**
 

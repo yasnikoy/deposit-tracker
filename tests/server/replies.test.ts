@@ -356,6 +356,8 @@ describe("unprocessed replies and the daily email", () => {
     expect(pending.map((j) => [j.kind, j.payload.date ?? null]).sort()).toEqual([
       ["DAILY_UNPROCESSED_EMAIL", "2026-10-26"],
       ["IMAP_POLL", null],
+      // The weekly summary waits for its weekday (Monday by default).
+      ["WEEKLY_SUMMARY_EMAIL", "2026-10-26"],
     ]);
   });
 });
