@@ -22,7 +22,7 @@ All code, identifiers, database names, comments and docs are in **English**; onl
 - **Stack:** Next.js (TypeScript) full-stack app, SQLite, Drizzle ORM with SQL migrations, in-app authentication with roles.
 - **Background jobs:** an in-process scheduler with a SQLite job table for IMAP polling, email sending, the optional daily unprocessed-reply email and the optional weekly summary email. Jobs run only on the designated PC; when it is off nothing runs, and missed work (mail polling, due lists, backup) catches up at the next start.
 - **Deployment:** a portable folder on the designated PC's internal disk; no installer, no Docker, no separate database server (see Operations and deployment). Daily database and file backups.
-- **Network access:** plain HTTP on the office network at http://\<computer-name>:3000; never exposed to the internet. Remote access only through a VPN into the office network, not in v1.
+- **Network access:** plain HTTP on the office network at http://\<host IP>:3000 (all office PCs share the name "UserPC", so the name cannot be used); never exposed to the internet. Remote access only through a VPN into the office network, not in v1.
 - **Files:** uploaded forms, form templates, receipts, invoices and email attachments stored in the app's data folder on the PC's internal disk, referenced from the database. Not publicly accessible.
 - **Secrets:** SMTP/IMAP credentials stored encrypted (AES-256-GCM); the encryption key lives in a key file outside the data folder (`KEY_FILE`, default `deposit.key` next to the data folder, created when the first password is saved), never in the database or in backups; a copy is kept offline in a safe place. The settings screen, history and audit log only show that a password was changed.
 - **Engineering rule:** no business constant is hardcoded. Durations, thresholds, templates, lists and B/L number patterns come from the settings system or agency configuration. Business invariants are the only rules that live in code.
@@ -420,7 +420,7 @@ Desktop-only, dense tables; a row opens its details in a large centered dialog o
 
 ## Operations and deployment
 
-The app runs from a portable folder on an office desktop PC; other users open it in Chrome or Edge at `http://<computer-name>:3000`. The PC's user and one IT colleague maintain it with a step-by-step `docs/RUNBOOK.md` in the repo. A dedicated always-on host, VPN access or a server in Turkey were reviewed and postponed; the current setup stays for v1.
+The app runs from a portable folder on an office desktop PC; other users open it in Chrome or Edge at `http://<host IP>:3000`. The PC's user and one IT colleague maintain it with a step-by-step `docs/RUNBOOK.md` in the repo. A dedicated always-on host, VPN access or a server in Turkey were reviewed and postponed; the current setup stays for v1.
 
 | Area | Decision |
 | --- | --- |
@@ -428,7 +428,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 | Folder layout | `C:\DepositTracker\app` (replaceable program files) and `C:\DepositTracker\data` (database, uploaded files, logs). The key file sits outside both. USB drives are never used to run the app or hold live data |
 | Start | A Windows Task Scheduler task starts the app at system startup, without anyone logging in, and restarts it if it stops. Migrations run automatically on start, after an automatic backup |
 | First setup | Unzip the release to `app`, run `create-admin.cmd`, open the app, enter mail server settings, users, agencies (with B/L number patterns and form templates), bank accounts, holidays and standing documents |
-| Access | Office network only, plain HTTP on port 3000 by computer name. Windows Firewall allows port 3000 on the private network profile only. No port forwarding; guest Wi-Fi kept separate |
+| Access | Office network only, plain HTTP on port 3000 by the host's IP address: office PCs all carry the name "UserPC" and may not be renamed. The host is on Ethernet; IT is asked for a DHCP reservation so the address never changes. `setup.cmd` prints the address to share. Windows Firewall allows port 3000 on the private network profile only. No port forwarding; guest Wi-Fi kept separate |
 | Outbound network | The PC must reach Yandex SMTP and IMAP; nothing inbound from the internet is needed |
 | Updates | Pull-only, admin-approved, from GitHub Releases of the public repository (see Technical decisions → Updates). The app checks daily and shows a new version to admins (header and health page) with its release notes; "Güncelle" downloads the zip, verifies its signature and stages it next to `app`; `start.cmd` applies it at the next start (by default right away: the app restarts and the scheduled task brings it back). The previous `app` folder is kept, and if the health check fails after start, `start.cmd` switches back to it. Manual update (download, `stop.cmd`, replace `app`, `start.cmd`) stays possible. The `data` folder is never touched by an update |
 | Backups | Daily at a configurable time during office hours (default 12:30), and at the next start if missed: a consistent SQLite backup plus a copy of the files folder, written locally and copied to a second location. Keep 14 daily and 8 weekly copies. Test a restore monthly |
@@ -437,13 +437,14 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Open items before go-live**
 
-- [ ] Create the public GitHub repository (commits show the author's name and email) and the Ed25519 release key; keep the private release key offline, like the mail key file
 - [ ] Release 1.0.0 (`pnpm version major`) once this document is implemented
 - [x] Name of the bank and sample PDF receipts for the receipt parser (Garanti BBVA, 67 outgoing transfers; still open: an incoming refund receipt)
 - [ ] B/L number formats of each agency, to set up the patterns
 - [ ] Blank refund forms of each agency, converted to `.docx` templates with placeholders
 - [x] Approve the docx templating library (docxtemplater + pizzip)
-- [ ] Rename the host PC from the generic "UserPc" to a unique name (e.g. DEPOZITO-PC; ask IT first if it is domain-joined); sleep and Windows Update settings adjusted
+- [ ] Fixed IP for the host (DHCP reservation from IT; renaming is not permitted); sleep and Windows Update settings adjusted
+- [x] Ed25519 release key created (Oct 31, 2026), kept on the development machine and in the password manager
+- [x] GitHub repository created: github.com/yasnikoy/deposit-tracker (not pushed yet: real customer names and B/L numbers are cleaned from the history first)
 - [ ] Second backup location (shared drive or USB disk)
 - [ ] Yandex mailbox: IMAP enabled, app password, sent-folder name
 - [ ] Bank accounts per currency, holiday list for 2026–2027, standing documents (signature circular, power of attorney)
