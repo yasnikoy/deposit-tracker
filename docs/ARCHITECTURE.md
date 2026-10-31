@@ -453,6 +453,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Deferred beyond v1:** PDF field mapping for agency forms, digital stamp and signature with approval, bulk form printing and QR-based splitting of scanned forms, native `.xlsx` export, keyword-based reply-type suggestions, demurrage/free-time calculation, AI interpretation of agency replies, demurrage-risk alerts, holiday-list reminders, second approval for critical settings, dedicated host PC, remote (VPN) access, server hosting, reading scanned receipts (OCR), Outlook add-in (needs HTTPS).
 
+**Idea, not scheduled — learned B/L number patterns:** from the B/Ls users create or correct under an agency, the app proposes a pattern per agency that keeps the shared prefix plus the shape (e.g. `AKK[A-Z]{3}\d{8}`, `MEDU[A-Z0-9]{8}`), never a purely numeric one. It is shown on the agency screen with the B/Ls it came from and what it would cover; an admin accepts (audited, like any agency change) or dismisses it. Only B/L patterns are learned (not bank names or customer aliases). Whether and when to build it is decided later.
+
 **Not planned:** accounting software export, deposit tariff tables, container-level return tracking, phone/WhatsApp follow-up logging, Excel import for migration.
 
 **Removed after review:** escalation, snooze, auto-confirm of allocations, bank-fee tolerance.
