@@ -114,10 +114,19 @@ async function main() {
   fs.cpSync(sqlite, path.join(server, "node_modules", "better-sqlite3"), { recursive: true });
   const argon2Version = installedVersion("@node-rs/argon2");
   await npmPackage("@node-rs/argon2-win32-x64-msvc", argon2Version, path.join(server, "node_modules", "@node-rs", "argon2-win32-x64-msvc"));
-  // Binaries for other systems are dead weight on Windows.
+  // Binaries for other systems are dead weight on Windows: whole packages for another OS or CPU
+  // (sharp's Linux builds and libvips, argon2-linux-x64-gnu), then stray .node files.
+  for (const file of execFileSync("find", [server, "-name", "package.json"]).toString().trim().split("\n")) {
+    if (!fs.existsSync(file)) continue; // inside a package removed earlier in the loop
+    let meta;
+    try { meta = JSON.parse(fs.readFileSync(file, "utf8")); } catch { continue; }
+    const excludes = (list, value) => Array.isArray(list) && !list.some((v) => v === value || (v.startsWith("!") && v !== `!${value}`));
+    if (excludes(meta.os, "win32") || excludes(meta.cpu, "x64")) fs.rmSync(path.dirname(file), { recursive: true });
+  }
   for (const file of execFileSync("find", [server, "-name", "*.node"]).toString().trim().split("\n")) {
     if (file && !/win32-x64/.test(file)) fs.rmSync(file);
   }
+  execFileSync("find", [server, "-path", "*/node_modules/*", "-type", "d", "-empty", "-delete"]);
 
   // Command-line tools (create-admin, backup), bundled so they run with the portable Node.js.
   log("bundling tools");
