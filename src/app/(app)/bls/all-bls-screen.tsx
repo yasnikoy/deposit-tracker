@@ -94,11 +94,14 @@ type Dialog = { kind: "edit" | "void"; bl: BlOverview } | null;
 export function AllBlsScreen({
   bls,
   layout,
+  status,
   canEdit,
   canVoid,
 }: {
   bls: BlOverview[];
   layout: TableLayout | null;
+  /** A status the page was opened with (e.g. from the dashboard): the list starts filtered to it. */
+  status: BlOverview["status"] | null;
   canEdit: boolean;
   canVoid: boolean;
 }) {
@@ -123,6 +126,7 @@ export function AllBlsScreen({
         columns={columns}
         getRowId={(b) => String(b.id)}
         initialLayout={layout}
+        initialFilters={status ? [{ id: "status", value: status }] : undefined}
         onOpenRow={(b, visible) => {
           setOrder(visible.map((v) => String(v.id)));
           setOpenId(b.id);

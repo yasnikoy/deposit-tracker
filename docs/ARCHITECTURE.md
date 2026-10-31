@@ -458,6 +458,13 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Oct 31, 2026 — build step 7a (dashboard, reports), v0.7.0**
+
+- Dashboard as described under Screens: open balance and collected this month per currency, and three columns of counts that open their lists. A count whose list the viewer may not open is left out. Problem counts open All B/Ls filtered by status (`/bls?status=…`); a table opened with such a filter does not save the user's layout during that visit.
+- Reports screen with aging and agency scorecard, visible to all roles (`report.view`). Open balance (aging, scorecard, dashboard) is what is still to be collected: the expected amount plus unexplained or disputed deductions. Aging buckets come from `durations.agingBucketEdges`. Scorecard averages (business days from payment to the last confirmed refund, request attempts) cover closed B/Ls that received a refund; deduction rates by type and write-offs are shares of the deposits of closed B/Ls.
+- Refund allocation shows the refunds whose rest was left unallocated with a reason; the dashboard's "unallocated amounts" count opens it.
+- Remaining parts of step 7: 7b CSV download and clipboard copy, 7c report email, 7d notes, mentions, notifications and weekly summary, 7e inline editing and remaining keyboard shortcuts.
+
 **Oct 30, 2026 — report email for operations planned**
 
 - New: an on-demand report email that operations sends to internal addresses (Reports and exports → Report email): four selectable sections, agency/currency/date filters, summary tables in the body and CSV attachments, preview before sending, internal domains enforced on the server. New settings group *Reports*. Planned as build step 7c; the later parts of step 7 move to 7d and 7e.

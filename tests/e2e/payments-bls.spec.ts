@@ -128,7 +128,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
 
 test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay with their errors", async ({ page }) => {
   await login(page, DUAL.username, DUAL.final);
-  await page.getByRole("link", { name: tr.nav.createBls }).click();
+  await page.getByRole("link", { name: tr.nav.createBls, exact: true }).click();
   const rows = page.locator("tbody tr");
   await expect(rows).toHaveCount(2);
 
@@ -167,7 +167,7 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   await expect(page.getByRole("row").filter({ hasText: "211111111" })).toHaveCount(0);
   await page.getByLabel(tr.payments.showVoided).check();
   await expect(page.getByRole("row").filter({ hasText: "211111111" })).toContainText(tr.bls.voidedBadge);
-  await page.getByRole("link", { name: tr.nav.createBls }).click();
+  await page.getByRole("link", { name: tr.nav.createBls, exact: true }).click();
   await expect(page.locator("tbody tr")).toHaveCount(1);
 });
 

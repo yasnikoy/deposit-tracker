@@ -109,7 +109,7 @@ test("operations downloads the prefilled form and uploads the signed scan", asyn
 
 test("the due list groups B/Ls by agency; a portal request is recorded once the form is uploaded", async ({ page }) => {
   await login(page, OPS.username, OPS.final);
-  await page.getByRole("link", { name: tr.nav.dueRequests }).click();
+  await page.getByRole("link", { name: tr.nav.dueRequests, exact: true }).click();
   const hapag = page.getByRole("region", { name: AGENCY });
   await expect(hapag.getByTestId(`due-row-${BL_NO}`)).toContainText(`İade formu ${BL_NO}.pdf`);
   await expect(hapag).toContainText("2.500,00 USD");

@@ -44,6 +44,12 @@ export type DataTableProps<TData extends RowData> = {
   getRowId: (row: TData) => string;
   initialLayout: TableLayout | null;
   /**
+   * Filters a link opened the table with (e.g. from the dashboard). They replace the saved
+   * filters for this visit, and the layout is not saved meanwhile, so the link does not change
+   * the user's own layout.
+   */
+  initialFilters?: ColumnFiltersState;
+  /**
    * Enter, or a click on a row, opens it (usually in the detail dialog). `visible` is every
    * row as the table shows it now (sorted and filtered), for previous/next in the detail.
    */
@@ -61,6 +67,7 @@ export function DataTable<TData extends RowData>({
   columns,
   getRowId,
   initialLayout,
+  initialFilters,
   onOpenRow,
   bulkActions,
   toolbar,
@@ -68,11 +75,11 @@ export function DataTable<TData extends RowData>({
 }: DataTableProps<TData>) {
   const start = initialLayout ?? DEFAULT_TABLE_LAYOUT;
   const [sorting, setSorting] = useState<SortingState>(start.sorting);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(start.columnFilters);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(initialFilters ?? start.columnFilters);
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(start.columnVisibility);
   const [columnOrder, setColumnOrder] = useState<ColumnOrderState>(start.columnOrder);
   const [density, setDensity] = useState(start.density);
-  const [showFilters, setShowFilters] = useState(start.showFilters);
+  const [showFilters, setShowFilters] = useState(initialFilters ? true : start.showFilters);
   const [globalFilter, setGlobalFilter] = useState("");
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -109,9 +116,10 @@ export function DataTable<TData extends RowData>({
     [sorting, columnFilters, columnVisibility, columnOrder, density, showFilters],
   );
   const savedLayout = useRef(JSON.stringify(layout));
+  const persist = initialFilters === undefined;
   useEffect(() => {
     const serialized = JSON.stringify(layout);
-    if (serialized === savedLayout.current) return;
+    if (!persist || serialized === savedLayout.current) return;
     const timer = setTimeout(async () => {
       savedLayout.current = serialized;
       // Table state objects are not plain objects; send the JSON copy so the server receives real values.
@@ -119,7 +127,7 @@ export function DataTable<TData extends RowData>({
       if (!result.ok) console.error("Table layout was not saved:", result);
     }, SAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [layout, tableId]);
+  }, [layout, tableId, persist]);
 
   const resetLayout = () => {
     setSorting(DEFAULT_TABLE_LAYOUT.sorting);

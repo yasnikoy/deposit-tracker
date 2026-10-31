@@ -60,6 +60,8 @@ const rules = {
   "writeOff.decide": only("ADMIN"),
   // B/Ls are created from payments by operations.
   "bl.view": ALL_ROLES,
+  // Aging and agency scorecard (Reports).
+  "report.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),
   // Accountants follow the Operations work lists read-only.
   "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),

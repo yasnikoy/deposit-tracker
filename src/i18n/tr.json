@@ -50,7 +50,8 @@
     "writeOffs": "Silme onayları",
     "writeOffsBadge": "Onay bekleyen {count} silme önerisi",
     "openingBalance": "Açılış bakiyesi",
-    "admin": "Yönetim"
+    "admin": "Yönetim",
+    "reports": "Raporlar"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",
@@ -83,7 +84,24 @@
   "dashboard": {
     "title": "Panel",
     "welcome": "Hoş geldiniz, {name}.",
-    "empty": "Panel içeriği sonraki geliştirme adımlarında eklenecek."
+    "openBalance": "Açık bakiye (tahsil edilecek)",
+    "collectedThisMonth": "Bu ay tahsil edilen",
+    "todaysWork": "Bugünün işleri",
+    "due": "Zamanı gelen talepler",
+    "followUps": "…bunlardan takip talebi",
+    "statements": "…bunlardan döküm talebi",
+    "upcoming": "Yaklaşan talepler",
+    "failed": "Gönderilemeyen talepler",
+    "pending": "Eşleştirme bekleyenler",
+    "paymentsWithoutBl": "B/L'si oluşturulmamış ödemeler",
+    "refundsToAllocate": "Dağıtılacak iadeler",
+    "unprocessedReplies": "İşlenmemiş yanıtlar",
+    "overdueReplies": "{count} tanesi uyarı süresini geçti",
+    "unallocated": "Dağıtılmadan bırakılan iade tutarları",
+    "writeOffsAwaiting": "Onay bekleyen silmeler",
+    "problems": "Sorunlu B/L'ler",
+    "deductionOpen": "Kesinti açık",
+    "disputed": "İtirazlı"
   },
   "users": {
     "title": "Kullanıcılar",
@@ -1158,6 +1176,11 @@
       "confirmed": "{count} B/L'ye dağıtım onaylandı.",
       "disputedDifference": "İtirazlı fark",
       "disputedHint": "Acente itiraz edilen farkı ödüyorsa bu B/L'ye tam fark tutarı dağıtılır; B/L kapanır."
+    },
+    "remainder": {
+      "title": "Dağıtılmadan bırakılan tutarlar",
+      "hint": "Operasyonun bir gerekçeyle dağıtılmadan bıraktığı iade tutarları (ör. fazla ödeme).",
+      "of": "İade #{id} · {agency} · {amount} · valör {date}"
     }
   },
   "blAllocations": {
@@ -1289,6 +1312,28 @@
       "receipt": "Orijinal dekontu (mahsupta faturayı) yükleyin.",
       "pastAttempts": "0 ile 50 arasında bir sayı girin.",
       "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır."
+    }
+  },
+  "reports": {
+    "title": "Raporlar",
+    "total": "Toplam",
+    "aging": {
+      "title": "Yaşlandırma",
+      "hint": "Açık depozitolar acente ve para birimine göre, ödemeden bu yana geçen iş gününe göre gruplanır. Tutar, tahsil edilecek kısımdır (açıklanmayan ve itirazlı kesintiler dahil); parantez içinde B/L sayısı. Gruplar Ayarlar → Süreler'den değiştirilir.",
+      "bucket": "{from}–{to} iş günü",
+      "bucketOpen": "{from}+ iş günü",
+      "empty": "Açık depozito yok."
+    },
+    "scorecard": {
+      "title": "Acente karnesi",
+      "hint": "Acente ve para birimine göre: iade alınan B/L'lerde ödemeden iadeye ortalama iş günü ve talep sayısı; kapanan B/L'lerin depozitolarına oranla kesinti türleri ve silmeler; açık bakiye (parantez içinde B/L sayısı). İptal edilen kayıtlar dahil değildir.",
+      "refunded": "İade alınan B/L",
+      "avgDays": "Ort. iş günü",
+      "avgAttempts": "Ort. talep",
+      "deductions": "Kesintiler (oran)",
+      "writeOffs": "Silinen (oran)",
+      "open": "Açık bakiye",
+      "empty": "Henüz B/L yok."
     }
   }
 }

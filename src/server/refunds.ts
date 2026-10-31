@@ -224,6 +224,12 @@ export function listOwnRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
   return toListItems(db, refundRows(db).where(eq(refunds.createdBy, actor.id)).orderBy(desc(refunds.valueDate), desc(refunds.id)).all());
 }
 
+/** Refunds whose rest operations left unallocated on purpose (with a reason), oldest first. */
+export function listRefundsWithRemainder(db: DbOrTx, actor: AuthUser): RefundListItem[] {
+  authorize(actor, "allocation.view");
+  return toListItems(db, refundRows(db).where(isNull(refunds.voidedAt)).orderBy(refunds.valueDate, refunds.id).all()).filter((r) => r.status === "REMAINDER_LEFT");
+}
+
 /** Operations work list: active refunds with money still to allocate, oldest first. */
 export function listRefundsToAllocate(db: DbOrTx, actor: AuthUser): RefundListItem[] {
   authorize(actor, "allocation.view");
