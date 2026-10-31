@@ -100,7 +100,6 @@ export function HolidaysScreen({
           toText: (value) => t(`holidays.kinds.${value as HolidayKind}`),
           filter: { options: HOLIDAY_KINDS.map((k) => ({ value: k, label: `holidays.kinds.${k}` as const })) },
         },
-        filterFn: "oneOf",
         cell: ({ getValue }) => t(`holidays.kinds.${getValue()}`),
       }),
       col.display({

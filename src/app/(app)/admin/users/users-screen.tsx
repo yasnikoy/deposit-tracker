@@ -77,7 +77,6 @@ export function UsersScreen({
           toText: (value) => roleLabels(value as Role[]),
           filter: { options: ROLES.map((role) => ({ value: role, label: `roles.${role}` as const })) },
         },
-        filterFn: "oneOf",
         enableSorting: false,
         cell: ({ row }) => (
           <div className="flex gap-1">
@@ -96,7 +95,6 @@ export function UsersScreen({
           toText: (value) => t(STATUS_LABEL[value as UserStatus]),
           filter: { options: (Object.keys(STATUS_LABEL) as UserStatus[]).map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
         },
-        filterFn: "oneOf",
         sortFn: "turkishText",
         cell: ({ row }) => {
           const status = statusOf(row.original);

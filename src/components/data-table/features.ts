@@ -102,6 +102,20 @@ export const dataTableFeatures = tableFeatures({
 
 export type DataTableFeatures = typeof dataTableFeatures;
 
+/**
+ * Gives every filterable column the filter function of its kind (text: textSearch; choice
+ * list: oneOf). Without it TanStack falls back to "auto", whose built-in functions are not
+ * registered here, and the filter is silently ignored.
+ */
+export function withFilterFns<TColumn extends { meta?: unknown; filterFn?: unknown; columns?: unknown }>(columns: TColumn[]): TColumn[] {
+  return columns.map((column) => {
+    const filter = (column.meta as DataColumnMeta | undefined)?.filter;
+    const nested = Array.isArray(column.columns) ? { columns: withFilterFns(column.columns) } : {};
+    if (!filter || column.filterFn !== undefined) return { ...column, ...nested };
+    return { ...column, ...nested, filterFn: filter === "text" ? "textSearch" : "oneOf" };
+  });
+}
+
 /** Column helper bound to the shared table features; build columns at module scope. */
 export function dataTableColumns<TData extends RowData>() {
   return createColumnHelper<DataTableFeatures, TData>();

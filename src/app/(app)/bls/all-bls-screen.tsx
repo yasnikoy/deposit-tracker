@@ -54,7 +54,6 @@ const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor("agencyName", { meta: { label: "bls.agency", filter: "text" }, sortFn: "turkishText" }),
   col.accessor("status", {
     meta: { label: "bls.status", filter: { options: STATUS_OPTIONS }, toText: (v) => t(`bls.statuses.${v as BlOverview["status"]}`) },
-    filterFn: "oneOf",
     sortFn: "turkishText",
     cell: ({ row }) => <BlStatusBadge status={row.original.status} voided={!!row.original.voidedAt} voidReason={row.original.voidReason} />,
   }),

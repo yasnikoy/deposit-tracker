@@ -54,7 +54,6 @@ export function AgenciesScreen({
             ],
           },
         },
-        filterFn: "oneOf",
         cell: ({ getValue }) =>
           getValue() === "active" ? t("agencies.active") : <Badge variant="outline">{t("agencies.inactive")}</Badge>,
       }),
@@ -64,7 +63,6 @@ export function AgenciesScreen({
           toText: (value) => t(`agencies.channels.${value as (typeof REQUEST_CHANNELS)[number]}`),
           filter: { options: REQUEST_CHANNELS.map((c) => ({ value: c, label: `agencies.channels.${c}` as const })) },
         },
-        filterFn: "oneOf",
         cell: ({ getValue }) => t(`agencies.channels.${getValue()}`),
       }),
       col.accessor((a) => (a.batchSending ? t("agencies.batch") : t("agencies.single")), {

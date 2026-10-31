@@ -36,7 +36,7 @@ import { copyText } from "@/lib/clipboard";
 import { exportFileName, toCsv, toTsv, type Grid } from "@/lib/csv";
 import { DEFAULT_TABLE_LAYOUT, type TableLayout } from "@/lib/schemas/table-layout";
 import { cn } from "@/lib/utils";
-import { valueText, dataTableColumns, dataTableFeatures, type DataColumnMeta, type DataTableFeatures } from "./features";
+import { valueText, dataTableColumns, dataTableFeatures, withFilterFns, type DataColumnMeta, type DataTableFeatures } from "./features";
 
 const SELECT_COLUMN_ID = "_select";
 const SAVE_DELAY_MS = 600;
@@ -97,7 +97,7 @@ export function DataTable<TData extends RowData>({
   const router = useRouter();
 
   // Every table selects rows: at least for copying them.
-  const allColumns = useMemo(() => [selectionColumn<TData>(), ...columns], [columns]);
+  const allColumns = useMemo(() => [selectionColumn<TData>(), ...withFilterFns(columns)], [columns]);
   const effectiveOrder = useMemo(
     () => (columnOrder.length > 0 ? [SELECT_COLUMN_ID, ...columnOrder.filter((id) => id !== SELECT_COLUMN_ID)] : columnOrder),
     [columnOrder],

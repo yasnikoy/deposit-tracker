@@ -278,7 +278,6 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
           toText: (v) => t(`payments.kinds.${v as PaymentKind}`),
           filter: { options: PAYMENT_KINDS.map((k) => ({ value: k, label: `payments.kinds.${k}` as const })) },
         },
-        filterFn: "oneOf",
         cell: ({ getValue }) => t(`payments.kinds.${getValue()}`),
       }),
       col.accessor((p) => p.blNo ?? "", {
@@ -300,7 +299,6 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
           toText: (v) => t(STATUS_LABEL[v as Status]),
           filter: { options: (Object.keys(STATUS_LABEL) as Status[]).map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
         },
-        filterFn: "oneOf",
         cell: ({ row }) => {
           const status = statusOf(row.original);
           return (
