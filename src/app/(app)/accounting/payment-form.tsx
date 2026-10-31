@@ -38,7 +38,7 @@ const FIELD_OF: Record<string, keyof FormValues | "evidence"> = {
   evidenceDocumentId: "evidence",
 };
 
-export type SavedPayment = { id: number; agencyId: number; blNoHint: string | null; blCandidates: string[] };
+export type SavedPayment = { id: number; agencyId: number; blNoHint: string | null; blCandidates: string[]; additionalTo: { blId: number; blNo: string } | null };
 
 /**
  * Deposit payment form. In "new" mode the receipt or invoice is uploaded here;
@@ -60,7 +60,7 @@ export function PaymentForm({
   const activeCurrencies = refs.currencies.filter((c) => c.active);
   const [evidence, setEvidence] = useState(fixedEvidence ?? null);
   const [candidates, setCandidates] = useState<string[]>(prefill?.blCandidates ?? []);
-  const [stubNotice, setStubNotice] = useState(false);
+  const [unreadNotice, setUnreadNotice] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
 
   const initialCurrency = prefill?.currency ?? activeCurrencies[0]?.code ?? "";
@@ -115,8 +115,9 @@ export function PaymentForm({
       return;
     }
     setDuplicates(null);
-    toast.success(t("payments.saved"));
-    onSaved({ id: result.data.id, agencyId: values.agencyId!, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates });
+    const { additionalTo } = result.data;
+    toast.success(additionalTo ? t("payments.additionalSaved", { bl: additionalTo.blNo }) : t("payments.saved"));
+    onSaved({ id: result.data.id, agencyId: values.agencyId!, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates, additionalTo });
   };
   const onSubmit = form.handleSubmit((values) => submit(values, false));
 
@@ -173,7 +174,7 @@ export function PaymentForm({
               if (!result.response.ok) return void toast.error(uploadErrorText(result.response));
               setEvidence(result.response.document!);
               const p = result.response.prefill;
-              setStubNotice(result.response.parser === "stub");
+              setUnreadNotice(result.response.parser !== "garanti");
               if (p) {
                 if (p.agencyIds.length === 1) form.setValue("agencyId", p.agencyIds[0]);
                 if (p.amountMinor) form.setValue("amountText", formatAmount(p.amountMinor));
@@ -184,7 +185,7 @@ export function PaymentForm({
             }}
           />
         )}
-        {stubNotice && <p className="text-muted-foreground text-xs">{t("payments.parserStub")}</p>}
+        {unreadNotice && <p className="text-muted-foreground text-xs">{t("payments.parserUnknown")}</p>}
         {message(errors.evidence?.message)}
       </div>
 

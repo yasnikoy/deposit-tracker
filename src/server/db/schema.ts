@@ -303,6 +303,9 @@ export const depositPayments = sqliteTable(
     extractedFields: text("extracted_fields", { mode: "json" }).$type<Record<string, unknown>>(),
     extractedBlNumbers: text("extracted_bl_numbers", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     blNoHint: text("bl_no_hint"),
+    // An additional deposit ("ek depozito") on a B/L that already exists; the B/L's first
+    // payment is the one the B/L points to (bills_of_lading.deposit_payment_id).
+    additionalToBlId: integer("additional_to_bl_id").references((): AnySQLiteColumn => billsOfLading.id),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -312,6 +315,7 @@ export const depositPayments = sqliteTable(
   },
   (t) => [
     check("deposit_payments_amount", sql`${t.amountMinor} > 0`),
+    index("deposit_payments_additional").on(t.additionalToBlId),
     check("deposit_payments_kind", sql`${t.kind} IN ('BANK', 'OFFSET')`),
     check("deposit_payments_paid_at", sql`${t.paidAt} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
     voidCheck("deposit_payments_void", t),
@@ -373,6 +377,9 @@ export const billsOfLading = sqliteTable(
     // Draft lock (rule 14): set while a user prepares a request email for this B/L.
     lockedBy: integer("locked_by").references(() => users.id),
     lockedAt: timestamp("locked_at"),
+    // The importer we paid the deposit for, and our internal file number (e.g. T26-90815).
+    customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
+    fileNo: text("file_no"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -382,6 +389,7 @@ export const billsOfLading = sqliteTable(
   },
   (t) => [
     check("bills_of_lading_amount", sql`${t.depositAmountMinor} > 0`),
+    index("bills_of_lading_customer").on(t.customerId),
     check("bills_of_lading_status", sql`${t.status} IN (${sqlList(BL_STATUSES.filter((s) => s !== "DUE"))})`),
     voidCheck("bills_of_lading_void", t),
     check(
@@ -949,5 +957,26 @@ export const notifications = sqliteTable(
     // An overdue reply notifies each user once.
     uniqueIndex("notifications_unprocessed_once").on(t.userId, t.entityId).where(sql`${t.kind} = 'UNPROCESSED_REPLY'`),
     index("notifications_user").on(t.userId, t.readAt),
+  ],
+);
+
+/** Importers we pay deposits for (e.g. Ornek Enerji); chosen on each B/L. Deactivated, never deleted. */
+export const customers = sqliteTable(
+  "customers",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    name: text("name").notNull(),
+    // The customer's code in our accounting system, when it has one.
+    code: text("code"),
+    // How the name appears in transfer descriptions ("ORNEK"), for suggesting the customer from a receipt.
+    aliases: text("aliases", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check("customers_name", sql`length(trim(${t.name})) > 0`),
+    uniqueIndex("customers_name_unique").on(sql`lower(${t.name})`),
+    uniqueIndex("customers_code_unique").on(t.code).where(sql`${t.code} IS NOT NULL`),
   ],
 );

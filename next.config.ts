@@ -5,9 +5,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // pdfjs loads its worker file at run time; bundling it breaks that.
+  serverExternalPackages: ["pdfjs-dist"],
   // Read at runtime from the working directory (migrations on start, seed values).
   outputFileTracingIncludes: {
-    "/*": ["./drizzle/**/*", "./seed/**/*"],
+    // pdfjs imports its worker at run time, so tracing does not see it (receipt reading).
+    "/*": ["./drizzle/**/*", "./seed/**/*", "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs"],
   },
   // Rule 15: live data never ends up in a build.
   outputFileTracingExcludes: {

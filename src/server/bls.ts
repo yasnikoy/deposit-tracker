@@ -6,7 +6,9 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
-import { billsOfLading, containers, depositPayments } from "./db/schema";
+import { billsOfLading, containers, customers, depositPayments } from "./db/schema";
+import { suggestCustomer } from "./customers";
+import type { ReceiptExtraction } from "./receipts/parser";
 import { DomainError } from "./errors";
 import { nameBlDocuments, type DocumentRename } from "./files";
 import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
@@ -32,13 +34,30 @@ export const blNoTaken = (tx: DbOrTx, blNo: string, exceptId?: number) =>
     .all()
     .some((row) => row.id !== exceptId);
 
+/** Customer and file number of a new B/L: as given, else read from its payment's receipt. */
+function customerAndFile(tx: DbOrTx, row: BlRowInput, payment: typeof depositPayments.$inferSelect) {
+  const extraction = (payment.extractedFields ?? {}) as ReceiptExtraction;
+  if (row.customerId) {
+    const customer = tx.select().from(customers).where(eq(customers.id, row.customerId)).get();
+    if (!customer?.active) throw new DomainError("customers.errors.unknown");
+  }
+  const suggested = row.customerId === undefined && extraction.description ? suggestCustomer(tx, extraction.description) : null;
+  return {
+    customerId: row.customerId ?? suggested,
+    fileNo: row.fileNo === undefined ? (extraction.fileNumber ?? null) : row.fileNo,
+  };
+}
+
 function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] | null, row: BlRowInput, now: Date): number {
   const payment = tx.select().from(depositPayments).where(eq(depositPayments.id, row.paymentId)).get()!;
   const at = now.toISOString();
+  const { customerId, fileNo } = customerAndFile(tx, row, payment);
   const bl = tx
     .insert(billsOfLading)
     .values({
       blNo: row.blNo,
+      customerId,
+      fileNo,
       depositPaymentId: payment.id,
       agencyId: payment.agencyId,
       currency: payment.currency,
@@ -78,6 +97,8 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
       after: {
         blNo: bl.blNo,
         depositPaymentId: payment.id,
+        customerId,
+        fileNo,
         containers: row.containers,
         status: bl.status,
         renamed: nameBlDocuments(tx, bl),
@@ -129,7 +150,11 @@ export function createBls(db: Db, actor: AuthUser, rows: unknown[], now: Date = 
         .from(billsOfLading)
         .where(and(eq(billsOfLading.depositPaymentId, row.paymentId), isNull(billsOfLading.voidedAt)))
         .get();
-      if (!payment || payment.voidedAt || hasBl) {
+      // An additional deposit already belongs to its B/L.
+      const joinedBl = payment?.additionalToBlId
+        ? tx.select({ id: billsOfLading.id }).from(billsOfLading).where(and(eq(billsOfLading.id, payment.additionalToBlId), isNull(billsOfLading.voidedAt))).get()
+        : undefined;
+      if (!payment || payment.voidedAt || hasBl || joinedBl) {
         errors.push({ index, field: "payment", message: "bls.errors.paymentUnavailable" });
         continue;
       }

@@ -5,13 +5,18 @@ import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
-import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, voidPayment, type CreatePaymentResult } from "@/server/payments";
+import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, readUploadedReceipt, voidPayment, type CreatePaymentResult } from "@/server/payments";
 import { correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
 import { correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
 
 export async function createPaymentAction(input: unknown): Promise<ActionResult<CreatePaymentResult>> {
   const { user } = await requireSession();
-  return runAction(createPaymentSchema, input, (data) => createPayment(getDb(), user, data));
+  return runAction(createPaymentSchema, input, async (data) => {
+    const db = getDb();
+    // A receipt from the bulk queue brings its reading along; a single upload is read again here.
+    const extraction = data.evidenceDocumentId !== null && data.queueItemId === null ? await readUploadedReceipt(db, user, data.evidenceDocumentId) : null;
+    return createPayment(db, user, { ...data, extraction });
+  });
 }
 
 export async function correctPaymentAction(input: unknown): Promise<ActionResult<void>> {

@@ -64,6 +64,9 @@ const rules = {
   "report.view": ALL_ROLES,
   // The report email to internal addresses.
   "report.sendEmail": only("OPERATIONS"),
+  // Importers we pay deposits for; whoever enters payments or B/Ls may register one.
+  "customer.view": ALL_ROLES,
+  "customer.manage": only("ACCOUNTANT", "OPERATIONS"),
   // Team notes on B/Ls, with @mentions.
   "note.add": only("OPERATIONS"),
   // Each user sees and marks read only their own notifications.

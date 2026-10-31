@@ -67,7 +67,8 @@ export function AccountingScreen({
 
   const afterSave = (payment: SavedPayment) => {
     router.refresh();
-    if (canCreateBl) setSaved(payment);
+    // An additional deposit joined its B/L already: there is no B/L to create.
+    if (canCreateBl && !payment.additionalTo) setSaved(payment);
     else setFormKey((k) => k + 1);
   };
   const startOver = () => {

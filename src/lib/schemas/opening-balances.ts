@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isValidIsoDate } from "@/domain/business-days";
 import { PAYMENT_KINDS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
-import { blNumberSchema, containerListSchema } from "./bls";
+import { blNumberSchema, containerListSchema, fileNoSchema } from "./bls";
 import { paymentFields } from "./payments";
 
 const msg = (key: TranslationKey) => key;
@@ -20,6 +20,8 @@ export const openingBalanceSchema = z
     kind: z.enum(PAYMENT_KINDS),
     blNo: blNumberSchema,
     containers: containerListSchema,
+    customerId: z.number().int().positive().nullable().default(null),
+    fileNo: fileNoSchema.nullable().default(null),
     documentId: z
       .number()
       .int()

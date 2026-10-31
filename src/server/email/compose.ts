@@ -13,7 +13,7 @@ import { billsOfLading, containers, emailBlLinks, emails, ledgerEntries, request
 import { DomainError } from "../errors";
 import { currentBlForm } from "../forms";
 import { dueEntries, type DueEntry } from "../requests";
-import { depositEvidence, lacksPaymentEvidence } from "../payments";
+import { depositEvidences, lacksPaymentEvidence } from "../payments";
 import { getSetting } from "../settings";
 import { currentStandingDocuments } from "../standing-documents";
 import { lockForDraft, releaseDraftLocks } from "../draft-locks";
@@ -236,13 +236,12 @@ function blValues(tx: DbOrTx, entry: DueEntry): Record<string, string> {
   };
 }
 
-/** Every request attaches the B/L's uploaded form and the deposit receipt (or invoice) of its payment, when there is one. */
+/** Every request attaches the B/L's uploaded form and the deposit receipts (or invoices) of all its payments. */
 function blAttachments(tx: DbOrTx, entry: DueEntry): DraftAttachment[] {
   const result: DraftAttachment[] = [];
   const form = currentBlForm(tx, entry.bl.id);
   if (form) result.push({ documentId: form.id, originalName: form.originalName, sizeBytes: form.sizeBytes, kind: "FORM", blNo: entry.bl.blNo });
-  const evidence = depositEvidence(tx, entry.bl);
-  if (evidence) {
+  for (const evidence of depositEvidences(tx, entry.bl)) {
     result.push({
       documentId: evidence.id,
       originalName: evidence.originalName,

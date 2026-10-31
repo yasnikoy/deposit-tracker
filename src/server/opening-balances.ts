@@ -7,7 +7,8 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { blNoTaken } from "./bls";
 import type { Db } from "./db/client";
-import { billsOfLading, containers, requests } from "./db/schema";
+import { eq } from "drizzle-orm";
+import { billsOfLading, containers, customers, requests } from "./db/schema";
 import { DomainError } from "./errors";
 import { attachDocument, nameBlDocuments } from "./files";
 import { addLedgerEntry } from "./ledger";
@@ -29,6 +30,9 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
       if (input.lastRequestOn < input.paidAt) throw new DomainError("requests.errors.beforePayment");
     }
     if (blNoTaken(tx, input.blNo)) throw new DomainError("bls.errors.blNoTaken");
+    if (input.customerId !== null && !tx.select().from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
+      throw new DomainError("customers.errors.unknown");
+    }
 
     const at = now.toISOString();
     const status = input.pastAttempts > 0 ? "REQUESTED" : "PAID";
@@ -37,6 +41,8 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
       .values({
         blNo: input.blNo,
         depositPaymentId: null,
+        customerId: input.customerId,
+        fileNo: input.fileNo,
         agencyId: input.agencyId,
         currency: input.currency,
         depositAmountMinor: input.amountMinor,

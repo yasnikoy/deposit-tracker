@@ -1,9 +1,10 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { matchAgencyBySenderName } from "@/domain/agency";
 import { extractBlNumbers } from "@/domain/bl-number";
 import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND, type PaymentKind } from "@/domain/records";
+import type { Role } from "@/domain/roles";
 import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/payments";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
@@ -18,10 +19,10 @@ import {
   receiptQueue,
 } from "./db/schema";
 import { DomainError } from "./errors";
-import { attachDocument, nameBlDocuments, type StoredDocument } from "./files";
+import { attachDocument, nameBlDocuments, readDocument, type StoredDocument } from "./files";
 import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
 import { notify, operationsOnBl } from "./notifications";
-import type { ReceiptExtraction } from "./receipts/parser";
+import { parseReceipt, type ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
 
 export type Payment = typeof depositPayments.$inferSelect;
@@ -36,7 +37,9 @@ export type PaymentPrefill = {
 
 export type DuplicateCandidate = { id: number; agencyName: string; amountMinor: number; currency: string; paidAt: string };
 
-export type CreatePaymentResult = { status: "created"; id: number } | { status: "duplicate"; duplicates: DuplicateCandidate[] };
+export type CreatePaymentResult =
+  | { status: "created"; id: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
+  | { status: "duplicate"; duplicates: DuplicateCandidate[] };
 
 /** Turns a receipt extraction into form prefill: agency by sender alias, B/L candidates by agency patterns. */
 export function prefillFromExtraction(db: DbOrTx, extraction: ReceiptExtraction): PaymentPrefill {
@@ -45,7 +48,7 @@ export function prefillFromExtraction(db: DbOrTx, extraction: ReceiptExtraction)
     .from(agencies)
     .where(eq(agencies.active, true))
     .all();
-  const agencyIds = extraction.senderName ? matchAgencyBySenderName(extraction.senderName, activeAgencies) : [];
+  const agencyIds = extraction.counterpartyName ? matchAgencyBySenderName(extraction.counterpartyName, activeAgencies) : [];
   const patterns = activeAgencies.filter((a) => agencyIds.length === 0 || agencyIds.includes(a.id)).flatMap((a) => a.blNumberPatterns);
   return {
     agencyIds,
@@ -103,7 +106,13 @@ export function validateReferences(
  * With the duplicate-warning setting on, a record with the same agency, amount, currency and
  * date is reported back and saved only once the user confirms.
  */
-export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput, now: Date = new Date()): CreatePaymentResult {
+export function createPayment(
+  db: Db,
+  actor: AuthUser,
+  // `extraction` is read on the server from the stored receipt, never taken from the client.
+  input: CreatePaymentInput & { extraction?: ReceiptExtraction | null },
+  now: Date = new Date(),
+): CreatePaymentResult {
   const roleUsed = authorize(actor, "payment.create");
   return db.transaction((tx): CreatePaymentResult => {
     validateReferences(tx, input, now);
@@ -134,8 +143,8 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
         paidAt: input.paidAt,
         kind: input.kind,
         evidenceDocumentId: input.evidenceDocumentId,
-        extractedFields: queueItem?.extracted ?? null,
-        extractedBlNumbers: queueItem ? prefillFromExtraction(tx, queueItem.extracted as ReceiptExtraction).blCandidates : [],
+        extractedFields: queueItem?.extracted ?? input.extraction ?? null,
+        extractedBlNumbers: prefillFromExtraction(tx, (queueItem?.extracted ?? input.extraction ?? { parser: "none" }) as ReceiptExtraction).blCandidates,
         blNoHint: input.blNoHint,
         createdBy: actor.id,
         createdAt: at,
@@ -167,8 +176,56 @@ export function createPayment(db: Db, actor: AuthUser, input: CreatePaymentInput
       },
       now,
     );
-    return { status: "created", id: row.id };
+    const additionalTo = input.blNoHint ? addToExistingBl(tx, actor, roleUsed, row, input.blNoHint, now) : null;
+    return { status: "created", id: row.id, additionalTo };
   });
+}
+
+/**
+ * A payment entered with the number of an active B/L is an additional deposit ("ek depozito")
+ * on it: same agency and currency, the B/L still open. Its own ledger entry adds to the
+ * deposit; the B/L's first payment keeps setting the request clock.
+ */
+function addToExistingBl(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, payment: Payment, blNo: string, now: Date) {
+  const bl = tx
+    .select()
+    .from(billsOfLading)
+    .where(and(eq(sql`upper(${billsOfLading.blNo})`, blNo.trim().toUpperCase()), isNull(billsOfLading.voidedAt)))
+    .get();
+  if (!bl) return null;
+  if (bl.agencyId !== payment.agencyId || bl.currency !== payment.currency) throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
+  if (bl.status === "COLLECTED") throw new DomainError("payments.errors.additionalClosed", { bl: bl.blNo });
+  const at = now.toISOString();
+  tx.update(depositPayments).set({ additionalToBlId: bl.id, updatedAt: at }).where(eq(depositPayments.id, payment.id)).run();
+  addLedgerEntry(
+    tx,
+    {
+      blId: bl.id,
+      type: payment.kind === "BANK" ? "PAYMENT" : "OFFSET",
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      entryDate: payment.paidAt,
+      depositPaymentId: payment.id,
+      createdBy: actor.id,
+    },
+    now,
+  );
+  const after = syncDepositAmount(tx, bl.id, at);
+  const renamed = nameBlDocuments(tx, after);
+  writeAudit(
+    tx,
+    {
+      actorUserId: actor.id,
+      roleUsed,
+      action: "bl.additionalPayment",
+      entityType: "bill_of_lading",
+      entityId: bl.id,
+      before: { depositAmountMinor: bl.depositAmountMinor },
+      after: { paymentId: payment.id, amountMinor: payment.amountMinor, paidAt: payment.paidAt, depositAmountMinor: after.depositAmountMinor, ...(renamed.length ? { renamed } : {}) },
+    },
+    now,
+  );
+  return { blId: bl.id, blNo: bl.blNo };
 }
 
 function paymentSnapshot(row: Payment) {
@@ -189,12 +246,42 @@ function requirePayment(tx: DbOrTx, id: number): Payment {
   return row;
 }
 
-function activeBlOf(tx: DbOrTx, paymentId: number) {
+/** The active B/L a payment belongs to: as its first payment, or as an additional deposit. */
+function activeBlOf(tx: DbOrTx, payment: Pick<Payment, "id" | "additionalToBlId">) {
   return tx
     .select()
     .from(billsOfLading)
-    .where(and(eq(billsOfLading.depositPaymentId, paymentId), isNull(billsOfLading.voidedAt)))
+    .where(
+      and(
+        payment.additionalToBlId === null ? eq(billsOfLading.depositPaymentId, payment.id) : eq(billsOfLading.id, payment.additionalToBlId),
+        isNull(billsOfLading.voidedAt),
+      ),
+    )
     .get();
+}
+
+/** SQL condition: this B/L row is the payment's (first payment or additional deposit). */
+const blOfPayment = or(eq(billsOfLading.depositPaymentId, depositPayments.id), eq(billsOfLading.id, depositPayments.additionalToBlId));
+
+/** Keeps the B/L's stored deposit equal to its active deposit entries (the ledger stays the source). */
+function syncDepositAmount(tx: DbOrTx, blId: number, at: string) {
+  const total = activeLedgerEntries(tx, blId, ["PAYMENT", "OFFSET", "OPENING_BALANCE"]).reduce((sum, e) => sum + e.amountMinor, 0);
+  return tx.update(billsOfLading).set({ depositAmountMinor: total, updatedAt: at }).where(eq(billsOfLading.id, blId)).returning().get();
+}
+
+/** Active payments of a B/L, first payment first, then additional deposits by date. */
+export function blPayments(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): Payment[] {
+  const rows = tx
+    .select()
+    .from(depositPayments)
+    .where(
+      and(
+        isNull(depositPayments.voidedAt),
+        bl.depositPaymentId === null ? eq(depositPayments.additionalToBlId, bl.id) : or(eq(depositPayments.id, bl.depositPaymentId), eq(depositPayments.additionalToBlId, bl.id)),
+      ),
+    )
+    .all();
+  return rows.sort((a, b) => Number(b.id === bl.depositPaymentId) - Number(a.id === bl.depositPaymentId) || a.paidAt.localeCompare(b.paidAt) || a.id - b.id);
 }
 
 /**
@@ -209,8 +296,12 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
     if (before.voidedAt) throw new DomainError("payments.errors.voided");
     validateReferences(tx, input, now, before.agencyId);
 
-    const bl = activeBlOf(tx, before.id);
+    const bl = activeBlOf(tx, before);
     if (bl && hasConfirmedAllocation(tx, bl.id)) throw new DomainError("payments.errors.allocated");
+    // A B/L with several payments has one agency and currency: only amount and date can change then.
+    if (bl && blPayments(tx, bl).length > 1 && (input.agencyId !== bl.agencyId || input.currency !== bl.currency)) {
+      throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
+    }
 
     const at = now.toISOString();
     const after = tx
@@ -244,13 +335,14 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
     );
 
     if (!bl) return;
-    const blAfter = tx
-      .update(billsOfLading)
-      .set({ agencyId: after.agencyId, currency: after.currency, depositAmountMinor: after.amountMinor, paidAt: after.paidAt, updatedAt: at })
-      .where(eq(billsOfLading.id, bl.id))
-      .returning()
-      .get();
-    for (const entry of activeLedgerEntries(tx, bl.id, ["PAYMENT", "OFFSET"])) compensateLedgerEntry(tx, entry, actor.id, now);
+    // The first payment sets the B/L's agency, currency and date (the request clock); an
+    // additional deposit only adds its amount.
+    if (bl.depositPaymentId === after.id) {
+      tx.update(billsOfLading).set({ agencyId: after.agencyId, currency: after.currency, paidAt: after.paidAt, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
+    }
+    for (const entry of activeLedgerEntries(tx, bl.id, ["PAYMENT", "OFFSET"]).filter((e) => e.depositPaymentId === after.id)) {
+      compensateLedgerEntry(tx, entry, actor.id, now);
+    }
     addLedgerEntry(
       tx,
       {
@@ -264,6 +356,7 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
       },
       now,
     );
+    const blAfter = syncDepositAmount(tx, bl.id, at);
     writeAudit(
       tx,
       {
@@ -312,11 +405,34 @@ export function voidPayment(db: Db, actor: AuthUser, input: { id: number; reason
     const before = requirePayment(tx, input.id);
     const roleUsed = authorize(actor, "payment.void", before);
     if (before.voidedAt) throw new DomainError("payments.errors.voided");
-    if (activeBlOf(tx, before.id)) throw new DomainError("payments.errors.voidBlFirst");
+    const bl = activeBlOf(tx, before);
+    // The B/L's first payment goes only with the B/L; an additional deposit can be voided on its own.
+    if (bl && before.additionalToBlId === null) throw new DomainError("payments.errors.voidBlFirst");
+    if (bl && hasConfirmedAllocation(tx, bl.id)) throw new DomainError("payments.errors.allocated");
     tx.update(depositPayments)
       .set({ voidedAt: now.toISOString(), voidedBy: actor.id, voidReason: input.reason, updatedAt: now.toISOString() })
       .where(eq(depositPayments.id, input.id))
       .run();
+    if (bl) {
+      for (const entry of activeLedgerEntries(tx, bl.id, ["PAYMENT", "OFFSET"]).filter((e) => e.depositPaymentId === before.id)) {
+        compensateLedgerEntry(tx, entry, actor.id, now);
+      }
+      const blAfter = syncDepositAmount(tx, bl.id, now.toISOString());
+      writeAudit(
+        tx,
+        {
+          actorUserId: actor.id,
+          roleUsed,
+          action: "bl.additionalPaymentVoided",
+          entityType: "bill_of_lading",
+          entityId: bl.id,
+          before: { depositAmountMinor: bl.depositAmountMinor },
+          after: { paymentId: before.id, depositAmountMinor: blAfter.depositAmountMinor },
+          reason: input.reason,
+        },
+        now,
+      );
+    }
     writeAudit(
       tx,
       { actorUserId: actor.id, roleUsed, action: "payment.void", entityType: "deposit_payment", entityId: input.id, before: paymentSnapshot(before), reason: input.reason },
@@ -388,11 +504,7 @@ export function attachPaymentEvidence(db: Db, actor: AuthUser, input: { paymentI
     if (current.evidenceDocumentId !== null) throw new DomainError("payments.errors.evidenceExists");
     attachDocument(tx, actor, { documentId: input.documentId, kind: EVIDENCE_KIND[current.kind], ownerType: "deposit_payment", ownerId: current.id });
     tx.update(depositPayments).set({ evidenceDocumentId: input.documentId, updatedAt: now.toISOString() }).where(eq(depositPayments.id, current.id)).run();
-    const bl = tx
-      .select()
-      .from(billsOfLading)
-      .where(and(eq(billsOfLading.depositPaymentId, current.id), isNull(billsOfLading.voidedAt)))
-      .get();
+    const bl = activeBlOf(tx, current);
     const renamed = bl ? nameBlDocuments(tx, bl) : [];
     writeAudit(
       tx,
@@ -409,34 +521,38 @@ export function attachPaymentEvidence(db: Db, actor: AuthUser, input: { paymentI
   });
 }
 
+type EvidenceDocument = { id: number; originalName: string; sizeBytes: number; kind: string };
+
 /**
- * The receipt (bank) or invoice (offset) of a B/L's deposit, if attached: its payment's, or
- * for a migrated B/L (opening balance) the one attached to the B/L itself.
+ * The receipts (bank) or invoices (offset) of a B/L's deposit: those of its payments, first
+ * payment first, plus for a migrated B/L (opening balance) the one attached to the B/L itself.
  */
-export function depositEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }) {
+export function depositEvidences(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): EvidenceDocument[] {
   const fields = { id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind };
-  if (bl.depositPaymentId === null) {
-    return (
-      tx
-        .select(fields)
-        .from(documents)
-        .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
-        .get() ?? null
-    );
-  }
-  return (
-    tx
-      .select(fields)
-      .from(depositPayments)
-      .innerJoin(documents, eq(documents.id, depositPayments.evidenceDocumentId))
-      .where(eq(depositPayments.id, bl.depositPaymentId))
-      .get() ?? null
-  );
+  const own =
+    bl.depositPaymentId === null
+      ? tx
+          .select(fields)
+          .from(documents)
+          .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
+          .all()
+      : [];
+  const fromPayments = blPayments(tx, bl)
+    .filter((p) => p.evidenceDocumentId !== null)
+    .map((p) => tx.select(fields).from(documents).where(eq(documents.id, p.evidenceDocumentId!)).get()!);
+  return [...own, ...fromPayments];
 }
 
-/** A B/L whose deposit has no receipt or invoice yet; requests for it warn (rule 12). */
+/** The B/L's first receipt or invoice, if any (a migrated B/L's own, or its first payment's). */
+export function depositEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): EvidenceDocument | null {
+  return depositEvidences(tx, bl)[0] ?? null;
+}
+
+/** A B/L with a payment that has no receipt or invoice yet; requests for it warn (rule 12). */
 export function lacksPaymentEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): boolean {
-  return depositEvidence(tx, bl) === null;
+  const payments = blPayments(tx, bl);
+  if (payments.length === 0) return depositEvidences(tx, bl).length === 0;
+  return payments.some((p) => p.evidenceDocumentId === null);
 }
 
 // ---- Lists ----
@@ -482,7 +598,7 @@ function paymentListQuery(db: DbOrTx) {
     })
     .from(depositPayments)
     .innerJoin(agencies, eq(agencies.id, depositPayments.agencyId))
-    .leftJoin(billsOfLading, and(eq(billsOfLading.depositPaymentId, depositPayments.id), isNull(billsOfLading.voidedAt)));
+    .leftJoin(billsOfLading, and(blOfPayment, isNull(billsOfLading.voidedAt)));
 }
 
 /** The accountant's own records, newest first; linked B/L numbers are shown read-only. */
@@ -504,8 +620,15 @@ export function countPaymentsAwaitingBl(db: DbOrTx): number {
   const row = db
     .select({ n: sql<number>`count(*)` })
     .from(depositPayments)
-    .leftJoin(billsOfLading, and(eq(billsOfLading.depositPaymentId, depositPayments.id), isNull(billsOfLading.voidedAt)))
+    .leftJoin(billsOfLading, and(blOfPayment, isNull(billsOfLading.voidedAt)))
     .where(and(isNull(depositPayments.voidedAt), isNull(billsOfLading.id)))
     .get();
   return row?.n ?? 0;
+}
+
+/** Reads an uploaded, not yet attached receipt of the actor's again (single upload: the form only got the prefill). */
+export async function readUploadedReceipt(db: DbOrTx, actor: AuthUser, documentId: number): Promise<ReceiptExtraction | null> {
+  const doc = db.select().from(documents).where(eq(documents.id, documentId)).get();
+  if (!doc || doc.uploadedBy !== actor.id || doc.ownerId !== null || doc.kind !== "RECEIPT") return null;
+  return parseReceipt(readDocument(doc), doc.mimeType);
 }

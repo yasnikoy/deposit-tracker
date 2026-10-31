@@ -84,7 +84,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
 
   await page.getByLabel(tr.files.drop).setInputFiles(pdf("dekont-1.pdf"));
   await expect(page.getByRole("link", { name: "dekont-1.pdf" })).toBeVisible();
-  await expect(page.getByText(tr.payments.parserStub)).toBeVisible();
+  await expect(page.getByText(tr.payments.parserUnknown)).toBeVisible();
   await pickAgency(page);
   await page.getByLabel(tr.payments.amount).fill("3.000,50");
   await expect(page.getByText("3.000,50 USD")).toBeVisible();

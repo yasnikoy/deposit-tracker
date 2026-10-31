@@ -25,10 +25,20 @@ export const containerListSchema = z
     });
   });
 
+/** Our internal file number, e.g. "T26-90815". */
+export const fileNoSchema = z
+  .string()
+  .trim()
+  .max(30, msg("bls.errors.fileNo"))
+  .transform((value) => value.toUpperCase() || null);
+
 export const blRowSchema = z.object({
   paymentId: z.number().int().positive(),
   blNo: blNumberSchema,
   containers: containerListSchema,
+  // Optional: without them, the payment's receipt suggests both (file number, customer alias).
+  customerId: z.number().int().positive().nullable().optional(),
+  fileNo: fileNoSchema.nullable().optional(),
 });
 
 export type BlRowInput = z.infer<typeof blRowSchema>;

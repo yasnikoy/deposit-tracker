@@ -2,13 +2,13 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { DocumentKind } from "@/domain/records";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { documents } from "./db/schema";
+import { depositPayments, documents } from "./db/schema";
 import { getEnv } from "./env";
 import { DomainError } from "./errors";
 import { t } from "@/i18n";
@@ -214,17 +214,31 @@ export function nameBlDocuments(tx: DbOrTx, bl: { id: number; blNo: string; depo
     .from(documents)
     .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["FORM", "RECEIPT", "INVOICE"])))
     .all();
-  const evidence = bl.depositPaymentId
-    ? tx
-        .select()
-        .from(documents)
-        .where(and(eq(documents.ownerType, "deposit_payment"), eq(documents.ownerId, bl.depositPaymentId)))
-        .all()
-        .filter((doc) => doc.kind === "RECEIPT" || doc.kind === "INVOICE")
-    : [];
+  // The first payment's receipt is "Dekont <B/L>", additional deposits' "Dekont <B/L> (2)", ….
+  const paymentIds = tx
+    .select({ id: depositPayments.id, paidAt: depositPayments.paidAt })
+    .from(depositPayments)
+    .where(
+      and(
+        isNull(depositPayments.voidedAt),
+        bl.depositPaymentId === null ? eq(depositPayments.additionalToBlId, bl.id) : or(eq(depositPayments.id, bl.depositPaymentId), eq(depositPayments.additionalToBlId, bl.id)),
+      ),
+    )
+    .all()
+    .sort((a, b) => Number(b.id === bl.depositPaymentId) - Number(a.id === bl.depositPaymentId) || a.paidAt.localeCompare(b.paidAt) || a.id - b.id)
+    .map((p) => p.id);
+  const evidence = paymentIds.flatMap((id, index) =>
+    tx
+      .select()
+      .from(documents)
+      .where(and(eq(documents.ownerType, "deposit_payment"), eq(documents.ownerId, id), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
+      .all()
+      .map((doc) => ({ doc, number: index + (bl.depositPaymentId === null ? 2 : 1) })),
+  );
   const renames: DocumentRename[] = [];
-  for (const doc of [...forms, ...evidence]) {
-    const name = blFileName(doc.kind as "FORM" | "RECEIPT" | "INVOICE", bl.blNo, doc.originalName);
+  for (const { doc, number } of [...forms.map((doc) => ({ doc, number: 1 })), ...evidence]) {
+    const base = blFileName(doc.kind as "FORM" | "RECEIPT" | "INVOICE", bl.blNo, doc.originalName);
+    const name = number > 1 ? base.replace(/(\.[^.]+)$/, ` (${number})$1`) : base;
     if (name === doc.originalName) continue;
     tx.update(documents).set({ originalName: name }).where(eq(documents.id, doc.id)).run();
     renames.push({ documentId: doc.id, from: doc.originalName, to: name });

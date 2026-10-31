@@ -681,7 +681,7 @@
     "voided": "Ödeme iptal edildi.",
     "showVoided": "İptal edilenleri göster",
     "continueToBl": "B/L oluşturmaya devam et",
-    "parserStub": "Dekont okuma henüz devrede değil; alanları elle doldurun.",
+    "parserUnknown": "Dekont okunamadı (tanınmayan biçim); alanları elle doldurun.",
     "errors": {
       "agency": "Acente seçin.",
       "amount": "Geçerli bir tutar girin (ör. 3.000,50).",
@@ -695,7 +695,9 @@
       "allocated": "Onaylanmış iade dağıtımı olan kayıt değiştirilemez.",
       "noChange": "Değişiklik yok.",
       "queueItem": "Bu dekont artık kuyrukta değil.",
-      "evidenceExists": "Bu ödemenin dekontu veya faturası zaten var; değiştirmek için ödemeyi düzeltin."
+      "evidenceExists": "Bu ödemenin dekontu veya faturası zaten var; değiştirmek için ödemeyi düzeltin.",
+      "additionalMismatch": "B/L {bl} başka bir acente veya para birimiyle kayıtlı; ek depozito aynı acente ve para biriminde olmalı.",
+      "additionalClosed": "B/L {bl} kapanmış; kapanmış bir B/L'ye ek depozito eklenemez."
     },
     "evidenceOptional": "(isteğe bağlı, sonra da eklenebilir)",
     "evidenceMissing": {
@@ -706,7 +708,8 @@
       "BANK": "Dekontu ekleyin (sürükleyin veya seçin)",
       "OFFSET": "Faturayı ekleyin (sürükleyin veya seçin)"
     },
-    "evidenceAttached": "Belge eklendi."
+    "evidenceAttached": "Belge eklendi.",
+    "additionalSaved": "Ödeme, B/L {bl} için ek depozito olarak eklendi."
   },
   "bls": {
     "createTitle": "B/L oluştur",
@@ -752,7 +755,8 @@
       "containerFormat": "Konteyner numarası 4 harf ve 7 rakam olmalı (ör. MSCU1234565).",
       "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
       "voided": "Bu B/L iptal edilmiş.",
-      "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez."
+      "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez.",
+      "fileNo": "Dosya numarası en fazla 30 karakter olabilir."
     },
     "allTitle": "B/L'ler",
     "currency": "Para birimi",
@@ -796,7 +800,9 @@
       "STATEMENT": "döküm",
       "SHORTFALL": "eksik ödeme",
       "WRITE_OFF": "silme"
-    }
+    },
+    "additionalPayments": "Ek depozitolar",
+    "depositTotal": "Toplam depozito: {amount}"
   },
   "search": {
     "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
@@ -818,7 +824,9 @@
         "update": "B/L düzenlendi",
         "void": "B/L iptal edildi",
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
-        "overrides": "B/L ayar istisnaları değişti"
+        "overrides": "B/L ayar istisnaları değişti",
+        "additionalPayment": "Ek depozito eklendi",
+        "additionalPaymentVoided": "Ek depozito iptal edildi"
       },
       "payment": {
         "create": "Depozito ödemesi kaydedildi",
@@ -1517,5 +1525,12 @@
       "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}"
     },
     "unknownAgency": "Acentesi bilinmeyen"
+  },
+  "customers": {
+    "errors": {
+      "unknown": "Müşteri bulunamadı veya pasif.",
+      "nameTaken": "Bu adla bir müşteri zaten kayıtlı.",
+      "codeTaken": "Bu kodla bir müşteri zaten kayıtlı."
+    }
   }
 }

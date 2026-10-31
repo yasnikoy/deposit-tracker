@@ -151,7 +151,7 @@ export function BlDetailScreen({
             <dd>
               {payment ? (
                 <span className="flex flex-wrap items-center gap-2">
-                  {t(`payments.kinds.${payment.kind}`)} · {formatMoney(bl.depositMinor, bl.currency)} ·{" "}
+                  {t(`payments.kinds.${payment.kind}`)} · {formatMoney(payment.amountMinor, bl.currency)} ·{" "}
                   {payment.evidenceDocumentId !== null ? (
                     <a href={`/api/files/${payment.evidenceDocumentId}`} target="_blank" rel="noreferrer" className="underline">
                       {payment.evidenceName}
@@ -177,6 +177,28 @@ export function BlDetailScreen({
                 t("common.none")
               )}
             </dd>
+            {detail.additionalPayments.length > 0 && (
+              <>
+                <dt className="text-muted-foreground">{t("bls.additionalPayments")}</dt>
+                <dd>
+                  <ul className="flex flex-col gap-0.5" data-testid="additional-payments">
+                    {detail.additionalPayments.map((p) => (
+                      <li key={p.id}>
+                        {formatMoney(p.amountMinor, p.currency)} · {formatBusinessDate(p.paidAt)} ·{" "}
+                        {p.evidenceDocumentId !== null ? (
+                          <a href={`/api/files/${p.evidenceDocumentId}`} target="_blank" rel="noreferrer" className="underline">
+                            {p.evidenceName}
+                          </a>
+                        ) : (
+                          <span className="text-amber-700 dark:text-amber-400">{t("payments.evidenceMissing.BANK")}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="text-muted-foreground text-xs">{t("bls.depositTotal", { amount: formatMoney(bl.depositMinor, bl.currency) })}</span>
+                </dd>
+              </>
+            )}
           </dl>
         </Section>
 

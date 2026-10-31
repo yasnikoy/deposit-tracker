@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const content = Buffer.from(await file.arrayBuffer());
     const document = storeUpload(db, session.user, { originalName: file.name, content, kind: fields.data.kind });
-    const extraction = fields.data.kind === "RECEIPT" ? parseReceipt(content, document.mimeType) : { parser: "none" };
+    const extraction = fields.data.kind === "RECEIPT" ? await parseReceipt(content, document.mimeType) : { parser: "none" };
 
     if (fields.data.queue === "1") {
       const queueItemId = enqueueReceipt(db, session.user, document, extraction);

@@ -1,0 +1,2 @@
+ALTER TABLE `deposit_payments` ADD `additional_to_bl_id` integer REFERENCES bills_of_lading(id);--> statement-breakpoint
+CREATE INDEX `deposit_payments_additional` ON `deposit_payments` (`additional_to_bl_id`);

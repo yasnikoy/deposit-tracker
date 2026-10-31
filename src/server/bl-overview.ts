@@ -39,7 +39,7 @@ import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
 import { blNotes, type BlNote } from "./notes";
-import { depositEvidence } from "./payments";
+import { blPayments, depositEvidence } from "./payments";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
@@ -260,9 +260,11 @@ export type TimelineEvent = {
 export type BlDetail = {
   bl: BlOverview;
   /** The source payment; its receipt or invoice may still be missing (rule 12). */
-  payment: { id: number; kind: PaymentKind; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
+  payment: { id: number; kind: PaymentKind; amountMinor: number; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
   /** A migrated B/L (no payment record): its original receipt or invoice. */
   openingBalance: { documentId: number; originalName: string } | null;
+  /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
+  additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null }[];
   ledger: BlLedgerLine[];
   allocations: BlAllocation[];
   documents: BlDocument[];
@@ -297,6 +299,8 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
         .select({
           id: depositPayments.id,
           kind: depositPayments.kind,
+          amountMinor: depositPayments.amountMinor,
+          paidAt: depositPayments.paidAt,
           evidenceDocumentId: depositPayments.evidenceDocumentId,
           evidenceName: documents.originalName,
           createdBy: depositPayments.createdBy,
@@ -360,11 +364,24 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .orderBy(desc(documents.id))
     .all();
 
+  const additional = blPayments(db, found.bl).filter((p) => p.id !== found.bl.depositPaymentId);
+  const additionalPayments = additional.map((p) => ({
+    id: p.id,
+    amountMinor: p.amountMinor,
+    currency: p.currency,
+    paidAt: p.paidAt,
+    evidenceDocumentId: p.evidenceDocumentId,
+    evidenceName: p.evidenceDocumentId ? (db.select({ name: documents.originalName }).from(documents).where(eq(documents.id, p.evidenceDocumentId)).get()?.name ?? null) : null,
+  }));
+
   const entityConditions = [and(eq(auditLog.entityType, "bill_of_lading"), eq(auditLog.entityId, String(id)))];
-  if (found.bl.depositPaymentId) {
-    entityConditions.push(and(eq(auditLog.entityType, "deposit_payment"), eq(auditLog.entityId, String(found.bl.depositPaymentId))));
-  }
-  const documentIds = [...blDocuments.map((d) => d.id), ...(payment?.evidenceDocumentId ? [payment.evidenceDocumentId] : [])].map(String);
+  const paymentIds = [...(found.bl.depositPaymentId ? [found.bl.depositPaymentId] : []), ...additional.map((p) => p.id)].map(String);
+  if (paymentIds.length > 0) entityConditions.push(and(eq(auditLog.entityType, "deposit_payment"), inArray(auditLog.entityId, paymentIds)));
+  const documentIds = [
+    ...blDocuments.map((d) => d.id),
+    ...(payment?.evidenceDocumentId ? [payment.evidenceDocumentId] : []),
+    ...additional.flatMap((p) => (p.evidenceDocumentId ? [p.evidenceDocumentId] : [])),
+  ].map(String);
   if (documentIds.length > 0) {
     entityConditions.push(and(eq(auditLog.entityType, "document"), inArray(auditLog.entityId, documentIds)));
   }
@@ -426,6 +443,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     bl,
     payment,
     openingBalance,
+    additionalPayments,
     ledger,
     allocations,
     documents: blDocuments,
