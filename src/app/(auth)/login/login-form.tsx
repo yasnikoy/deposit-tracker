@@ -37,7 +37,7 @@ export function LoginForm() {
         <CardTitle>{t("auth.login.title")}</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
+        <form method="post" onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{t(error)}</AlertDescription>
