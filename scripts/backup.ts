@@ -19,7 +19,7 @@ async function main() {
   } else if (result.second) {
     console.log(`İkinci konum: ${result.second.file}`);
   } else {
-    console.log("İkinci konum ayarlanmamış (Ayarlar → Yedekler).");
+    console.log("İkinci yedek konumu ayarlanmamış (Ayarlar → Yedekleme).");
   }
 }
 

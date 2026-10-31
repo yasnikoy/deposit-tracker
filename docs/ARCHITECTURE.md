@@ -469,6 +469,11 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Oct 31, 2026 — build step 8d: runbook, v0.8.3**
+
+- `docs/RUNBOOK.md`: first setup, mail, users, form templates, start/stop/health, update and roll back (automatic and manual), backups and the monthly restore test, restore, the key file, moving to another PC, mail outages, troubleshooting and publishing a release. Labels are checked against the app's Turkish texts; three pointers to the backup settings group were corrected in the app as well.
+- Build step 8 is complete. Next: the Windows test on a real PC, then the open items before go-live and 1.0.0.
+
 **Oct 31, 2026 — build step 8c: signed updates, v0.8.2**
 
 - Update check, staging and install with rollback as described under Technical decisions → Updates. Version rules (`updateKind`: same major installs, a new major is manual, never older) are a pure domain function, written test-first. The update service is tested with a fake GitHub, including refusing a package not signed with the release key; staging a package signed with the real key was checked by hand.

@@ -1555,7 +1555,7 @@
     "backupLocal": "Son yerel yedek",
     "backupStale": "Güncel değil",
     "backupSecond": "İkinci konum",
-    "backupSecondUnset": "Ayarlanmamış (Ayarlar → Yedekler)",
+    "backupSecondUnset": "Ayarlanmamış (Ayarlar → Yedekleme → İkinci yedek konumu)",
     "backupSecondUnreachable": "Erişilemiyor",
     "backupSecondProblem": "Kontrol edin",
     "backupNext": "Sonraki yedek",

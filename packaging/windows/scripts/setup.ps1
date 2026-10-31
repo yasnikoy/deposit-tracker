@@ -114,7 +114,7 @@ try {
     Write-Host 'Bu bilgisayarda : ' -NoNewline; Write-Host "http://localhost:$port" -ForegroundColor Green
     foreach ($ip in Get-LanAddresses) { Write-Host 'Ofis ağında    : ' -NoNewline; Write-Host "http://$($ip):$port" -ForegroundColor Green }
     Write-Host ''
-    Write-Host 'İlk girişten sonra: Ayarlar -> E-posta, Kullanıcılar, Acenteler; Ayarlar -> Yedekler -> ikinci konum.'
+    Write-Host 'İlk girişten sonra: Ayarlar -> E-posta, Kullanıcılar, Acenteler; Ayarlar -> Yedekleme -> İkinci yedek konumu.'
     Wait-Close
 } catch {
     Write-Host "Kurulum tamamlanamadı: $($_.Exception.Message)" -ForegroundColor Red
