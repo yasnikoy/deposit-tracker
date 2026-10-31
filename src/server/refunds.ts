@@ -75,8 +75,8 @@ const snapshot = (row: Refund) => ({
 });
 
 /**
- * Enters an incoming refund or offset (accountant, rule 7) with its receipt or invoice
- * (rule 12). The duplicate warning works as for payments.
+ * Enters an incoming refund or offset (accountant, rule 7), with its receipt or invoice or
+ * without it for now (rule 12). The duplicate warning works as for payments.
  */
 export function createRefund(db: Db, actor: AuthUser, input: CreateRefundInput, now: Date = new Date()): CreateRefundResult {
   const roleUsed = authorize(actor, "refund.create");
@@ -102,7 +102,9 @@ export function createRefund(db: Db, actor: AuthUser, input: CreateRefundInput, 
       })
       .returning()
       .get();
-    attachDocument(tx, actor, { documentId: input.evidenceDocumentId, kind: EVIDENCE_KIND[input.kind], ownerType: "refund", ownerId: row.id });
+    if (input.evidenceDocumentId !== null) {
+      attachDocument(tx, actor, { documentId: input.evidenceDocumentId, kind: EVIDENCE_KIND[input.kind], ownerType: "refund", ownerId: row.id });
+    }
     writeAudit(
       tx,
       {
@@ -155,6 +157,23 @@ export function correctRefund(db: Db, actor: AuthUser, input: CorrectRefundInput
   });
 }
 
+/** Attaches the receipt (bank) or invoice (offset) a refund was saved without (rule 12). */
+export function attachRefundEvidence(db: Db, actor: AuthUser, input: { refundId: number; documentId: number }, now: Date = new Date()): void {
+  db.transaction((tx) => {
+    const current = requireRefund(tx, input.refundId);
+    const roleUsed = authorize(actor, "refund.attachEvidence", current);
+    if (current.voidedAt) throw new DomainError("refunds.errors.voided");
+    if (current.evidenceDocumentId !== null) throw new DomainError("refunds.errors.evidenceExists");
+    attachDocument(tx, actor, { documentId: input.documentId, kind: EVIDENCE_KIND[current.kind], ownerType: "refund", ownerId: current.id });
+    tx.update(refunds).set({ evidenceDocumentId: input.documentId, updatedAt: now.toISOString() }).where(eq(refunds.id, current.id)).run();
+    writeAudit(
+      tx,
+      { actorUserId: actor.id, roleUsed, action: "refund.attachEvidence", entityType: "refund", entityId: current.id, after: { evidenceDocumentId: input.documentId } },
+      now,
+    );
+  });
+}
+
 /** Rule 15: a refund is voided with a reason, only while it has no confirmed allocation. */
 export function voidRefund(db: Db, actor: AuthUser, input: { id: number; reason: string }, now: Date = new Date()): void {
   db.transaction((tx) => {
@@ -178,7 +197,7 @@ export type RefundListItem = {
   currency: string;
   valueDate: string;
   kind: PaymentKind;
-  evidenceDocumentId: number;
+  evidenceDocumentId: number | null;
   allocatedMinor: number;
   /** Computed: amount − confirmed allocations (rule 3). */
   remainderMinor: number;

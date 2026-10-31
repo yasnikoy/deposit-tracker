@@ -26,6 +26,7 @@ import type { ActionResult } from "@/server/errors";
 import type { DuplicateCandidate } from "@/server/payments";
 import type { RefundListItem, RefundStatus } from "@/server/refunds";
 import { correctRefundAction, createRefundAction, voidRefundAction } from "./actions";
+import { EvidenceDrop } from "./evidence-drop";
 import type { ReferenceData } from "./payment-form";
 
 type Fields = { agencyId: number | null; amountText: string; currency: string; valueDate: string };
@@ -89,7 +90,7 @@ function RefundFields({ refs, values, onChange, idPrefix }: { refs: ReferenceDat
   );
 }
 
-/** A new incoming refund (bank receipt) or offset (invoice); the evidence is mandatory (rule 12). */
+/** A new incoming refund (bank receipt) or offset (invoice); the evidence is optional (rule 12). */
 export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: () => void }) {
   const [kind, setKind] = useState<PaymentKind>("BANK");
   const [evidence, setEvidence] = useState<{ id: number; originalName: string } | null>(null);
@@ -153,7 +154,9 @@ export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: ()
         ))}
       </fieldset>
       <div className="flex flex-col gap-1.5">
-        <Label>{t(`payments.evidence.${kind}`)}</Label>
+        <Label>
+          {t(`payments.evidence.${kind}`)} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
+        </Label>
         {evidence ? (
           <div className="flex items-center gap-2">
             <a href={`/api/files/${evidence.id}`} target="_blank" rel="noreferrer" className="underline">
@@ -280,11 +283,15 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
           const refund = row.original;
           return (
             <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
-              <Button asChild variant="ghost" size="icon" className="size-7" aria-label={t("payments.receipt")}>
-                <a href={`/api/files/${refund.evidenceDocumentId}`} target="_blank" rel="noreferrer">
-                  <FileText />
-                </a>
-              </Button>
+              {refund.evidenceDocumentId !== null ? (
+                <Button asChild variant="ghost" size="icon" className="size-7" aria-label={t("payments.receipt")}>
+                  <a href={`/api/files/${refund.evidenceDocumentId}`} target="_blank" rel="noreferrer">
+                    <FileText />
+                  </a>
+                </Button>
+              ) : (
+                !refund.voidedAt && <EvidenceDrop refundId={refund.id} kind={refund.kind} compact />
+              )}
               {!refund.voidedAt && refund.allocatedMinor === 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -776,7 +776,8 @@ export const deductionTypes = sqliteTable(
 );
 
 /**
- * Incoming money (accountant, rule 7) with its mandatory evidence (rule 12). Its status and
+ * Incoming money (accountant, rule 7); its receipt or invoice is optional and can be attached
+ * later (rule 12). Its status and
  * unallocated remainder are computed from confirmed allocations, never stored (rule 3).
  */
 export const refunds = sqliteTable(
@@ -792,9 +793,7 @@ export const refunds = sqliteTable(
       .references(() => currencies.code),
     valueDate: text("value_date").notNull(),
     kind: text("kind", { enum: PAYMENT_KINDS }).notNull(),
-    evidenceDocumentId: integer("evidence_document_id")
-      .notNull()
-      .references(() => documents.id),
+    evidenceDocumentId: integer("evidence_document_id").references(() => documents.id),
     // Set when operations leaves the remainder unallocated on purpose (e.g. an overpayment).
     unallocatedReason: text("unallocated_reason"),
     createdBy: integer("created_by")

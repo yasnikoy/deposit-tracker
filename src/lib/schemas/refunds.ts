@@ -22,10 +22,13 @@ const refundFields = {
 export const createRefundSchema = z.object({
   ...refundFields,
   kind: z.enum(PAYMENT_KINDS),
-  evidenceDocumentId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.evidence")).transform((v) => v as number),
+  // Optional (rule 12): the receipt or invoice can be attached later.
+  evidenceDocumentId: id.nullable(),
   confirmDuplicate: z.boolean().default(false),
 });
 export type CreateRefundInput = z.infer<typeof createRefundSchema>;
+
+export const attachRefundEvidenceSchema = z.object({ refundId: id, documentId: id });
 
 export const correctRefundSchema = z.object({ id, ...refundFields, reason: requiredReasonSchema });
 export type CorrectRefundInput = z.infer<typeof correctRefundSchema>;

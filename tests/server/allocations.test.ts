@@ -10,7 +10,8 @@ import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
 import { recordStatementDeductions } from "@/server/deductions";
-import { correctRefund, createRefund, getRefund, listOwnRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
+import { createRefundSchema } from "@/lib/schemas/refunds";
+import { attachRefundEvidence, correctRefund, createRefund, getRefund, listOwnRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
 import { recordPortalRequest } from "@/server/requests";
 import { createTestDb, makeUser } from "../support/db";
 import { makeAgency, makeBl, PDF } from "../support/records";
@@ -73,6 +74,26 @@ describe("refunds", () => {
       expect.objectContaining({ messageKey: "payments.errors.futureDate" }),
     );
     expect(listOwnRefunds(db, acc)).toEqual([expect.objectContaining({ status: "OPEN", remainderMinor: usd(100) })]);
+  });
+
+  it("can be saved without a receipt, which only its accountant attaches later, once", async () => {
+    const input = { agencyId: line, amountMinor: usd(250), currency: "USD", valueDate: "2026-10-21", kind: "BANK" as const, evidenceDocumentId: null, confirmDuplicate: false };
+    expect(createRefundSchema.safeParse(input).success).toBe(true);
+    const created = createRefund(db, acc, input, NOW);
+    if (created.status !== "created") throw new Error("refund not created");
+    expect(getRefund(db, created.id).evidenceDocumentId).toBeNull();
+
+    const other = await makeUser(db, "acc2", ["ACCOUNTANT"]);
+    const foreign = storeUpload(db, other, { originalName: "x.pdf", content: PDF, kind: "RECEIPT" }, NOW);
+    expect(() => attachRefundEvidence(db, other, { refundId: created.id, documentId: foreign.id }, NOW)).toThrow(ForbiddenError);
+
+    const receipt = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
+    attachRefundEvidence(db, acc, { refundId: created.id, documentId: receipt.id }, NOW);
+    expect(getRefund(db, created.id).evidenceDocumentId).toBe(receipt.id);
+    const second = storeUpload(db, acc, { originalName: "iade2.pdf", content: PDF, kind: "RECEIPT" }, NOW);
+    expect(() => attachRefundEvidence(db, acc, { refundId: created.id, documentId: second.id }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "refunds.errors.evidenceExists" }),
+    );
   });
 });
 

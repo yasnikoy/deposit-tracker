@@ -8,7 +8,14 @@
  *   --reset  first clears all business records (payments, B/Ls, requests, emails, refunds,
  *            customers…) after a backup; users, settings, lists, templates and agencies stay.
  *
- * Each workbook row with a remaining balance becomes:
+ * Agencies listed with entries in the user's job-follow list (tests/realdata/job-follow.txt)
+ * come from that list, which overrides the workbook for them: every listed deposit becomes a
+ * payment with its full amount (an additional deposit when the B/L already exists) and every
+ * listed refund an unallocated refund without receipt, for the user to split in the app. The
+ * workbook's refund columns are ignored for these agencies (they were split by hand, partly
+ * over other agencies' B/Ls).
+ *
+ * Every other agency comes from the workbook; each row with a remaining balance becomes:
  *   - not refunded yet: a payment (with its receipt when one matches) and its B/L, or an
  *     additional deposit when the B/L already exists;
  *   - partly refunded: an opening balance for the remaining amount (the receipt attached).
@@ -30,12 +37,14 @@ import { storeUpload } from "@/server/files";
 import { acquireInstanceLock } from "@/server/instance-lock";
 import { createOpeningBalance } from "@/server/opening-balances";
 import { createPayment } from "@/server/payments";
+import { createRefund } from "@/server/refunds";
 import { parseReceipt, type ReceiptExtraction } from "@/server/receipts/parser";
 import { prepareDatabase } from "@/server/startup";
 import { eq } from "drizzle-orm";
 
 const REALDATA = path.join(process.cwd(), "tests", "realdata");
 const WORKBOOK = path.join(REALDATA, "30.10.2026.xlsx");
+const JOB_FOLLOW = path.join(REALDATA, "job-follow.txt");
 const reset = process.argv.includes("--reset");
 
 // ---- Workbook (xlsx is a zip of XML) ----
@@ -118,6 +127,11 @@ function ensureAgency(db: Db, ops: AuthUser, workbookName: string): { id: number
   return { id: existing.id, patterns: input.blNumberPatterns };
 }
 
+/** Rows whose customer column is wrong (confirmed by the user): their description names the right one. */
+const CUSTOMER_OF_ROW: Record<number, { name: string; code: string }> = {
+  57: { name: "BETA İNŞAAT A.Ş", code: "1002" },
+};
+
 function ensureCustomer(db: Db, actor: AuthUser, name: string, code: string | null): number {
   const existing = db.select().from(customers).all().find((c) => c.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"));
   if (existing) return existing.id;
@@ -141,6 +155,65 @@ function blNumberOf(description: string, patterns: string[]): string | null {
     .split(/[^A-Z0-9]+/)
     .find((t) => t.length >= 8 && /\d/.test(t) && !/^T?\d{2}$/.test(t.slice(0, 3)) && !/^\d{2}-/.test(t));
   return token ?? null;
+}
+
+// ---- Job-follow list ----
+
+/** Job-follow section heading → workbook agency name (a key of AGENCIES). */
+const JOB_FOLLOW_AGENCIES: Record<string, string> = {
+  Akkon: "AKKON",
+  Atako: "ATAKO",
+  "Cma Cgm": "CMA CGM",
+  Cosco: "COSCO",
+  Culines: "CULİNES",
+  Freighturk: "FREIGHTURK",
+  Hapag: "HAPAG",
+  Kınay: "A.RIZA KANAY",
+  Maersk: "MAERSK",
+  Msc: "MSC",
+  Ocean: "OCEAN",
+  Stella: "STELLA",
+  "Yang Ming": "YANG MING",
+};
+
+type FollowEntry =
+  | { kind: "deposit"; agency: string; date: string; blText: string | null; amount: number | null; line: string }
+  | { kind: "refund"; agency: string; date: string; amount: number; line: string };
+
+/**
+ * One entry per line: "d.mm.yyyy <B/L> [amount]" is a deposit paid that day (the amount only
+ * when one B/L was paid in parts), "d.mm.yyyy <amount> usd iade" a refund received that day;
+ * a line can carry both ("CHN1000164 - 5000 usd iade"). Sections without lines are left out.
+ */
+function readJobFollow(): FollowEntry[] {
+  if (!fs.existsSync(JOB_FOLLOW)) return [];
+  const entries: FollowEntry[] = [];
+  let agency: string | null = null;
+  for (const raw of fs.readFileSync(JOB_FOLLOW, "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const dated = /^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(.*)$/.exec(line);
+    if (!dated) {
+      agency = JOB_FOLLOW_AGENCIES[line] ?? null;
+      if (!agency) throw new Error(`job-follow: unknown agency heading "${line}"`);
+      continue;
+    }
+    if (!agency) throw new Error(`job-follow: line before any agency heading: "${line}"`);
+    const date = `${dated[3]}-${dated[2].padStart(2, "0")}-${dated[1].padStart(2, "0")}`;
+    let rest = dated[4];
+    const refund = /(\d[\d.]*)\s*usd\s+iade.*$/i.exec(rest);
+    if (refund) {
+      entries.push({ kind: "refund", agency, date, amount: num(refund[1]), line });
+      rest = rest.slice(0, refund.index).replace(/[\s-]+$/, "");
+    }
+    if (!rest) continue;
+    const amount = /\s(\d+)$/.exec(rest);
+    const text = amount ? rest.slice(0, amount.index).trim() : rest;
+    // "eski depo listesinden 3300": the old list's deposits as one sum, without a B/L number.
+    const blText = /[A-Z]{2,}\d|\d{3}G\d{6}/i.test(text) ? text : null;
+    entries.push({ kind: "deposit", agency, date, blText, amount: amount ? Number(amount[1]) : null, line });
+  }
+  return entries;
 }
 
 // ---- Data folder reset (dev only) ----
@@ -254,23 +327,144 @@ async function main() {
     const admin = actorWith(db, "ADMIN", ["admin"]);
 
     const receipts = await readReceipts();
-    const rows = readSheet(WORKBOOK);
-    const open = rows
-      .map((r) => ({
-        no: num(r["Kayıt No"]),
-        paidAt: typeof r["Yatırma Tarihi"] === "number" ? excelDate(r["Yatırma Tarihi"]) : null,
-        customer: String(r["Müşteri Adı / Ünvanı"] ?? "").trim(),
-        customerCode: r["Müşteri Kodu"] !== null && r["Müşteri Kodu"] !== "" ? String(r["Müşteri Kodu"]) : null,
-        agency: String(r["Depozito Alan Firma"] ?? "").trim(),
-        dosya: String(r["Dosya No"] ?? "").trim(),
-        currency: String(r["Para Birimi"] ?? "USD").trim(),
-        deposit: num(r["Depozito Tutarı"]),
-        refunded: num(r["İade Edilen Tutar"]),
-        rest: num(r["Kalan Bakiye"]),
-        description: String(r["Açıklama"] ?? ""),
-      }))
-      .filter((r) => r.rest > 0)
+    const follow = readJobFollow();
+    const followAgencies = new Set(follow.map((e) => e.agency));
+    const all = readSheet(WORKBOOK)
+      .map((r) => {
+        const no = num(r["Kayıt No"]);
+        const fix = CUSTOMER_OF_ROW[no];
+        return {
+          no,
+          paidAt: typeof r["Yatırma Tarihi"] === "number" ? excelDate(r["Yatırma Tarihi"]) : null,
+          customer: fix?.name ?? String(r["Müşteri Adı / Ünvanı"] ?? "").trim(),
+          customerCode: fix ? fix.code : r["Müşteri Kodu"] !== null && r["Müşteri Kodu"] !== "" ? String(r["Müşteri Kodu"]) : null,
+          agency: String(r["Depozito Alan Firma"] ?? "").trim(),
+          dosya: String(r["Dosya No"] ?? "").trim(),
+          currency: String(r["Para Birimi"] ?? "USD").trim(),
+          deposit: num(r["Depozito Tutarı"]),
+          refunded: num(r["İade Edilen Tutar"]),
+          rest: num(r["Kalan Bakiye"]),
+          description: String(r["Açıklama"] ?? ""),
+        };
+      })
       .sort((a, b) => (a.paidAt ?? "").localeCompare(b.paidAt ?? "") || a.no - b.no);
+    // ---- Job-follow agencies: full deposits and unallocated refunds ----
+    const usedRows = new Set<number>();
+    const followReport = { deposits: 0, additional: 0, withReceipt: 0, depositMinor: 0, refunds: 0, refundMinor: 0, skipped: [] as string[] };
+    const deposits = follow.filter((e) => e.kind === "deposit").sort((a, b) => a.date.localeCompare(b.date));
+    for (const entry of deposits) {
+      const label = `${entry.agency}: ${entry.line}`;
+      try {
+        const agency = ensureAgency(db, ops, entry.agency);
+        let blNo = entry.blText ? blNumberOf(entry.blText, agency.patterns) : `ESKI-LISTE-${squash(entry.agency)}`;
+        if (!blNo) throw new Error("no B/L number");
+        const key = squash(blNo);
+        // The workbook row of this deposit: same agency, paid within days (closest first), naming
+        // the B/L (the workbook sometimes drops the line's prefix: "SHAGTEST0600") or, failing
+        // that, the file number of the deposit's receipt.
+        type WorkbookRow = (typeof all)[number];
+        const rowWhere = (matches: (r: WorkbookRow) => boolean) =>
+          all
+            .filter(
+              (r) =>
+                !usedRows.has(r.no) &&
+                r.agency === entry.agency &&
+                r.paidAt !== null &&
+                dayDiff(r.paidAt, entry.date) <= 5 &&
+                (entry.amount === null || r.deposit === entry.amount) &&
+                matches(r),
+            )
+            .sort((a, b) => dayDiff(a.paidAt!, entry.date) - dayDiff(b.paidAt!, entry.date))[0] ?? null;
+        const namesBl = (r: WorkbookRow) => {
+          const text = withoutPartSuffix(r.description);
+          return squash(text).includes(key) || text.split(/[^A-Z0-9]+/).some((t) => t.length >= 8 && key.endsWith(t));
+        };
+        const fileOf = (r: WorkbookRow) => {
+          const m = FILE_NUMBER.exec(r.description) ?? FILE_NUMBER.exec(r.dosya);
+          return m ? `T${m[1]}` : null;
+        };
+        const receiptByBl = () => receipts.find((r) => !r.used && dayDiff(r.date!, entry.date) <= 5 && squash(withoutPartSuffix(r.description ?? "")).includes(key)) ?? null;
+        let row = rowWhere(entry.blText ? namesBl : (r) => /ESKİ LİSTE/i.test(r.description));
+        if (!row && entry.blText) {
+          const fileNumber = receiptByBl()?.fileNumber;
+          if (fileNumber) row = rowWhere((r) => fileOf(r) === fileNumber);
+        }
+        if (row) usedRows.add(row.no);
+        const fileNo = row ? fileOf(row) : null;
+        const known = entry.amount ?? row?.deposit ?? null;
+        const receipt =
+          known !== null
+            ? matchReceipt(receipts, { amountMinor: minor(known), paidAt: entry.date, blNo, fileNo })
+            : receiptByBl();
+        const amount = known ?? (receipt?.amountMinor ? receipt.amountMinor / 100 : null);
+        if (amount === null) throw new Error("amount unknown: no workbook row and no receipt");
+        // One workbook amount the bank paid in several transfers (3,000 = 2,700 + 300): one
+        // payment per receipt, the later ones joining the B/L as additional deposits.
+        let pieces: { amountMinor: number; receipt: Receipt | null }[] = [{ amountMinor: minor(amount), receipt }];
+        if (!receipt && entry.blText) {
+          const parts = receipts.filter((r) => !r.used && dayDiff(r.date!, entry.date) <= 5 && squash(withoutPartSuffix(r.description ?? "")).includes(key));
+          if (parts.length > 1 && parts.reduce((sum, r) => sum + (r.amountMinor ?? 0), 0) === minor(amount)) {
+            pieces = parts.map((r) => ({ amountMinor: r.amountMinor!, receipt: r }));
+          }
+        }
+        for (const piece of pieces) {
+          const pr = piece.receipt;
+          if (pr?.description && entry.blText) blNo = blNumberOf(pr.description, agency.patterns) ?? blNo;
+          const evidenceId = pr ? storeUpload(db, acc, { originalName: pr.file, content: pr.content, kind: "RECEIPT" }).id : null;
+          if (pr) {
+            pr.used = true;
+            followReport.withReceipt++;
+          }
+          const result = createPayment(db, acc, {
+            agencyId: agency.id,
+            amountMinor: piece.amountMinor,
+            currency: row?.currency ?? "USD",
+            paidAt: pr?.date ?? entry.date,
+            kind: "BANK",
+            blNoHint: blNo,
+            evidenceDocumentId: evidenceId,
+            queueItemId: null,
+            confirmDuplicate: true,
+            extraction: pr ? readingOf(pr) : null,
+          });
+          if (result.status !== "created") throw new Error("payment not created");
+          if (result.additionalTo) followReport.additional++;
+          else {
+            // Without a workbook row, customer and file number come from the receipt's reading.
+            const customerId = row ? (row.customer ? ensureCustomer(db, acc, row.customer, row.customerCode) : null) : undefined;
+            const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, containers: [], customerId, fileNo: row ? fileNo : undefined }]);
+            if (errors.length > 0 || created.length === 0) throw new Error(`B/L not created: ${JSON.stringify(errors)}`);
+            followReport.deposits++;
+          }
+        }
+        followReport.depositMinor += minor(amount);
+      } catch (error) {
+        followReport.skipped.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    for (const entry of follow.filter((e) => e.kind === "refund")) {
+      try {
+        const result = createRefund(db, acc, {
+          agencyId: ensureAgency(db, ops, entry.agency).id,
+          amountMinor: minor(entry.amount),
+          currency: "USD",
+          valueDate: entry.date,
+          kind: "BANK",
+          evidenceDocumentId: null,
+          confirmDuplicate: true,
+        });
+        if (result.status !== "created") throw new Error("refund not created");
+        followReport.refunds++;
+        followReport.refundMinor += minor(entry.amount);
+      } catch (error) {
+        followReport.skipped.push(`${entry.agency}: ${entry.line}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+
+    // ---- Workbook: open rows the job-follow list did not replace ----
+    // For a job-follow agency these are other customers' deposits, which the list leaves out.
+    const open = all.filter((r) => r.rest > 0 && !usedRows.has(r.no));
+    const keptForFollowAgencies = open.filter((r) => followAgencies.has(r.agency));
 
     const report = { payments: 0, additional: 0, openingBalances: 0, withReceipt: 0, skipped: [] as string[], totalMinor: 0 };
     for (const row of open) {
@@ -343,7 +537,15 @@ async function main() {
     const unused = receipts.filter((r) => !r.used);
     console.log(
       [
-        `Open workbook rows: ${open.length}`,
+        `Job-follow agencies (${[...followAgencies].join(", ")}):`,
+        `  new B/Ls: ${followReport.deposits}, additional deposits: ${followReport.additional}, with receipt: ${followReport.withReceipt}`,
+        `  deposits: ${(followReport.depositMinor / 100).toLocaleString("tr-TR")}`,
+        `  refunds (unallocated, no receipt): ${followReport.refunds}, ${(followReport.refundMinor / 100).toLocaleString("tr-TR")}`,
+        `  skipped (${followReport.skipped.length}):`,
+        ...followReport.skipped.map((s) => `    - ${s}`),
+        `  their open workbook rows not in the list, imported from the workbook (${keptForFollowAgencies.length}):`,
+        ...keptForFollowAgencies.map((r) => `    - #${r.no} ${r.agency} ${r.deposit} ${r.currency} (rest ${r.rest}) · ${r.customer} · ${r.description}`),
+        `Workbook, open rows not in the job-follow list: ${open.length}`,
         `  new B/Ls from payments: ${report.payments}`,
         `  additional deposits on an existing B/L: ${report.additional}`,
         `  opening balances (partly refunded): ${report.openingBalances}`,

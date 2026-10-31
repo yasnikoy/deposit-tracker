@@ -6,8 +6,8 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
 import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, readUploadedReceipt, voidPayment, type CreatePaymentResult } from "@/server/payments";
-import { correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
-import { correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
+import { attachRefundEvidenceSchema, correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
+import { attachRefundEvidence, correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
 
 export async function createPaymentAction(input: unknown): Promise<ActionResult<CreatePaymentResult>> {
   const { user } = await requireSession();
@@ -52,4 +52,9 @@ export async function voidRefundAction(input: unknown): Promise<ActionResult<voi
 export async function attachPaymentEvidenceAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(attachEvidenceSchema, input, (data) => attachPaymentEvidence(getDb(), user, data));
+}
+
+export async function attachRefundEvidenceAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(attachRefundEvidenceSchema, input, (data) => attachRefundEvidence(getDb(), user, data));
 }

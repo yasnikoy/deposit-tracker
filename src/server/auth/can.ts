@@ -45,6 +45,7 @@ const rules = {
   "refund.create": only("ACCOUNTANT"),
   "refund.viewOwn": only("ACCOUNTANT"),
   "refund.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
+  "refund.attachEvidence": [{ role: "ACCOUNTANT", when: ownRecord }],
   "refund.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],
   // Money is attributed to B/Ls by operations; only an admin reverses a confirmed allocation (rule 8).
   "allocation.view": only("OPERATIONS", "ADMIN"),

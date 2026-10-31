@@ -1169,6 +1169,7 @@
   "refunds": {
     "errors": {
       "voided": "Bu iade kaydı iptal edilmiş.",
+      "evidenceExists": "Bu iadenin dekontu veya faturası zaten var.",
       "allocated": "Onaylanmış dağıtımı olan iade düzeltilemez veya iptal edilemez; önce yönetici dağıtımı geri almalı."
     },
     "newTitle": "Yeni iade",
