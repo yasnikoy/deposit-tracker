@@ -15,6 +15,7 @@ import { ensureRecurringJobs, recurringJobHandlers } from "./recurring-jobs";
 import { seedDeductionTypes, seedLists, seedReplyTypes } from "./lists";
 import { resolveKeyFile } from "./secrets";
 import { seedSettings } from "./settings";
+import { scheduleUpdateChecks } from "./updates";
 
 /** Prepares the database: migrations (after an automatic backup) and seed values. */
 export async function prepareDatabase(): Promise<void> {
@@ -53,5 +54,6 @@ export async function startServer(): Promise<void> {
     ...emailJobHandlers(db, transport),
     ...recurringJobHandlers(db, { mailbox: () => mailboxFromSettings(db), transport, dataDir: env.dataDir }),
   });
+  scheduleUpdateChecks();
   logger.info({ version: APP_VERSION, dataDir: env.dataDir, emailMode: env.EMAIL_MODE }, "server started");
 }

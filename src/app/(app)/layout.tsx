@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppHeader, type NavItem } from "@/components/app-shell/app-header";
 import { ShortcutsDialog } from "@/components/app-shell/shortcuts-dialog";
 import { can } from "@/server/auth/can";
@@ -7,6 +8,7 @@ import { APP_VERSION } from "@/lib/version";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { getEnv } from "@/server/env";
+import { updateState } from "@/server/updates";
 import { unprocessedSummary } from "@/server/replies";
 import { unreadNotificationCount } from "@/server/notifications";
 import { mailOutages } from "@/server/service-status";
@@ -48,6 +50,8 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     );
   const outages = mailOutages(db);
   const dryRun = getEnv().EMAIL_MODE !== "live";
+  // Admins see a newer release (ARCHITECTURE → Updates); the check runs at start and daily.
+  const newVersion = can(user, "system.view").allowed ? (updateState().available?.version ?? null) : null;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -58,6 +62,14 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
         </div>
       ))}
       {dryRun && <div className="bg-muted text-muted-foreground border-b px-4 py-1 text-xs">{t("mail.dryRunBanner")}</div>}
+      {newVersion && (
+        <div className="border-b bg-sky-50 px-4 py-1 text-xs text-sky-900 dark:bg-sky-950 dark:text-sky-100">
+          {t("updates.banner", { version: newVersion })}{" "}
+          <Link href="/admin/system" className="underline">
+            {t("updates.bannerLink")}
+          </Link>
+        </div>
+      )}
       <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">{children}</main>
       <ShortcutsDialog />
     </div>

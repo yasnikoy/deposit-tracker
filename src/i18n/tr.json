@@ -1577,5 +1577,33 @@
       "WEEKLY_SUMMARY_EMAIL": "Haftalık özet e-postası",
       "BACKUP": "Yedekleme"
     }
+  },
+  "updates": {
+    "title": "Güncelleme",
+    "current": "Kurulu sürüm",
+    "lastCheck": "Son kontrol",
+    "checkNow": "Şimdi kontrol et",
+    "checking": "Kontrol ediliyor…",
+    "upToDate": "Güncel",
+    "checkFailed": "Kontrol edilemedi: {error}",
+    "available": "Yeni sürüm: {version}",
+    "notes": "Sürüm notları",
+    "install": "Güncelle",
+    "confirmTitle": "{version} sürümü kurulsun mu?",
+    "confirmText": "Güncelleme indirilir ve imzası doğrulanır. Ardından uygulama yeniden başlar; birkaç dakika kimse çalışamaz. Veritabanı değişmeden önce otomatik yedek alınır. Yeni sürüm açılmazsa önceki sürüme kendiliğinden dönülür.",
+    "installing": "İndiriliyor ve doğrulanıyor…",
+    "restarting": "{version} kuruluyor; uygulama yeniden başlıyor. Birkaç dakika sonra sayfayı yenileyin.",
+    "manual": "{version} büyük bir sürüm: elle kurulum gerekir (docs/RUNBOOK.md → Güncelleme).",
+    "openRelease": "GitHub'da aç",
+    "devOnly": "Güncellemeler yalnızca kurulu uygulamada (setup.cmd ile) yapılır.",
+    "banner": "Yeni sürüm {version} hazır.",
+    "bannerLink": "Sistem durumu",
+    "errors": {
+      "notInstalled": "Güncelleme yalnızca kurulu uygulamada (setup.cmd ile) yapılabilir.",
+      "nothingToInstall": "Kurulacak bir güncelleme yok; önce kontrol edin.",
+      "noPackage": "Bu sürümde Windows paketi veya imzası yok.",
+      "download": "Güncelleme indirilemedi; internet bağlantısını kontrol edip tekrar deneyin.",
+      "signature": "Güncellemenin imzası geçersiz; kurulmadı. Bu durumu geliştiriciye bildirin."
+    }
   }
 }

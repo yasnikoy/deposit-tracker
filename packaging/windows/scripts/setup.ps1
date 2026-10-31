@@ -83,7 +83,7 @@ try {
     Write-Host 'Uygulama Windows açılınca, kimse oturum açmadan başlar. Bunun için bir Windows hesabı ve şifresi gerekir;'
     Write-Host 'şifre yalnızca Windows Görev Zamanlayıcı''ya verilir, uygulama saklamaz.'
     $account = Ask 'Windows hesabı' ($(if ($LaunchUser) { $LaunchUser } else { "$env:USERDOMAIN\$env:USERNAME" }))
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'run.ps1')`"" -WorkingDirectory $AppDir
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'run.ps1')`"" -WorkingDirectory $RootDir
     $trigger = New-ScheduledTaskTrigger -AtStartup
     $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
         -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
