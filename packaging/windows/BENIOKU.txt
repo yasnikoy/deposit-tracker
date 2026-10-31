@@ -1,0 +1,26 @@
+Deposit Tracker - Windows kurulumu
+==================================
+
+1. Bu zip'in içeriğini C:\DepositTracker\app klasörüne açın.
+2. setup.cmd dosyasına çift tıklayın ve Windows'un yönetici onayını verin.
+   Port, e-posta modu, ilk yönetici hesabı ve Windows hesabınızın şifresi sorulur.
+   (Şifre yalnızca Windows Görev Zamanlayıcı'ya verilir; uygulama Windows açılınca
+   kimse oturum açmadan başlar.)
+3. Kurulumun sonunda gösterilen adresi tarayıcıda açın, örneğin http://192.168.1.20:3000
+   Ofisteki diğer kişiler de aynı adresi kullanır.
+
+Klasörler
+  C:\DepositTracker\app          program (güncellemeler yalnızca bunu değiştirir)
+  C:\DepositTracker\data         veritabanı, dosyalar, kayıtlar, yedekler
+  C:\DepositTracker\deposit.key  e-posta şifrelerinin anahtarı: kaybetmeyin, ayrıca saklayın
+  C:\DepositTracker\deposit.env  kurulum ayarları
+
+Komutlar (app klasöründe)
+  start.cmd         uygulamayı başlatır
+  stop.cmd          uygulamayı durdurur
+  backup.cmd        hemen yedek alır
+  create-admin.cmd  yeni yönetici hesabı (kimse yönetici olarak giremiyorsa)
+  setup.cmd         ayarları değiştirmek için yeniden çalıştırılabilir
+
+Sorun olursa: C:\DepositTracker\data\logs klasöründeki console.log ve günlük kayıtlar.
+Ayrıntılı kılavuz: docs/RUNBOOK.md (GitHub deposunda).
