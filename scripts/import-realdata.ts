@@ -127,10 +127,14 @@ function ensureAgency(db: Db, ops: AuthUser, workbookName: string): { id: number
   return { id: existing.id, patterns: input.blNumberPatterns };
 }
 
-/** Rows whose customer column is wrong (confirmed by the user): their description names the right one. */
-const CUSTOMER_OF_ROW: Record<number, { name: string; code: string }> = {
-  57: { name: "BETA İNŞAAT A.Ş", code: "1002" },
-};
+/**
+ * Rows whose customer column is wrong (confirmed by the user), as { "<row no>": { name, code } }.
+ * They hold real customer names, so they live next to the workbook in the git-ignored folder.
+ */
+const CUSTOMER_FIXES = path.join(REALDATA, "customer-fixes.json");
+const CUSTOMER_OF_ROW: Record<number, { name: string; code: string | null }> = fs.existsSync(CUSTOMER_FIXES)
+  ? JSON.parse(fs.readFileSync(CUSTOMER_FIXES, "utf8"))
+  : {};
 
 function ensureCustomer(db: Db, actor: AuthUser, name: string, code: string | null): number {
   const existing = db.select().from(customers).all().find((c) => c.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"));
