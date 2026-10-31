@@ -1,6 +1,4 @@
 import "server-only";
-// Only text is read, never rendered: pdfjs warnings about canvas support are noise.
-import { getDocument, VerbosityLevel } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { logger } from "../logger";
 import { parseGarantiLines } from "./garanti";
 
@@ -24,6 +22,9 @@ export type ReceiptExtraction = {
 
 /** The text of a PDF's first page as lines, top to bottom, parts of a line joined by a space. */
 async function pdfLines(content: Buffer): Promise<string[]> {
+  // Loaded on first use: on load pdfjs warns that canvas rendering is unavailable, which is
+  // noise here (only text is read) and alarming in setup and the command-line tools.
+  const { getDocument, VerbosityLevel } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loading = getDocument({ data: new Uint8Array(content), disableFontFace: true, useSystemFonts: false, verbosity: VerbosityLevel.ERRORS });
   try {
     const page = await (await loading.promise).getPage(1);

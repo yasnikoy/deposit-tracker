@@ -1,6 +1,7 @@
 # First setup on the office PC (setup.cmd). Asks a few questions, then: writes deposit.env,
 # creates the first admin, opens the port in Windows Firewall (domain and private networks
-# only), registers the startup task under the given Windows account and starts the app.
+# only), registers the task under the given Windows account (with its password, or without one
+# through S4U when it has none), with or without a Windows-startup trigger, and starts the app.
 # Safe to run again: existing answers are offered as defaults.
 param([string]$LaunchUser = '')
 
@@ -79,19 +80,31 @@ try {
     New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort ([int]$port) -Profile Domain, Private | Out-Null
     Write-Host "Port $port ofis ağına açıldı (etki alanı ve özel ağ; genel ağlar kapalı)."
 
+    # The app always runs through the task (start.cmd starts it, it restarts after errors and
+    # installs updates); automatic start only decides whether it has a Windows-startup trigger.
     Write-Title 'Otomatik başlatma'
-    Write-Host 'Uygulama Windows açılınca, kimse oturum açmadan başlar. Bunun için bir Windows hesabı ve şifresi gerekir;'
-    Write-Host 'şifre yalnızca Windows Görev Zamanlayıcı''ya verilir, uygulama saklamaz.'
+    $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    $autoStart = Ask-YesNo 'Uygulama Windows açılınca, kimse oturum açmadan otomatik başlasın mı? (Hayır: start.cmd ile başlatılır)' (-not $existing -or @($existing.Triggers).Count -gt 0)
+    Write-Host 'Uygulama bir Windows hesabıyla çalışır. Şifre yalnızca Windows Görev Zamanlayıcı''ya verilir, uygulama saklamaz.'
+    Write-Host 'Hesabın şifresi yoksa boş bırakın: görev şifresiz kaydedilir; o zaman ağdaki paylaşılan klasörlere'
+    Write-Host '(örneğin ağdaki bir ikinci yedek konumuna) erişemez, harici diske veya bu bilgisayardaki bir klasöre erişir.'
     $account = Ask 'Windows hesabı' ($(if ($LaunchUser) { $LaunchUser } else { "$env:USERDOMAIN\$env:USERNAME" }))
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'run.ps1')`"" -WorkingDirectory $RootDir
-    $trigger = New-ScheduledTaskTrigger -AtStartup
+    $triggers = if ($autoStart) { @(New-ScheduledTaskTrigger -AtStartup) } else { @() }
     $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
         -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
     while ($true) {
-        $secure = Read-Host "$account şifresi" -AsSecureString
+        $secure = Read-Host "$account şifresi (şifre yoksa boş bırakın)" -AsSecureString
         $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
         try {
-            Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $taskSettings -User $account -Password $plain -RunLevel Limited -Force | Out-Null
+            $task = @{ TaskName = $TaskName; Action = $action; Settings = $taskSettings; Force = $true }
+            if ($triggers.Count -gt 0) { $task.Trigger = $triggers }
+            if ($plain) {
+                Register-ScheduledTask @task -User $account -Password $plain -RunLevel Limited | Out-Null
+            } else {
+                # No stored password (S4U): Windows refuses blank passwords for tasks, this needs none.
+                Register-ScheduledTask @task -Principal (New-ScheduledTaskPrincipal -UserId $account -LogonType S4U -RunLevel Limited) | Out-Null
+            }
             break
         } catch {
             Write-Host "Görev kaydedilemedi: $($_.Exception.Message)" -ForegroundColor Yellow
@@ -100,7 +113,8 @@ try {
             $plain = $null
         }
     }
-    Write-Host "Görev '$TaskName' kaydedildi."
+    if ($autoStart) { Write-Host "Görev '$TaskName' kaydedildi; uygulama Windows açılınca başlar." }
+    else { Write-Host "Görev '$TaskName' kaydedildi; uygulama Windows açılınca başlamaz, start.cmd ile başlatın." }
 
     Write-Title 'Başlatılıyor'
     Start-ScheduledTask -TaskName $TaskName

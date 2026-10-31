@@ -43,8 +43,13 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
      Yes only on the office PC once mail is configured.
    - **Create an admin account** — username, display name, password (at least 8 characters by
      default; Ayarlar → Kullanıcı güvenliği sets the minimum).
-   - **Windows account and password** for the startup task — Enter to accept your own account.
-     The password goes to Windows Task Scheduler only. Change it later? Run `setup.cmd` again.
+   - **Start automatically with Windows?** — Yes on the office PC (the app starts at boot, before
+     anyone logs in). No: the app runs only after `start.cmd`, until the next restart.
+   - **Windows account and password** for the task — Enter to accept your own account.
+     The password goes to Windows Task Scheduler only. An account without a password: leave it
+     empty; the task is then registered without a stored password and cannot reach network
+     shares, so the second backup location must be a local folder or an external disk.
+     Change it later? Run `setup.cmd` again.
 3. Setup opens the port in Windows Firewall (domain and private networks only), registers the
    task, starts the app and prints the addresses. Open one in Chrome or Edge and log in.
 4. In the app (Yönetim menu): Ayarlar → E-posta sunucusu (section 2), Kullanıcılar (section 3), Acenteler
@@ -52,7 +57,7 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
    documents, and **Ayarlar → Yedekleme → İkinci yedek konumu** (section 7).
 5. Copy `C:\DepositTracker\deposit.key` to a safe place (section 9).
 
-`setup.cmd` can be run again at any time to change the port, the email mode or the account; it
+`setup.cmd` can be run again at any time to change the port, the email mode, automatic start or the account; it
 keeps the data.
 
 ## 2. Configure mail
@@ -87,10 +92,10 @@ In `C:\DepositTracker\app` (each asks for administrator approval):
 | Command | Does |
 | --- | --- |
 | `start.cmd` | starts the app (task) and waits until it answers |
-| `stop.cmd` | stops it; it stays stopped until `start.cmd` or the next Windows start |
+| `stop.cmd` | stops it; it stays stopped until `start.cmd` or, with automatic start, the next Windows start |
 | `backup.cmd` | takes a backup now (works while the app runs) |
 | `create-admin.cmd` | creates an admin from the command line |
-| `setup.cmd` | changes port, email mode, account |
+| `setup.cmd` | changes port, email mode, automatic start, account |
 
 Health: Yönetim → **Sistem durumu** shows the version, the address to share, backups (red when
 older than yesterday or the second location is unreachable), mail servers and failed jobs. From
