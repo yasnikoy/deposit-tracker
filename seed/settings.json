@@ -53,6 +53,8 @@
     "notifications.dailyUnprocessedEmail": false,
     "notifications.dailyUnprocessedTime": "09:00",
     "notifications.dailyUnprocessedRecipients": [],
+    "reports.internalDomains": [],
+    "reports.defaultRecipients": [],
     "reconciliation.alternativeSuggestions": 3,
     "auth.loginLockoutAttempts": 5,
     "auth.minPasswordLength": 8,
@@ -135,6 +137,10 @@
     "DAILY_UNPROCESSED": {
       "subject": "Depozito Takip – işlenmemiş {count} yanıt",
       "body": "Merhaba,\n\nAşağıdaki acentelerden gelen ve {warning_days} iş gününden uzun süredir işlenmemiş yanıtlar var:\n{agency_lines}\n\nYanıtlar ekranı: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
+    },
+    "REPORT": {
+      "subject": "Depozito durum raporu – {date}",
+      "body": "Merhaba,\n\n{date} itibarıyla depozito durumunun özeti aşağıdadır. Ayrıntılı listeler ekteki CSV dosyalarındadır; Excel ile açılabilir."
     }
   }
 }

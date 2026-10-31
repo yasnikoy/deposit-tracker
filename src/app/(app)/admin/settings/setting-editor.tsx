@@ -141,6 +141,7 @@ export function SettingEditor({
       );
 
     case "emailList":
+    case "domainList":
       return (
         <div className="flex flex-col gap-1">
           <textarea
@@ -153,7 +154,7 @@ export function SettingEditor({
               onChange(toList(event.target.value));
             }}
           />
-          <span className="text-muted-foreground text-xs">{t("settings.emailListHint")}</span>
+          <span className="text-muted-foreground text-xs">{t(kind === "domainList" ? "settings.domainListHint" : "settings.emailListHint")}</span>
         </div>
       );
 

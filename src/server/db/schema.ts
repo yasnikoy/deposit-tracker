@@ -889,3 +889,17 @@ export const writeOffs = sqliteTable(
     index("write_offs_bl").on(t.blId),
   ],
 );
+
+// ---- Build step 7: report email ----
+
+/**
+ * An operations report sent to internal addresses: the outgoing email (sent through the
+ * request send job) with the sections and filters it was built from.
+ */
+export const reportEmails = sqliteTable("report_emails", {
+  emailId: integer("email_id")
+    .primaryKey()
+    .references(() => emails.id),
+  sections: text("sections", { mode: "json" }).$type<string[]>().notNull(),
+  filters: text("filters", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
+});

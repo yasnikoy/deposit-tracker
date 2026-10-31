@@ -6,7 +6,7 @@ import { z } from "zod";
  * Groups for email, templates, notifications and lists arrive with the features that use them.
  */
 
-export const SETTING_GROUPS = ["calendar", "durations", "rules", "email", "notifications", "reconciliation", "users", "backups"] as const;
+export const SETTING_GROUPS = ["calendar", "durations", "rules", "email", "notifications", "reports", "reconciliation", "users", "backups"] as const;
 export type SettingGroup = (typeof SETTING_GROUPS)[number];
 
 /** Editor and unit of a value. Every duration declares its day type through its kind. */
@@ -23,6 +23,8 @@ export type SettingKind =
   | "text"
   | "longText"
   | "emailList"
+  /** Email domains such as `firma.com.tr`. */
+  | "domainList"
   /** One of a fixed list of technical options (labels in tr.json under settings.choices). */
   | "choice"
   /** Stored encrypted; never sent back to the browser (rule 14). */
@@ -55,6 +57,15 @@ const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 
 const emailAddress = z.string().trim().toLowerCase().pipe(z.email());
 const emailList = z.array(emailAddress).max(20);
+const domainList = z
+  .array(
+    z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/),
+  )
+  .max(20);
 const host = z.string().trim().max(253);
 const port = int(1, 65535);
 const MAIL_SECURITY = ["tls", "starttls", "none"] as const;
@@ -124,6 +135,11 @@ export const settingDefinitions = {
   "notifications.dailyUnprocessedEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.dailyUnprocessedTime": { group: "notifications", kind: "time", schema: time },
   "notifications.dailyUnprocessedRecipients": { group: "notifications", kind: "emailList", schema: emailList },
+
+  /** Report email recipients must be in one of these domains (or the sender's own). */
+  "reports.internalDomains": { group: "reports", kind: "domainList", schema: domainList },
+  /** Prefills the report email preview. */
+  "reports.defaultRecipients": { group: "reports", kind: "emailList", schema: emailList },
 
   "reconciliation.alternativeSuggestions": { group: "reconciliation", kind: "count", schema: int(1, 10) },
 

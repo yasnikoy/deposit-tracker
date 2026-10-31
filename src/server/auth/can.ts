@@ -62,6 +62,8 @@ const rules = {
   "bl.view": ALL_ROLES,
   // Aging and agency scorecard (Reports).
   "report.view": ALL_ROLES,
+  // The report email to internal addresses.
+  "report.sendEmail": only("OPERATIONS"),
   "bl.create": only("OPERATIONS"),
   // Accountants follow the Operations work lists read-only.
   "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),

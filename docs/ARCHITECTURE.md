@@ -137,6 +137,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
 | `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), received\_at (incoming only). Whether an incoming email is processed is computed from `replies`, never stored |
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
+| `report_emails` | Operations report emails (an `emails` row with no agency and no requests) | email\_id, sections, filters as chosen |
 | `standing_documents` | Signature circular and power of attorney; the newest per slot is current | slot (SIGNATURE\_CIRCULAR, POWER\_OF\_ATTORNEY), document\_id, uploaded\_by |
 | `jobs` | Scheduler queue | kind (SEND\_EMAIL, COPY\_TO\_SENT\_FOLDER, …), payload, run\_at, status, attempts, last\_error |
 | `service_status` | Mail server reachability for the outage banner | service (SMTP, IMAP), failing\_since, last\_error, last\_ok\_at |
@@ -457,6 +458,15 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Oct 31, 2026 — build step 7c (report email), v0.7.2**
+
+- Report email as planned. "Rapor gönder" on the Reports screen (operations only, `report.sendEmail`) picks sections, agencies, a currency and the collected period (defaults to this month so far), then shows the preview. Recipients, CC, subject and intro can be edited there. The section summaries are read-only and follow the intro, then the email signature. The server builds the sections again at send time.
+- Recipients are checked on the server (`src/domain/report-email.ts`). Each address must be in a domain from *Rapor e-postası → Şirket içi e-posta alan adları* (exact match) or in the sender address's domain. An address on any agency's To or CC list is always refused. New settings group *Reports* with `reports.internalDomains` (new `domainList` kind) and `reports.defaultRecipients`; the template is the new `REPORT` email template, whose body is the intro (placeholder `{date}`).
+- Section contents. *Requested refunds*: open B/Ls with at least one refund request. *Remaining deposits*: open balance per agency and currency, with totals per currency; the CSV lists the B/Ls. *Collected*: confirmed allocations whose refund value date falls in the period, per B/L, with the B/L's deductions and write-off. *Problems*: open and disputed deductions, failed sends, and B/Ls waiting longer than the last aging bucket edge. "Waiting longest" therefore follows `durations.agingBucketEdges` rather than a separate setting.
+- The email is an `emails` row without an agency or request rows, plus a `report_emails` row with its sections and filters. It goes through the request send job unchanged: retries, dry-run, `.eml`, sent-folder copy. The CSV attachments are stored as generated documents owned by the email. The audit entry `report.email` holds sections, filters, recipients and subject.
+- The Reports screen lists the last ten report emails with their status, so a failed send is visible to everyone.
+- A colleague's reply to a report arrives in the shared mailbox like any unknown message, and shows unmatched under Replies.
 
 **Oct 31, 2026 — build step 7b (CSV export and copy), v0.7.1**
 

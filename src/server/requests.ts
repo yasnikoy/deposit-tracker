@@ -313,7 +313,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
 }
 
 /** Sends that failed after their retries and have not been sent again since. */
-function failedRequests(db: DbOrTx): FailedRequest[] {
+export function failedRequests(db: DbOrTx): FailedRequest[] {
   const rows = db
     .select({ request: requests, blNo: billsOfLading.blNo, agencyName: agencies.name })
     .from(requests)

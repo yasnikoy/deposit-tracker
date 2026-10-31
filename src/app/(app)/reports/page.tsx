@@ -8,6 +8,12 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { bucketLabel, formatDecimal as decimal, formatRate as percent } from "@/server/report-exports";
 import { agencyScorecardFor, agingReportFor } from "@/server/reports";
+import { listAgencies } from "@/server/agencies";
+import { listCurrencies } from "@/server/lists";
+import { listSentReports } from "@/server/report-email";
+import { istanbulToday } from "@/domain/business-days";
+import { formatTimestamp } from "@/lib/format";
+import { ReportEmailButton } from "./report-email-dialog";
 
 /** Section title with the CSV download of the same report. */
 function ReportHeading({ title, report, empty }: { title: TranslationKey; report: "aging" | "scorecard"; empty: boolean }) {
@@ -32,11 +38,22 @@ export default async function ReportsPage() {
   const db = getDb();
   const aging = agingReportFor(db, user);
   const scorecard = agencyScorecardFor(db, user);
+  const sentReports = listSentReports(db, user);
+  const today = istanbulToday();
   const cell = "px-3 py-1.5";
 
   return (
     <>
-      <h1 className="text-lg font-semibold">{t("reports.title")}</h1>
+      <div className="flex items-center gap-4">
+        <h1 className="text-lg font-semibold">{t("reports.title")}</h1>
+        {can(user, "report.sendEmail").allowed && (
+          <ReportEmailButton
+            agencies={listAgencies(db, user).map((a) => ({ id: a.id, name: a.name }))}
+            currencies={listCurrencies(db, user).map((c) => c.code)}
+            period={{ from: `${today.slice(0, 8)}01`, to: today }}
+          />
+        )}
+      </div>
 
       <section className="flex flex-col gap-2">
         <ReportHeading title="reports.aging.title" report="aging" empty={aging.rows.length === 0} />
@@ -129,6 +146,30 @@ export default async function ReportsPage() {
               ))}
             </tbody>
           </table>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h2 className="font-semibold">{t("reports.email.recent")}</h2>
+        {sentReports.length === 0 ? (
+          <p className="text-muted-foreground text-sm">{t("reports.email.recentEmpty")}</p>
+        ) : (
+          <ul className="flex flex-col gap-1 text-sm" data-testid="sent-reports">
+            {sentReports.map((report) => (
+              <li key={report.emailId} className="flex flex-wrap items-baseline gap-2">
+                <span className={report.status === "FAILED" ? "text-destructive font-medium" : "font-medium"}>
+                  {t(`reports.email.statuses.${report.status}`)}
+                  {report.dryRun && ` (${t("reports.email.dryRun")})`}
+                </span>
+                <span>{report.subject}</span>
+                <span className="text-muted-foreground text-xs">
+                  {report.sections.map((s) => t(`reports.email.sections.${s}`)).join(", ")} → {report.to.join(", ")} ·{" "}
+                  {t("reports.email.sentBy", { at: formatTimestamp(report.createdAt), user: report.sentBy })}
+                </span>
+                {report.status === "FAILED" && report.lastError && <span className="text-destructive text-xs">{report.lastError}</span>}
+              </li>
+            ))}
+          </ul>
         )}
       </section>
     </>

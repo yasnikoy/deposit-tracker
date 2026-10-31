@@ -308,3 +308,34 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   expect(report).toContain(`${AGENCY};USD;1;`);
   expect(report).toContain(";100,00;%4;");
 });
+
+test("report email: operations previews a status report; agency addresses are refused; it goes out (dry-run)", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.goto("/reports");
+  await page.getByRole("button", { name: tr.reports.email.send }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: tr.reports.email.preview }).click();
+
+  await expect(dialog.getByLabel(tr.reports.email.subject)).toHaveValue(/^Depozito durum raporu – \d{2}\.\d{2}\.\d{4}$/);
+  const summary = dialog.getByTestId("report-summary");
+  // Other specs share the database, so only this spec's agencies are checked.
+  await expect(summary).toContainText(`• ${PORTAL_AGENCY} · USD: 1 B/L, tahsil edilecek 1.000,00 USD`);
+  await expect(summary).toContainText(`• ${PORTAL_AGENCY} · USD: 1 B/L, 1.000,00 USD`);
+  await expect(summary).toContainText(`• ${AGENCY} · USD: 1 B/L, tahsil 2.400,00 USD, kesinti 100,00 USD, silinen 0,00 USD`);
+  await expect(dialog.getByText(/^Sorunlar \d{4}-\d{2}-\d{2}\.csv/)).toBeVisible();
+
+  // The agency's own address is refused even though it would otherwise pass.
+  await dialog.getByLabel(tr.reports.email.recipients).fill("iade@example.com");
+  await dialog.getByRole("button", { name: tr.reports.email.sendNow }).click();
+  await expect(dialog.getByText(/rapor acentelere gönderilemez: iade@example\.com/)).toBeVisible();
+  // The sender's domain is internal.
+  await dialog.getByLabel(tr.reports.email.recipients).fill("mudur@firma.example");
+  await dialog.getByRole("button", { name: tr.reports.email.sendNow }).click();
+  await expect(page.getByText(tr.reports.email.queued)).toBeVisible();
+
+  await expect(async () => {
+    await page.reload();
+    await expect(page.getByTestId("sent-reports")).toContainText(`${tr.reports.email.statuses.SENT} (${tr.reports.email.dryRun})`, { timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
+  await expect(page.getByTestId("sent-reports")).toContainText("mudur@firma.example");
+});

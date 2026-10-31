@@ -23,7 +23,7 @@ export type Position = BlOverview & {
 };
 
 /** Every active (not voided) B/L with what is still outstanding on it. */
-function positions(db: DbOrTx, actor: AuthUser, now: Date): Position[] {
+export function positions(db: DbOrTx, actor: AuthUser, now: Date): Position[] {
   return listAllBls(db, actor, now)
     .filter((bl) => !bl.voidedAt)
     .map((bl) => {

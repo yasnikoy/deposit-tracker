@@ -12,6 +12,7 @@ export const EMAIL_TEMPLATE_KEYS = [
   "BATCH_LINE",
   "REPLY_QUOTE",
   "DAILY_UNPROCESSED",
+  "REPORT",
 ] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 
@@ -28,6 +29,8 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   REPLY_QUOTE: ["from", "sent_at", "to", "cc_section", "subject"],
   // Internal reminder to our own team; never sent to agencies.
   DAILY_UNPROCESSED: ["count", "warning_days", "agency_lines", "link"],
+  // Operations report to internal addresses: the body is the intro; section summaries and the signature follow it.
+  REPORT: ["date"],
 };
 
 /** Section blocks of the batched template; `[[refund]]` depends on `{refund_section}`. */

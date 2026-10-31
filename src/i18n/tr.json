@@ -204,7 +204,8 @@
       "users": "Kullanıcı güvenliği",
       "backups": "Yedekleme",
       "email": "E-posta sunucusu",
-      "notifications": "Bildirimler"
+      "notifications": "Bildirimler",
+      "reports": "Rapor e-postası"
     },
     "units": {
       "businessDays": "iş günü",
@@ -400,6 +401,16 @@
           "label": "Günlük e-posta alıcıları",
           "help": "Yalnızca şirket içi adresler."
         }
+      },
+      "reports": {
+        "internalDomains": {
+          "label": "Şirket içi e-posta alan adları",
+          "help": "Rapor e-postası yalnızca bu alan adlarındaki adreslere gider (ör. firma.com.tr); gönderen adresin alan adı da sayılır. Bir acentenin alıcı listesindeki adres her durumda reddedilir."
+        },
+        "defaultRecipients": {
+          "label": "Varsayılan rapor alıcıları",
+          "help": "Rapor e-postası önizlemesinde alıcı olarak hazır gelir."
+        }
       }
     },
     "save": "Değişiklikleri kaydet",
@@ -417,7 +428,8 @@
     },
     "secretSet": "Kayıtlı. Değiştirmek için yenisini yazın.",
     "secretNotSet": "Henüz girilmedi.",
-    "emailListHint": "Adresleri virgül veya satırla ayırın."
+    "emailListHint": "Adresleri virgül veya satırla ayırın.",
+    "domainListHint": "Alan adlarını (@ olmadan) virgül veya satırla ayırın."
   },
   "holidays": {
     "title": "Resmi tatiller",
@@ -973,7 +985,8 @@
       "BATCH_LINE": "Toplu e-posta satırı",
       "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)",
       "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası",
-      "DEDUCTION_STATEMENT": "Kesinti dökümü talebi"
+      "DEDUCTION_STATEMENT": "Kesinti dökümü talebi",
+      "REPORT": "Rapor e-postası"
     },
     "help": {
       "REFUND_REQUEST": "Tek B/L için ilk talep.",
@@ -982,6 +995,7 @@
       "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
       "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
       "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur.",
+      "REPORT": "Operasyonun Raporlar ekranından şirket içi adreslere gönderdiği durum raporu; acentelere gönderilmez. Metin, önizlemede değiştirilebilen giriş bölümüdür; altına seçilen bölümlerin özet tabloları ve imza eklenir, tam listeler CSV eki olarak gider.",
       "DEDUCTION_STATEMENT": "Açıklanmayan bir kesinti için acenteden döküm istenir. Takip talepleri aynı metinle, önceki döküm talebine yanıt olarak gider (konu \"Re: …\"). Toplu e-postada bu B/L'ler [[statement]] bölümünde yer alır; satırdaki {amount} kesinti tutarıdır."
     },
     "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
@@ -1342,6 +1356,90 @@
       "rate": "{label} (oran)",
       "writeOff": "Silinen",
       "openCount": "Açık B/L"
+    },
+    "email": {
+      "send": "Rapor gönder",
+      "title": "Rapor e-postası",
+      "hint": "Seçilen bölümlerin özeti e-postanın gövdesine, tam listeler CSV eki olarak eklenir. Yalnızca şirket içi adreslere gönderilir.",
+      "sectionsLabel": "Bölümler",
+      "sections": {
+        "REQUESTED": "Talep edilen iadeler",
+        "REMAINING": "Kalan depozitolar",
+        "COLLECTED": "Tahsil edilenler",
+        "PROBLEMS": "Sorunlar"
+      },
+      "sectionHints": {
+        "REQUESTED": "İade talep edilmiş, henüz kapanmamış B/L'ler.",
+        "REMAINING": "Acente ve para birimine göre açık bakiye.",
+        "COLLECTED": "Tarih aralığında (iade valörü) dağıtılan iadeler, kesinti ve silmelerle.",
+        "PROBLEMS": "Açık ve itirazlı kesintiler, gönderilemeyen talepler, en uzun bekleyen B/L'ler."
+      },
+      "collectedTitle": "Tahsil edilenler ({from} – {to})",
+      "agencies": "Acenteler",
+      "agenciesHint": "Hiçbiri seçilmezse tüm acenteler.",
+      "currency": "Para birimi",
+      "allCurrencies": "Tümü",
+      "from": "Başlangıç",
+      "to": "Bitiş",
+      "periodHint": "Yalnızca \"Tahsil edilenler\" için; diğer bölümler bugünkü durumu gösterir.",
+      "preview": "Önizle",
+      "back": "Geri",
+      "recipients": "Kime",
+      "cc": "Bilgi (CC)",
+      "subject": "Konu",
+      "intro": "Giriş metni",
+      "summary": "Özet (giriş metninin altına eklenir)",
+      "attachments": "Ekler",
+      "rows": "{count} satır",
+      "sendNow": "Gönder",
+      "queued": "Rapor e-postası gönderim sırasına alındı.",
+      "empty": "Kayıt yok.",
+      "waitingDays": "{days} iş günü",
+      "columns": {
+        "outstanding": "Tahsil edilecek",
+        "firstRequest": "İlk talep",
+        "collected": "Tahsil edilen",
+        "refundDate": "İade valörü",
+        "deductions": "Kesintiler",
+        "writeOff": "Silinen",
+        "problem": "Sorun",
+        "amount": "Tutar",
+        "detail": "Ayrıntı"
+      },
+      "lines": {
+        "requested": "{agency} · {currency}: {count} B/L, tahsil edilecek {amount}",
+        "remaining": "{agency} · {currency}: {count} B/L, {amount}",
+        "total": "Toplam {currency}: {count} B/L, {amount}",
+        "collected": "{agency} · {currency}: {count} B/L, tahsil {amount}, kesinti {deductions}, silinen {writeOff}",
+        "problems": {
+          "DEDUCTION_OPEN": "Kesintisi açık: {count} B/L",
+          "DISPUTED": "İtirazlı: {count} B/L",
+          "FAILED": "Gönderilemeyen talep: {count}",
+          "WAITING": "{days} iş gününden uzun bekleyen: {count} B/L"
+        }
+      },
+      "problemKinds": {
+        "DEDUCTION_OPEN": "Kesinti açık",
+        "DISPUTED": "İtirazlı",
+        "FAILED": "Gönderilemeyen talep",
+        "WAITING": "{days}+ iş günü bekleyen"
+      },
+      "recent": "Gönderilen raporlar",
+      "recentEmpty": "Henüz rapor gönderilmedi.",
+      "statuses": {
+        "QUEUED": "Sırada",
+        "SENT": "Gönderildi",
+        "FAILED": "Gönderilemedi"
+      },
+      "dryRun": "deneme modu, gönderilmedi",
+      "sentBy": "{at} · {user}",
+      "errors": {
+        "noSections": "En az bir bölüm seçin.",
+        "period": "\"Tahsil edilenler\" için geçerli bir tarih aralığı girin.",
+        "external": "Bu adresler şirket içi alan adlarında değil: {addresses}. Alan adları Ayarlar → Rapor e-postası'ndan tanımlanır.",
+        "agency": "Bu adresler bir acentenin alıcı listesinde; rapor acentelere gönderilemez: {addresses}",
+        "recipients": "Geçerli e-posta adresleri girin."
+      }
     }
   }
 }
