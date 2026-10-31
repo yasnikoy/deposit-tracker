@@ -84,9 +84,24 @@ async function main() {
   fs.rmSync(ZIP, { force: true });
   const server = path.join(STAGE, "server");
 
-  // The standalone build, with pnpm's symlinks resolved (a zip on Windows cannot hold them).
+  // The standalone build without symlinks: extracting them on Windows needs admin rights or
+  // Developer Mode. fs.cpSync's `dereference` only follows the top-level path, so `cp -L`.
   log("copying the standalone build");
-  fs.cpSync(standalone, server, { recursive: true, dereference: true });
+  fs.mkdirSync(STAGE, { recursive: true });
+  execFileSync("cp", ["-RL", standalone, server]);
+  // A dereferenced copy no longer finds its dependencies through the symlink's real path
+  // (Next's hashed aliases in .next/node_modules, pnpm's top-level links). Moving pnpm's
+  // hoisted set (.pnpm/node_modules) to the top level makes them resolvable from anywhere.
+  const hoisted = path.join(server, "node_modules", ".pnpm", "node_modules");
+  for (const entry of fs.readdirSync(hoisted)) {
+    const names = entry.startsWith("@") ? fs.readdirSync(path.join(hoisted, entry)).map((n) => `${entry}/${n}`) : [entry];
+    for (const name of names) {
+      const dest = path.join(server, "node_modules", name);
+      if (fs.existsSync(dest)) continue;
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.renameSync(path.join(hoisted, name), dest);
+    }
+  }
   fs.cpSync(path.join(ROOT, ".next", "static"), path.join(server, ".next", "static"), { recursive: true });
   if (fs.existsSync(path.join(ROOT, "public"))) fs.cpSync(path.join(ROOT, "public"), path.join(server, "public"), { recursive: true });
 
@@ -141,6 +156,8 @@ async function main() {
   // Rule 15 once more, on the final folder: no data, keys or databases.
   const offenders = execFileSync("find", [STAGE, "(", "-iname", "*.sqlite*", "-o", "-iname", "*.key", "-o", "-iname", "app.lock", "-o", "-path", "*/data/*", ")"]).toString().trim();
   if (offenders) throw new Error(`runtime data in the package:\n${offenders}`);
+  const links = execFileSync("find", [STAGE, "-type", "l"]).toString().trim();
+  if (links) throw new Error(`symbolic links in the package (Windows cannot extract them):\n${links}`);
 
   log("zipping");
   execFileSync("bsdtar", ["-a", "-cf", ZIP, "-C", STAGE, "."]);
