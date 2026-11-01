@@ -7,31 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { EMAIL_TEMPLATE_PLACEHOLDERS, renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
+import { EMAIL_TEMPLATE_PLACEHOLDERS, EMAIL_TEMPLATE_SAMPLES as SAMPLE, renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import { t } from "@/i18n";
 import type { EmailTemplate } from "@/server/email/templates";
 import { updateEmailTemplateAction } from "../settings/actions";
-
-// Sample values for the live preview only; real emails take them from the B/L.
-const SAMPLE: Record<string, string> = {
-  agency_name: "Örnek Denizcilik",
-  bl_no: "MEDU1234567",
-  containers: "MSCU1234565, CSQU3054383",
-  amount: "3.000,00",
-  currency: "USD",
-  attempt_no: "2",
-  portal_ref: "PRT-1001",
-  deduction_amount: "700,00",
-  from: "Örnek Lojistik Depozito <depozito@ornek-lojistik.com.tr>",
-  sent_at: "16.10.2026 10:30",
-  to: "iade@ornek-denizcilik.com",
-  cc_section: "muhasebe@ornek-denizcilik.com",
-  subject: "Depozito İade Talebi – B/L MEDU1000001",
-  count: "3",
-  warning_days: "1",
-  agency_lines: "• Örnek Denizcilik: 2\n• Deniz Hatları: 1",
-  link: "http://DEPOZITO-PC:3000/replies",
-};
 
 function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {
   if (key !== "BATCH") return { ...SAMPLE, signature };

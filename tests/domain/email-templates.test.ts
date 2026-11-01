@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderTemplate, templatePlaceholders } from "@/domain/email-templates";
+import { EMAIL_TEMPLATE_PLACEHOLDERS, EMAIL_TEMPLATE_SAMPLES, renderTemplate, templatePlaceholders } from "@/domain/email-templates";
 
 describe("renderTemplate", () => {
   it("fills placeholders and leaves unknown ones visible, so the preview shows them", () => {
@@ -35,5 +35,16 @@ describe("renderTemplate", () => {
 describe("templatePlaceholders", () => {
   it("lists the placeholders a template uses, once each", () => {
     expect(templatePlaceholders("Konu {bl_no} {bl_no} [[refund]]{refund_section}[[/refund]]")).toEqual(["bl_no", "refund_section"]);
+  });
+});
+
+describe("preview samples", () => {
+  it("cover every placeholder a template may use, so the settings preview shows no raw {name}", () => {
+    // The signature comes from its setting; the batch sections are built from BATCH_LINE.
+    const builtElsewhere = new Set(["signature", "refund_section", "statement_section"]);
+    const missing = Object.values(EMAIL_TEMPLATE_PLACEHOLDERS)
+      .flat()
+      .filter((name) => !builtElsewhere.has(name) && !(name in EMAIL_TEMPLATE_SAMPLES));
+    expect([...new Set(missing)]).toEqual([]);
   });
 });

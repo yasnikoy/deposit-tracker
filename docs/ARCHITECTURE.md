@@ -477,6 +477,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 **Unreleased**
 
 - The opening-balance form adds an agency that is not in the system yet, as the payment form does: type its name in the agency field and pick *Yeni acente ekle*. It is added with its name only, in the record's transaction, audited as `agency.create` under the admin role (new permission `agency.createFromOpeningBalance`), and operations is notified to complete the card. The next record carries the name over and uses the agency just added.
+- The template preview in settings showed `{date}` raw in the report email and the weekly summary, and every weekly-summary placeholder too: they had no sample value. The samples now sit next to the placeholder lists, and a test checks that every placeholder has one.
 
 **Nov 1, 2026 — live email mode on Turkish Windows, v0.11.1**
 
