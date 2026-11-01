@@ -172,7 +172,7 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   await page.getByRole("button", { name: tr.requests.prepare }).click();
 
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByLabel(tr.requests.subject)).toHaveValue(`Depozito İade Talebi – B/L ${BL_NO}`);
+  await expect(dialog.getByLabel(tr.requests.subject)).toHaveValue(`Depozito İade Talebi – ${BL_NO}`);
   await expect(dialog.getByLabel(tr.requests.to)).toHaveValue("iade@example.com");
   await expect(dialog.getByLabel(tr.requests.body)).toHaveValue(/2\.500,00 USD tutarındaki depozitonun iadesini/);
   for (const name of [`İade formu ${BL_NO}.pdf`, `Dekont ${BL_NO}.pdf`, "imza-sirkuleri.pdf"]) {
@@ -216,7 +216,7 @@ function importReply(blNo: string, subject: string, text: string) {
 }
 
 test("bulk reply: two agency replies get 'container not yet returned' in one confirmed action", async ({ page }) => {
-  importReply(BL_NO, `RE: Depozito İade Talebi – B/L ${BL_NO}`, "Konteynerler henüz boş dönmedi.");
+  importReply(BL_NO, `RE: Depozito İade Talebi – ${BL_NO}`, "Konteynerler henüz boş dönmedi.");
   importReply(PORTAL_BL_NO, "Portal başvurunuz", "Konteyner sahada.");
   await login(page, OPS.username, OPS.final);
   const repliesLink = page.getByRole("link", { name: new RegExp(tr.nav.replies) });
@@ -462,7 +462,7 @@ test("B/L detail: emails open in place, with the message; the customer is change
   const url = page.url();
 
   // The agency's reply: the message and its recorded reply type, without leaving the B/L.
-  await page.getByRole("button", { name: `RE: Depozito İade Talebi – B/L ${BL_NO}` }).click();
+  await page.getByRole("button", { name: `RE: Depozito İade Talebi – ${BL_NO}` }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Konteynerler henüz boş dönmedi.")).toBeVisible();
   expect(page.url()).toBe(url);
@@ -470,7 +470,7 @@ test("B/L detail: emails open in place, with the message; the customer is change
   await expect(dialog).toHaveCount(0);
 
   // Our own request, as sent.
-  await page.getByRole("button", { name: `Depozito İade Talebi – B/L ${BL_NO}`, exact: true }).click();
+  await page.getByRole("button", { name: `Depozito İade Talebi – ${BL_NO}`, exact: true }).click();
   await expect(page.getByRole("dialog").getByText(tr.replies.sentAt)).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: tr.common.close, exact: true }).click();
 

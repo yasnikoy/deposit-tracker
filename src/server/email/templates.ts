@@ -12,7 +12,11 @@ import { SEED_FILE } from "../settings";
 
 export type EmailTemplate = typeof emailTemplates.$inferSelect;
 
-/** Inserts seed templates missing from the database; edited templates are never touched. */
+/**
+ * Brings the templates in line with the seed file: a missing one is inserted, and one nobody
+ * has edited (no `updatedBy`) takes the seed's current text, so a release's new wording reaches
+ * existing installations. A template an admin has saved is never touched.
+ */
 export function seedEmailTemplates(db: Db, seedFile: string = SEED_FILE, now: Date = new Date()): EmailTemplateKey[] {
   const seed = JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ seedFile, "utf8")) as {
     emailTemplates?: Partial<Record<EmailTemplateKey, { subject: string; body: string }>>;
@@ -22,9 +26,13 @@ export function seedEmailTemplates(db: Db, seedFile: string = SEED_FILE, now: Da
     for (const key of EMAIL_TEMPLATE_KEYS) {
       const template = seed.emailTemplates?.[key];
       if (!template) throw new Error(`Email template "${key}" is missing from the seed file`);
-      if (tx.select({ key: emailTemplates.key }).from(emailTemplates).where(eq(emailTemplates.key, key)).get()) continue;
-      tx.insert(emailTemplates).values({ key, ...template, updatedAt: now.toISOString(), updatedBy: null }).run();
-      writeAudit(tx, { actorUserId: null, roleUsed: null, action: "emailTemplate.seed", entityType: "email_template", entityId: key, after: template }, now);
+      const current = tx.select().from(emailTemplates).where(eq(emailTemplates.key, key)).get();
+      if (current && (current.updatedBy !== null || (current.subject === template.subject && current.body === template.body))) continue;
+      const values = { subject: template.subject, body: template.body, updatedAt: now.toISOString(), updatedBy: null };
+      if (current) tx.update(emailTemplates).set(values).where(eq(emailTemplates.key, key)).run();
+      else tx.insert(emailTemplates).values({ key, ...values }).run();
+      const before = current ? { subject: current.subject, body: current.body } : undefined;
+      writeAudit(tx, { actorUserId: null, roleUsed: null, action: "emailTemplate.seed", entityType: "email_template", entityId: key, before, after: { subject: template.subject, body: template.body } }, now);
       inserted.push(key);
     }
   });

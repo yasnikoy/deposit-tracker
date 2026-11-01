@@ -120,20 +120,20 @@
   },
   "emailTemplates": {
     "REFUND_REQUEST": {
-      "subject": "Depozito İade Talebi – B/L {bl_no}",
-      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait {containers} numaralı konteyner(ler) için ödemiş olduğumuz {amount} {currency} tutarındaki depozitonun iadesini rica ederiz. İade talep formu, depozito dekontu, imza sirküleri ve vekaletname ektedir.\n\nBilgilerinize sunar, iyi çalışmalar dileriz.\n{signature}"
+      "subject": "Depozito İade Talebi – {bl_no}",
+      "body": "Merhabalar,\n\n{bl_no} numaralı konşimentoya ait {containers} numaralı konteyner(ler) için ödemiş olduğumuz {amount} {currency} tutarındaki depozitonun iadesini rica ederiz. İade talep formu, depozito dekontu, imza sirküleri ve vekaletname ektedir.\n\nBilgilerinize sunar, iyi çalışmalar dileriz.\n\n{signature}"
     },
     "FOLLOW_UP": {
-      "subject": "Depozito İade Talebi – B/L {bl_no} – Portal ref. {portal_ref}",
-      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.\n\n{signature}"
+      "subject": "Depozito İade Talebi – {bl_no} – Portal ref. {portal_ref}",
+      "body": "Merhabalar,\n\n{bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.\n\n{signature}"
     },
     "DEDUCTION_STATEMENT": {
-      "subject": "Depozito Kesinti Dökümü Talebi – B/L {bl_no}",
-      "body": "Sayın {agency_name} yetkilisi,\n\n{bl_no} numaralı konşimentoya ait depozito iadesinde {deduction_amount} {currency} tutarında fark oluşmuştur. Kesintinin dökümünü ve dayanak belgelerini iletmenizi rica ederiz.\n\n{signature}"
+      "subject": "Depozito Kesinti Dökümü Talebi – {bl_no}",
+      "body": "Merhabalar,\n\n{bl_no} numaralı konşimentoya ait depozito iadesinde {deduction_amount} {currency} tutarında fark oluşmuştur. Kesintinin dökümünü ve dayanak belgelerini iletmenizi rica ederiz.\n\n{signature}"
     },
     "BATCH": {
-      "subject": "Depozito Talepleri – B/L {bl_no}",
-      "body": "Sayın {agency_name} yetkilisi,\n\n[[refund]]\nAşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n{refund_section}\n\n[[/refund]]\n[[statement]]\nAşağıdaki konşimentolarda oluşan farkların kesinti dökümünü rica ederiz:\n{statement_section}\n\n[[/statement]]\nTüm belgeler ektedir.\n{signature}"
+      "subject": "Depozito Talepleri – {bl_no}",
+      "body": "Merhabalar,\n\n[[refund]]\nAşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n{refund_section}\n\n[[/refund]]\n[[statement]]\nAşağıdaki konşimentolarda oluşan farkların kesinti dökümünü rica ederiz:\n{statement_section}\n\n[[/statement]]\nTüm belgeler ektedir.\n\n{signature}"
     },
     "BATCH_LINE": {
       "subject": "",
@@ -149,11 +149,11 @@
     },
     "WEEKLY_SUMMARY": {
       "subject": "Depozito Takip – haftalık özet {date}",
-      "body": "Merhaba,\n\n{date} itibarıyla haftalık depozito özeti:\n\nAçık bakiye:\n{balance_lines}\n\n{waiting_days} iş gününden uzun bekleyen B/L: {waiting_count}\n{waiting_lines}\n\nİşlenmemiş yanıt: {unprocessed_count} (uyarı süresini geçen: {overdue_count})\n\nUygulama: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
+      "body": "Merhaba,\n\n{date} itibarıyla haftalık depozito özeti:\n\nAçık bakiye:\n{balance_lines}\n\n{waiting_days} iş gününden uzun bekleyen B/L sayısı: {waiting_count}\n{waiting_lines}\n\nİşlenmemiş yanıt: {unprocessed_count} (uyarı süresini geçen: {overdue_count})\n\nUygulama: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
     },
     "REPORT": {
       "subject": "Depozito durum raporu – {date}",
-      "body": "Merhaba,\n\n{date} itibarıyla depozito durumunun özeti aşağıdadır. Ayrıntılı listeler ekteki CSV dosyalarındadır; Excel ile açılabilir."
+      "body": "Merhaba,\n\n{date} itibarıyla depozito durumunun özeti aşağıdadır. Ayrıntılı listeler ekteki Excel dosyalarında yer almaktadır."
     }
   }
 }

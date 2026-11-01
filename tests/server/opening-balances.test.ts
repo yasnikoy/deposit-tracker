@@ -72,7 +72,7 @@ describe("opening balances", () => {
     expect(listDueRequests(db, ops, NOW).DUE[0].rows).toEqual([expect.objectContaining({ blId, kind: "FOLLOW_UP", attemptNo: 3, dueDate: "2026-10-19", evidenceMissing: false })]);
     const [draft] = prepareRequestEmails(db, ops, { blIds: [blId] }, NOW);
     // Nothing to reply to and no portal reference: the first-request subject.
-    expect(draft).toMatchObject({ thread: null, subject: "Depozito İade Talebi – B/L MEDU9000001", missingEvidence: [] });
+    expect(draft).toMatchObject({ thread: null, subject: "Depozito İade Talebi – MEDU9000001", missingEvidence: [] });
     expect(draft.body).toContain("3. kez yazıyoruz");
     expect(draft.attachments.map((a) => [a.kind, a.originalName])).toEqual([
       ["FORM", "İade formu MEDU9000001.pdf"],

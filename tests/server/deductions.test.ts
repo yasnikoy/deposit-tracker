@@ -201,7 +201,7 @@ describe("an unexplained shortfall", () => {
       expect.objectContaining({ blId: c, type: "DEDUCTION_STATEMENT", kind: "FIRST", amountMinor: usd(700), channel: "EMAIL", needsForm: false, dueDate: "2026-10-26" }),
     ]);
     const [draft] = prepareRequestEmails(db, ops, { blIds: [c] }, MONDAY);
-    expect(draft.subject).toBe("Depozito Kesinti Dökümü Talebi – B/L HATU1000003");
+    expect(draft.subject).toBe("Depozito Kesinti Dökümü Talebi – HATU1000003");
     expect(draft.body).toContain("700,00 USD tutarında fark");
     expect(draft.items).toEqual([expect.objectContaining({ type: "DEDUCTION_STATEMENT", attemptNo: 1 })]);
 
@@ -222,7 +222,7 @@ describe("an unexplained shortfall", () => {
     const later = listDueRequests(db, ops, new Date("2026-11-02T09:00:00Z")).DUE.flatMap((g) => g.rows);
     expect(later).toEqual([expect.objectContaining({ blId: c, type: "DEDUCTION_STATEMENT", kind: "FOLLOW_UP", attemptNo: 2 })]);
     const [followUp] = prepareRequestEmails(db, ops, { blIds: [c] }, new Date("2026-11-02T09:00:00Z"));
-    expect(followUp.subject).toBe("Re: Depozito Kesinti Dökümü Talebi – B/L HATU1000003");
+    expect(followUp.subject).toBe("Re: Depozito Kesinti Dökümü Talebi – HATU1000003");
   });
 
   it("joins a refund request in one batched email, each in its own section", () => {
@@ -250,7 +250,7 @@ describe("an unexplained shortfall", () => {
     uploadBlForm(db, ops, { blId: d, documentId: storeUpload(db, ops, { originalName: "form.pdf", content: PDF, kind: "FORM" }, NOW).id }, NOW);
     const drafts = prepareRequestEmails(db, ops, { blIds: [c, d] }, MONDAY);
     expect(drafts).toHaveLength(1);
-    expect(drafts[0].subject).toBe("Depozito Talepleri – B/L HATU1000003, HATU1000004");
+    expect(drafts[0].subject).toBe("Depozito Talepleri – HATU1000003, HATU1000004");
     expect(drafts[0].body).toContain("depozito iadelerini rica ederiz:\n• HATU1000004 –  – 2.000,00 USD");
     expect(drafts[0].body).toContain("kesinti dökümünü rica ederiz:\n• HATU1000003 –  – 700,00 USD");
   });

@@ -229,47 +229,55 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 
 ### Email template drafts (Turkish)
 
-Starting texts; editable in settings. The daily unprocessed-reply email (internal, never to agencies) has its own template with `{count}`, `{warning_days}`, `{agency_lines}` and `{link}`. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{portal_ref}`, `{deduction_amount}`, `{signature}`.
+Starting texts (the seed file `seed/settings.json` holds them; below as of the Unreleased change), editable in settings. A template nobody has edited follows the seed of the installed release; one an admin has saved keeps its text. The daily unprocessed-reply email (internal, never to agencies) has its own template with `{count}`, `{warning_days}`, `{agency_lines}` and `{link}`. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{portal_ref}`, `{deduction_amount}`, `{signature}`.
 
 ```text
 [Refund request]
-Konu: Depozito İade Talebi – B/L {bl_no}
+Konu: Depozito İade Talebi – {bl_no}
 
-Sayın {agency_name} yetkilisi,
+Merhabalar,
 
 {bl_no} numaralı konşimentoya ait {containers} numaralı konteyner(ler) için ödemiş olduğumuz {amount} {currency} tutarındaki depozitonun iadesini rica ederiz. İade talep formu, depozito dekontu, imza sirküleri ve vekaletname ektedir.
 
 Bilgilerinize sunar, iyi çalışmalar dileriz.
+
 {signature}
 
-[Follow-up – sent as a reply in the same thread]
-Sayın {agency_name} yetkilisi,
+[Follow-up – sent as a reply in the same thread; the subject only when there is nothing to reply to]
+Konu: Depozito İade Talebi – {bl_no} – Portal ref. {portal_ref}
+
+Merhabalar,
 
 {bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.
 
 {signature}
 
 [Deduction statement request]
-Konu: Depozito Kesinti Dökümü Talebi – B/L {bl_no}
+Konu: Depozito Kesinti Dökümü Talebi – {bl_no}
 
-Sayın {agency_name} yetkilisi,
+Merhabalar,
 
 {bl_no} numaralı konşimentoya ait depozito iadesinde {deduction_amount} {currency} tutarında fark oluşmuştur. Kesintinin dökümünü ve dayanak belgelerini iletmenizi rica ederiz.
 
 {signature}
 
-[Batched email – one section per request type]
-Konu: Depozito Talepleri – B/L {bl_no}
+[Batched email – one section per request type; [[…]] blocks are left out when empty]
+Konu: Depozito Talepleri – {bl_no}
 
-Sayın {agency_name} yetkilisi,
+Merhabalar,
 
+[[refund]]
 Aşağıdaki konşimentolara ait depozito iadelerini rica ederiz:
 {refund_section}
 
+[[/refund]]
+[[statement]]
 Aşağıdaki konşimentolarda oluşan farkların kesinti dökümünü rica ederiz:
 {statement_section}
 
+[[/statement]]
 Tüm belgeler ektedir.
+
 {signature}
 ```
 
@@ -478,6 +486,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 - The opening-balance form adds an agency that is not in the system yet, as the payment form does: type its name in the agency field and pick *Yeni acente ekle*. It is added with its name only, in the record's transaction, audited as `agency.create` under the admin role (new permission `agency.createFromOpeningBalance`), and operations is notified to complete the card. The next record carries the name over and uses the agency just added.
 - The template preview in settings showed `{date}` raw in the report email and the weekly summary, and every weekly-summary placeholder too: they had no sample value. The samples now sit next to the placeholder lists, and a test checks that every placeholder has one.
+- The email templates as reworded on the development install are now the starting texts in the seed: greeting *Merhabalar,* instead of *Sayın {agency_name} yetkilisi,*, subjects without "B/L" before the number, and a blank line before the signature; the report email names the attachments as Excel files. Templates nobody has edited now take the seed's current text on start (audited as `emailTemplate.seed` with before and after), so this reaches existing installations too. A template an admin has saved is never changed.
 - Agencies move between installations, e.g. from a test install to the office PC. On the Agencies screen, *Dışa aktar* (on the selected rows) downloads the cards as a JSON file: name, active, recipients, bank sender names, B/L number patterns, sending, channel and portal link, notes. *İçe aktar* (operations, `agency.create`) reads such a file, lists the agencies it will add and names the ones it skips because an agency of that name already exists. Existing agencies are never changed. All are added in one transaction, each audited as `agency.create`. Setting overrides and form templates are not part of the file. An agency card's empty portal link and notes now also accept `null`, so an exported card reads back unchanged.
 
 **Nov 1, 2026 — live email mode on Turkish Windows, v0.11.1**

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
@@ -6,7 +9,7 @@ import type { Db } from "@/server/db/client";
 import { auditLog, emails, jobs, requests } from "@/server/db/schema";
 import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
 import { emailJobHandlers, queueRequestEmail, sendTestEmail } from "@/server/email/send";
-import { updateEmailTemplate } from "@/server/email/templates";
+import { getEmailTemplate, seedEmailTemplates, updateEmailTemplate } from "@/server/email/templates";
 import type { Envelope, MailTransport } from "@/server/email/transport";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
@@ -18,7 +21,7 @@ import { listDueRequests, recordPortalRequest } from "@/server/requests";
 import { mailOutages } from "@/server/service-status";
 import { updateSettings } from "@/server/settings";
 import { setStandingDocument } from "@/server/standing-documents";
-import { createTestDb, makeUser } from "../support/db";
+import { createTestDb, makeUser, SEED_FILE } from "../support/db";
 import { makeAgency, makeBl, PDF } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
@@ -112,7 +115,7 @@ describe("preparing request emails", () => {
       to: ["iade@msc.example"],
       cc: ["muhasebe@msc.example"],
       bcc: ["arsiv@firma.com.tr"],
-      subject: "Depozito İade Talebi – B/L MEDU1000001",
+      subject: "Depozito İade Talebi – MEDU1000001",
       thread: null,
       items: [{ blId: a, blNo: "MEDU1000001", kind: "FIRST", attemptNo: 1 }],
     });
@@ -166,7 +169,7 @@ describe("preparing request emails", () => {
     attachForm(b, "form-b.pdf");
     const drafts = prepareRequestEmails(db, ops, { blIds: [b, a] }, NOW);
     expect(drafts).toHaveLength(1);
-    expect(drafts[0].subject).toBe("Depozito Talepleri – B/L MAEU1000001, MAEU1000002");
+    expect(drafts[0].subject).toBe("Depozito Talepleri – MAEU1000001, MAEU1000002");
     expect(drafts[0].body).toContain("Aşağıdaki konşimentolara ait depozito iadelerini rica ederiz:\n• MAEU1000001 – MSCU1234565 – 3.000,00 USD\n• MAEU1000002 –  – 3.000,00 USD");
     // The empty deduction-statement section is left out with its intro line.
     expect(drafts[0].body).not.toContain("kesinti dökümünü");
@@ -201,9 +204,9 @@ describe("sending", () => {
     expect(await runJobs(transport)).toBe(2); // the send, then the sent-folder copy
     expect(sent).toHaveLength(1);
     expect(sent[0].envelope).toEqual({ from: "depozito@firma.com.tr", to: ["iade@msc.example", "muhasebe@msc.example", "arsiv@firma.com.tr"] });
-    // Encoded and folded: "Depozito İade Talebi – B/L MEDU1000001 (acil)".
-    expect(sent[0].raw).toContain("Subject: =?UTF-8?Q?Depozito_=C4=B0ade_Talebi_=E2=80=93_B/L_?=");
-    expect(sent[0].raw).toContain("=?UTF-8?Q?MEDU1000001_=28acil=29?=");
+    // Encoded and folded: "Depozito İade Talebi – MEDU1000001 (acil)".
+    expect(sent[0].raw).toContain("Subject: =?UTF-8?Q?Depozito_=C4=B0ade_Talebi_=E2=80=93_MEDU?=");
+    expect(sent[0].raw).toContain("=?UTF-8?Q?1000001_=28acil=29?=");
     expect(sent[0].raw).toContain('filename="Dekont MEDU1000001.pdf"');
     // Only the receipt was kept in the preview.
     expect(sent[0].raw.match(/Content-Disposition: attachment/g)).toHaveLength(1);
@@ -327,7 +330,7 @@ describe("follow-ups", () => {
     const later = new Date("2026-10-29T09:00:00Z");
     const [draft] = prepareRequestEmails(db, ops, { blIds: [a] }, later);
     expect(draft).toMatchObject({
-      subject: "Re: Depozito İade Talebi – B/L MEDU1000001",
+      subject: "Re: Depozito İade Talebi – MEDU1000001",
       items: [{ kind: "FOLLOW_UP", attemptNo: 2 }],
       thread: { messageId: first.messageId },
     });
@@ -342,7 +345,7 @@ describe("follow-ups", () => {
         "Gönderildi: 22.10.2026 12:00",
         "Kime: iade@msc.example",
         "Bilgi: muhasebe@msc.example",
-        "Konu: Depozito İade Talebi – B/L MEDU1000001",
+        "Konu: Depozito İade Talebi – MEDU1000001",
         "",
         first.bodyText,
       ].join("\n"),
@@ -365,10 +368,10 @@ describe("follow-ups", () => {
     const later = new Date("2026-10-29T09:00:00Z");
     const drafts = prepareRequestEmails(db, ops, { blIds: [a, b, c] }, later);
     expect(drafts.map((d) => d.items.map((i) => i.blNo))).toEqual([["MAEU1000001", "MAEU1000002"], ["MAEU1000003"]]);
-    expect(drafts[0].subject).toBe("Re: Depozito Talepleri – B/L MAEU1000001, MAEU1000002");
-    expect(drafts[1].subject).toBe("Re: Depozito İade Talebi – B/L MAEU1000003");
+    expect(drafts[0].subject).toBe("Re: Depozito Talepleri – MAEU1000001, MAEU1000002");
+    expect(drafts[1].subject).toBe("Re: Depozito İade Talebi – MAEU1000003");
     // The earlier batch email had no CC, so the quote header leaves the line out.
-    expect(drafts[0].body).toContain("Kime: refund@maersk.example\nKonu: Depozito Talepleri – B/L MAEU1000001, MAEU1000002");
+    expect(drafts[0].body).toContain("Kime: refund@maersk.example\nKonu: Depozito Talepleri – MAEU1000001, MAEU1000002");
   });
 
   it("of a portal agency go as a new email with the portal reference when no email is linked", () => {
@@ -377,7 +380,7 @@ describe("follow-ups", () => {
     attachForm(p);
     recordPortalRequest(db, ops, { blId: p, requestedOn: "2026-10-21", portalRef: "PRT-9" }, NOW);
     const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, new Date("2026-10-28T09:00:00Z"));
-    expect(draft).toMatchObject({ subject: "Depozito İade Talebi – B/L PRTL1000001 – Portal ref. PRT-9", thread: null });
+    expect(draft).toMatchObject({ subject: "Depozito İade Talebi – PRTL1000001 – Portal ref. PRT-9", thread: null });
   });
 });
 
@@ -388,6 +391,23 @@ describe("templates and test email", () => {
     const a = bl(msc, "MEDU1000001");
     attachForm(a);
     expect(prepareRequestEmails(db, ops, { blIds: [a] }, NOW)[0]).toMatchObject({ subject: "İade – MEDU1000001", body: "Merhaba MSC" });
+  });
+
+  it("follow a release's seed text while nobody has edited them; an edited one is kept", () => {
+    updateEmailTemplate(db, admin, { key: "FOLLOW_UP", subject: "Takip – {bl_no}", body: "Bizim metnimiz", reason: null }, NOW);
+    const seed = JSON.parse(fs.readFileSync(SEED_FILE, "utf8"));
+    seed.emailTemplates.REFUND_REQUEST = { subject: "Yeni sürüm – {bl_no}", body: "Yeni metin" };
+    seed.emailTemplates.FOLLOW_UP = { subject: "Yeni takip – {bl_no}", body: "Yeni takip metni" };
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "seed-")), "settings.json");
+    fs.writeFileSync(file, JSON.stringify(seed));
+
+    expect(seedEmailTemplates(db, file, NOW)).toEqual(["REFUND_REQUEST"]);
+    expect(getEmailTemplate(db, "REFUND_REQUEST")).toMatchObject({ subject: "Yeni sürüm – {bl_no}", body: "Yeni metin", updatedBy: null });
+    expect(getEmailTemplate(db, "FOLLOW_UP")).toMatchObject({ subject: "Takip – {bl_no}", body: "Bizim metnimiz" });
+    const audit = db.select().from(auditLog).where(eq(auditLog.action, "emailTemplate.seed")).all().find((a) => a.entityId === "REFUND_REQUEST" && a.before);
+    expect(audit?.after).toEqual({ subject: "Yeni sürüm – {bl_no}", body: "Yeni metin" });
+    // Nothing changes on the next start.
+    expect(seedEmailTemplates(db, file, NOW)).toEqual([]);
   });
 
   it("sends a test email through the transport (admin only) and reports failures", async () => {
