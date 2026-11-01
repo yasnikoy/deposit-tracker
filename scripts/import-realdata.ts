@@ -435,7 +435,7 @@ async function main() {
           if (result.additionalTo) followReport.additional++;
           else {
             // Without a workbook row, customer and file number come from the receipt's reading.
-            const customerId = row ? (row.customer ? ensureCustomer(db, acc, row.customer, row.customerCode) : null) : undefined;
+            const customerId = row ? (row.customer ? ensureCustomer(db, admin, row.customer, row.customerCode) : null) : undefined;
             const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, containers: [], customerId, fileNo: row ? fileNo : undefined }]);
             if (errors.length > 0 || created.length === 0) throw new Error(`B/L not created: ${JSON.stringify(errors)}`);
             followReport.deposits++;
@@ -476,7 +476,7 @@ async function main() {
       try {
         if (!row.paidAt) throw new Error("no payment date");
         const agency = ensureAgency(db, ops, row.agency);
-        const customerId = row.customer ? ensureCustomer(db, acc, row.customer, row.customerCode) : null;
+        const customerId = row.customer ? ensureCustomer(db, admin, row.customer, row.customerCode) : null;
         const fileMatch = FILE_NUMBER.exec(row.description) ?? FILE_NUMBER.exec(row.dosya);
         const fileNo = fileMatch ? fileMatch[1] : null;
         const partial = row.refunded > 0;

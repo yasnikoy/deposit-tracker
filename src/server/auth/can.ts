@@ -74,7 +74,8 @@ const rules = {
   "report.sendEmail": only("OPERATIONS"),
   // Importers we pay deposits for; whoever enters payments or B/Ls may register one.
   "customer.view": ALL_ROLES,
-  "customer.manage": only("ACCOUNTANT", "OPERATIONS"),
+  // Customers are a list like the others: an admin keeps them (Listeler).
+  "customer.manage": only("ADMIN"),
   // Team notes on B/Ls, with @mentions.
   "note.add": only("OPERATIONS"),
   // Each user sees and marks read only their own notifications.

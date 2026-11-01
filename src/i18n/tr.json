@@ -38,7 +38,6 @@
     "settings": "Ayarlar",
     "holidays": "Tatiller",
     "agencies": "Acenteler",
-    "customers": "Müşteriler",
     "accounting": "Muhasebe",
     "createBls": "B/L oluştur",
     "lists": "Listeler",
@@ -1553,14 +1552,14 @@
   },
   "customers": {
     "title": "Müşteriler",
-    "hint": "Depozitosunu ödediğimiz ithalatçılar. Diğer adlar, personelin havale açıklamalarına yazdığı biçimdir (ör. kısa ad); dekont okunurken müşteri bunlarla tanınır. Müşterileri muhasebe ve operasyon düzenler; pasif müşteri kayıtlarında kalır ama yeni kayıtlarda seçilemez.",
+    "hint": "Depozitosunu ödediğimiz ithalatçılar. Diğer adlar, personelin havale açıklamalarına yazdığı biçimdir (ör. kısa ad); dekont okunurken müşteri bunlarla tanınır. Pasif müşteri kayıtlarında kalır ama yeni kayıtlarda seçilemez.",
     "new": "Yeni müşteri",
     "name": "Müşteri adı",
     "code": "Müşteri kodu",
     "aliases": "Diğer adlar",
     "aliasesHint": "Havale açıklamalarında geçen adlar, her satıra bir tane (ör. ÖRNEK).",
     "status": "Durum",
-    "readOnly": "Müşterileri muhasebe ve operasyon rolü düzenler.",
+    "readOnly": "Müşterileri yönetici düzenler.",
     "toast": {
       "created": "Müşteri eklendi.",
       "updated": "Müşteri güncellendi."

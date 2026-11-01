@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isTranslationKey, t } from "@/i18n";
 import { customerInputSchema } from "@/lib/schemas/customers";
-import { createCustomerAction, updateCustomerAction } from "./actions";
+import { createCustomerAction, updateCustomerAction } from "./customer-actions";
 
 type FormValues = { name: string; code: string; aliasesText: string; active: boolean };
 

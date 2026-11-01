@@ -140,7 +140,7 @@ describe("opening balances", () => {
   });
 
   it("are prefilled from the receipt with customer and file number", () => {
-    const beta = createCustomer(db, ops, { name: "Beta Gıda", code: null, aliases: ["BETA"] }, NOW);
+    const beta = createCustomer(db, admin, { name: "Beta Gıda", code: null, aliases: ["BETA"] }, NOW);
     const prefill = prefillFromExtraction(db, { parser: "garanti", description: "BETA T26-00123 MEDU9000003 DEPOZITO", fileNumber: "T26-00123", amountMinor: 100, currency: "USD", date: "2026-10-20" });
     expect(prefill).toMatchObject({ customerId: beta, fileNo: "T26-00123", amountMinor: 100, paidAt: "2026-10-20" });
   });

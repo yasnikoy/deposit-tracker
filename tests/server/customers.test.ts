@@ -50,15 +50,16 @@ beforeEach(async () => {
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
   msc = makeAgency(db, ops, "MSC");
-  ornek = createCustomer(db, acc, { name: "Ornek Enerji A.Ş.", code: "1001", aliases: ["ORNEK"] }, NOW);
+  ornek = createCustomer(db, admin, { name: "Ornek Enerji A.Ş.", code: "1001", aliases: ["ORNEK"] }, NOW);
 });
 
 describe("customers", () => {
-  it("are registered by accounting or operations, with unique names and codes", () => {
-    expect(() => createCustomer(db, ops, { name: "ornek enerji a.ş.", code: null, aliases: [] }, NOW)).toThrow(/nameTaken/);
-    expect(() => createCustomer(db, ops, { name: "Başka", code: "1001", aliases: [] }, NOW)).toThrow(/codeTaken/);
-    expect(() => createCustomer(db, admin, { name: "Beta", code: null, aliases: [] }, NOW)).toThrow(ForbiddenError);
-    createCustomer(db, ops, { name: "Beta İnşaat", code: "1002", aliases: ["BETA"] }, NOW);
+  it("are registered by an admin only, with unique names and codes", () => {
+    expect(() => createCustomer(db, admin, { name: "ornek enerji a.ş.", code: null, aliases: [] }, NOW)).toThrow(/nameTaken/);
+    expect(() => createCustomer(db, admin, { name: "Başka", code: "1001", aliases: [] }, NOW)).toThrow(/codeTaken/);
+    expect(() => createCustomer(db, ops, { name: "Beta", code: null, aliases: [] }, NOW)).toThrow(ForbiddenError);
+    expect(() => createCustomer(db, acc, { name: "Beta", code: null, aliases: [] }, NOW)).toThrow(ForbiddenError);
+    createCustomer(db, admin, { name: "Beta İnşaat", code: "1002", aliases: ["BETA"] }, NOW);
     expect(listCustomers(db, admin).map((c) => c.name)).toEqual(["Beta İnşaat", "Ornek Enerji A.Ş."]);
   });
 });
@@ -71,7 +72,7 @@ describe("customer and file number on a new B/L", () => {
   });
 
   it("as given take precedence; null leaves them empty", () => {
-    const beta = createCustomer(db, ops, { name: "Beta İnşaat", code: null, aliases: ["BETA"] }, NOW);
+    const beta = createCustomer(db, admin, { name: "Beta İnşaat", code: null, aliases: ["BETA"] }, NOW);
     const p1 = payment("MEDUTST10007 - ORNEK ENERJİ A.Ş.DEPO T26-90815", "T26-90815");
     const p2 = payment("MEDUTST10008 ORNEK DEPO T26-90816", "T26-90816");
     const { created } = createBls(
@@ -88,7 +89,7 @@ describe("customer and file number on a new B/L", () => {
   });
 
   it("no customer is filled in when the description fits none, or several", () => {
-    createCustomer(db, ops, { name: "Ornek Lojistik", code: null, aliases: ["ORNEK"] }, NOW);
+    createCustomer(db, admin, { name: "Ornek Lojistik", code: null, aliases: ["ORNEK"] }, NOW);
     const paymentId = payment("MEDUTST10007 - ORNEK DEPO");
     const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007", containers: [] }], NOW);
     expect(blOf(created[0].blId)).toMatchObject({ customerId: null, fileNo: null });
@@ -104,21 +105,21 @@ describe("customer cards", () => {
     ...overrides,
   });
 
-  it("are edited by accounting or operations: aliases make receipts name the customer, audited", () => {
-    expect(() => updateCustomer(db, admin, { id: ornek, customer: card({ aliases: ["ORN"] }) }, NOW)).toThrow(ForbiddenError);
+  it("are edited by an admin: aliases make receipts name the customer, audited", () => {
+    expect(() => updateCustomer(db, ops, { id: ornek, customer: card({ aliases: ["ORN"] }) }, NOW)).toThrow(ForbiddenError);
     expect(suggestCustomer(db, "ODEME ORNEKSA T26-1")).toBeNull();
-    updateCustomer(db, ops, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA", "ORNEKSA"] }) }, NOW);
+    updateCustomer(db, admin, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA", "ORNEKSA"] }) }, NOW);
     expect(listCustomers(db, acc)[0].aliases).toEqual(["ORNEK", "ORNEKSA"]);
     expect(suggestCustomer(db, "ODEME ORNEKSA T26-1")).toBe(ornek);
-    expect(db.select().from(auditLog).where(eq(auditLog.action, "customer.update")).get()).toMatchObject({ roleUsed: "OPERATIONS" });
-    expect(() => updateCustomer(db, ops, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA"] }) }, NOW)).toThrow(/noChanges/);
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "customer.update")).get()).toMatchObject({ roleUsed: "ADMIN" });
+    expect(() => updateCustomer(db, admin, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA"] }) }, NOW)).toThrow(/noChanges/);
   });
 
   it("keep names and codes unique, and a deactivated customer is no longer suggested", () => {
-    const beta = createCustomer(db, acc, { name: "Beta", code: "2002", aliases: ["BETA"] }, NOW);
-    expect(() => updateCustomer(db, acc, { id: beta, customer: card({ name: "ornek enerji a.ş.", code: "2002", aliases: [] }) }, NOW)).toThrow(/nameTaken/);
-    expect(() => updateCustomer(db, acc, { id: beta, customer: card({ name: "Beta", code: "1001", aliases: [] }) }, NOW)).toThrow(/codeTaken/);
-    updateCustomer(db, acc, { id: beta, customer: card({ name: "Beta", code: "2002", aliases: ["BETA"], active: false }) }, NOW);
+    const beta = createCustomer(db, admin, { name: "Beta", code: "2002", aliases: ["BETA"] }, NOW);
+    expect(() => updateCustomer(db, admin, { id: beta, customer: card({ name: "ornek enerji a.ş.", code: "2002", aliases: [] }) }, NOW)).toThrow(/nameTaken/);
+    expect(() => updateCustomer(db, admin, { id: beta, customer: card({ name: "Beta", code: "1001", aliases: [] }) }, NOW)).toThrow(/codeTaken/);
+    updateCustomer(db, admin, { id: beta, customer: card({ name: "Beta", code: "2002", aliases: ["BETA"], active: false }) }, NOW);
     expect(suggestCustomer(db, "BETA DEPOZITO")).toBeNull();
   });
 });
