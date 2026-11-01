@@ -8,6 +8,13 @@ try {
     Import-DepositEnv  # stops with a clear message when deposit.env is missing (setup.cmd first)
     $port = [int]$env:PORT
     Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+    # "Cancel" on Windows' own "allow access?" prompt leaves block rules for node.exe, and a block
+    # rule wins over any allow rule: remove those of this installation's node.exe.
+    $blocks = @(Get-NetFirewallApplicationFilter -Program $NodeExe -ErrorAction SilentlyContinue | Get-NetFirewallRule | Where-Object { $_.Direction -eq 'Inbound' -and $_.Action -eq 'Block' })
+    if ($blocks.Count -gt 0) {
+        $blocks | Remove-NetFirewallRule
+        Write-Host "node.exe için $($blocks.Count) engelleme kuralı kaldırıldı."
+    }
     New-NetFirewallRule -DisplayName $FirewallRuleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port `
         -Program $NodeExe -Profile Domain, Private | Out-Null
     Write-Host "Port $port ofis ağına açıldı (etki alanı ve özel ağ; genel ağlar kapalı)." -ForegroundColor Green

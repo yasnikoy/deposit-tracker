@@ -59,6 +59,16 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
    (right-click is not needed; it asks for an administrator account). This is the only step that
    needs administrator rights; repeat it only after changing the port or moving the folder. Until
    then the app works on the host PC itself (`http://localhost:3000`).
+   If Windows shows its own "allow access?" prompt when the app first starts and nobody with an
+   administrator account is at hand, click **Cancel**: the app keeps working on this PC.
+   `firewall.cmd` later removes the block rules that Cancel leaves for `node.exe`.
+
+   Without `firewall.cmd`, by hand (administrator): Windows Defender Firewall with Advanced
+   Security (`wf.msc`) → Inbound Rules → New Rule… → Custom → This program path:
+   `<DepositTracker>\app\node\node.exe` → Protocol TCP, Specific local ports: the port →
+   any IP address → Allow the connection → Domain and Private (not Public) → name
+   *Deposit Tracker*. Then, in Inbound Rules, delete any rule with a red block icon whose
+   program is that `node.exe` (often named "node.exe" or "Node.js JavaScript Runtime").
 4. In the app (Yönetim menu): Ayarlar → E-posta sunucusu (section 2), Kullanıcılar (section 3), Acenteler
    (with B/L number patterns and form templates), Listeler (bank accounts), Tatiller, standing
    documents, and **Ayarlar → Yedekleme → İkinci yedek konumu** (section 7).
