@@ -55,6 +55,35 @@ export function customerForNewName(tx: DbOrTx, actor: AuthUser, roleUsed: Role |
   return insertCustomer(tx, actor, roleUsed, { name, code: null, aliases: [] }, now);
 }
 
+/** Saves a customer card (accounting or operations); deactivated customers stay on their records. */
+export function updateCustomer(
+  db: Db,
+  actor: AuthUser,
+  input: { id: number; customer: { name: string; code: string | null; aliases: string[]; active: boolean } },
+  now: Date = new Date(),
+): void {
+  const roleUsed = authorize(actor, "customer.manage");
+  db.transaction((tx) => {
+    const before = tx.select().from(customers).where(eq(customers.id, input.id)).get();
+    if (!before) throw new DomainError("errors.notFound");
+    const name = input.customer.name.trim();
+    if (name === "") throw new DomainError("common.required");
+    if (tx.select().from(customers).all().some((c) => c.id !== input.id && fold(c.name) === fold(name))) {
+      throw new DomainError("customers.errors.nameTaken");
+    }
+    const code = input.customer.code || null;
+    if (code && tx.select().from(customers).all().some((c) => c.id !== input.id && c.code === code)) {
+      throw new DomainError("customers.errors.codeTaken");
+    }
+    const aliases = [...new Set(input.customer.aliases.map((a) => a.trim()).filter(Boolean))];
+    const card = (c: { name: string; code: string | null; aliases: string[]; active: boolean }) => ({ name: c.name, code: c.code, aliases: c.aliases, active: c.active });
+    const after = { name, code, aliases, active: input.customer.active };
+    if (JSON.stringify(card(before)) === JSON.stringify(after)) throw new DomainError("settings.noChanges");
+    tx.update(customers).set({ ...after, updatedAt: now.toISOString() }).where(eq(customers.id, input.id)).run();
+    writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "customer.update", entityType: "customer", entityId: input.id, before: card(before), after }, now);
+  });
+}
+
 export function listCustomers(db: DbOrTx, actor: AuthUser): Customer[] {
   authorize(actor, "customer.view");
   return db.select().from(customers).orderBy(asc(customers.name)).all();

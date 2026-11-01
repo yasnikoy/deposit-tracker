@@ -414,6 +414,7 @@ Desktop-only, dense tables; a row opens its details in a large centered dialog o
 | Refund allocation | Operations | Left: refunds awaiting allocation. Right: suggestion cards (exact subset, FIFO) with their difference; chosen suggestion opens an editable allocation table with running total and remainder; difference row assigns B/L and type. Confirm only when remainder is zero or left unallocated with a reason |
 | Replies | Operations | Tabs: to process, possible matches, processed. Full message with attachments and its linked B/Ls; quick reply-type buttons per B/L and "apply to all"; enter deductions from a statement; save attachments as B/L documents |
 | Agencies | Operations | Card: name, bank sender aliases, B/L number patterns (with a test field), one recipient list, batch/single sending, request channel and portal link, form template (admin uploads, shows placeholder check), setting overrides with impact preview, open B/Ls, scorecard summary, notes |
+| Customers | Accounting and operations edit; all read | List of registered customers (name, code, aliases, active) with search and filters; card in a dialog. Aliases are how staff write the customer in transfer descriptions, so receipts name the customer. Customers are deactivated, never deleted. A customer named in the opening-balance form is registered with the record |
 | Accounting | Accountant | New deposit payment (single, or drop several receipts into the review queue), new refund (receipt or invoice optional and attachable later, prefilled from a PDF receipt, duplicate warning). List of own records with status, linked B/L numbers (read-only, copy button), correct and void actions. For dual-role users, saving a payment continues to B/L creation |
 | Reports | All (report email: operations) | Aging, agency scorecard, with CSV download; "Rapor gönder" opens the report email preview |
 | Settings, users | Admin | As in the Settings section, with impact preview; standing documents upload; write-off approvals; opening-balance form. The admin pages share one "Yönetim" menu in the header |
@@ -468,6 +469,11 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Nov 1, 2026 — customer list, v0.9.3**
+
+- New *Müşteriler* (Customers) page next to Acenteler, as decided on Oct 31 (first part). Everyone can read it. Accounting and operations add customers and edit name, code, aliases and active (`customer.manage`; `customer.update` audited with before/after; unique names in Turkish case and unique codes). It is a page of its own rather than part of Listeler (Lists), which is admin-only. Deactivated customers stay on their records but are no longer offered or suggested from receipts.
+- Still open from the Oct 31 decisions: customer and file number on the B/L screens, the per-user customer filter, and customer on refunds with allocation by customer.
 
 **Nov 1, 2026 — faster opening-balance entry, v0.9.2**
 

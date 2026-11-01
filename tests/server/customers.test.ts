@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
 import { createBls } from "@/server/bls";
-import { createCustomer, listCustomers } from "@/server/customers";
+import { createCustomer, listCustomers, suggestCustomer, updateCustomer } from "@/server/customers";
 import type { Db } from "@/server/db/client";
-import { billsOfLading } from "@/server/db/schema";
+import { auditLog, billsOfLading } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { createPayment } from "@/server/payments";
@@ -94,3 +94,32 @@ describe("customer and file number on a new B/L", () => {
     expect(blOf(created[0].blId)).toMatchObject({ customerId: null, fileNo: null });
   });
 });
+
+describe("customer cards", () => {
+  const card = (overrides: Partial<{ name: string; code: string | null; aliases: string[]; active: boolean }> = {}) => ({
+    name: "Ornek Enerji A.Ş.",
+    code: "1001",
+    aliases: ["ORNEK"],
+    active: true,
+    ...overrides,
+  });
+
+  it("are edited by accounting or operations: aliases make receipts name the customer, audited", () => {
+    expect(() => updateCustomer(db, admin, { id: ornek, customer: card({ aliases: ["ORN"] }) }, NOW)).toThrow(ForbiddenError);
+    expect(suggestCustomer(db, "ODEME ORNEKSA T26-1")).toBeNull();
+    updateCustomer(db, ops, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA", "ORNEKSA"] }) }, NOW);
+    expect(listCustomers(db, acc)[0].aliases).toEqual(["ORNEK", "ORNEKSA"]);
+    expect(suggestCustomer(db, "ODEME ORNEKSA T26-1")).toBe(ornek);
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "customer.update")).get()).toMatchObject({ roleUsed: "OPERATIONS" });
+    expect(() => updateCustomer(db, ops, { id: ornek, customer: card({ aliases: ["ORNEK", "ORNEKSA"] }) }, NOW)).toThrow(/noChanges/);
+  });
+
+  it("keep names and codes unique, and a deactivated customer is no longer suggested", () => {
+    const beta = createCustomer(db, acc, { name: "Beta", code: "2002", aliases: ["BETA"] }, NOW);
+    expect(() => updateCustomer(db, acc, { id: beta, customer: card({ name: "ornek enerji a.ş.", code: "2002", aliases: [] }) }, NOW)).toThrow(/nameTaken/);
+    expect(() => updateCustomer(db, acc, { id: beta, customer: card({ name: "Beta", code: "1001", aliases: [] }) }, NOW)).toThrow(/codeTaken/);
+    updateCustomer(db, acc, { id: beta, customer: card({ name: "Beta", code: "2002", aliases: ["BETA"], active: false }) }, NOW);
+    expect(suggestCustomer(db, "BETA DEPOZITO")).toBeNull();
+  });
+});
+

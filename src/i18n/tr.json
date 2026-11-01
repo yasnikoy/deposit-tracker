@@ -38,6 +38,7 @@
     "settings": "Ayarlar",
     "holidays": "Tatiller",
     "agencies": "Acenteler",
+    "customers": "Müşteriler",
     "accounting": "Muhasebe",
     "createBls": "B/L oluştur",
     "lists": "Listeler",
@@ -1549,8 +1550,23 @@
     "unknownAgency": "Acentesi bilinmeyen"
   },
   "customers": {
+    "title": "Müşteriler",
+    "hint": "Depozitosunu ödediğimiz ithalatçılar. Diğer adlar, personelin havale açıklamalarına yazdığı biçimdir (ör. kısa ad); dekont okunurken müşteri bunlarla tanınır. Müşterileri muhasebe ve operasyon düzenler; pasif müşteri kayıtlarında kalır ama yeni kayıtlarda seçilemez.",
+    "new": "Yeni müşteri",
+    "name": "Müşteri adı",
+    "code": "Müşteri kodu",
+    "aliases": "Diğer adlar",
+    "aliasesHint": "Havale açıklamalarında geçen adlar, her satıra bir tane (ör. ÖRNEK).",
+    "status": "Durum",
+    "readOnly": "Müşterileri muhasebe ve operasyon rolü düzenler.",
+    "toast": {
+      "created": "Müşteri eklendi.",
+      "updated": "Müşteri güncellendi."
+    },
     "addNew": "Yeni müşteri ekle: “{name}”",
     "errors": {
+      "code": "Müşteri kodu en fazla 30 karakter olabilir.",
+      "alias": "Bir ad en fazla 100 karakter olabilir.",
       "unknown": "Müşteri bulunamadı veya pasif.",
       "nameTaken": "Bu adla bir müşteri zaten kayıtlı.",
       "codeTaken": "Bu kodla bir müşteri zaten kayıtlı."

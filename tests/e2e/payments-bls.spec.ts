@@ -263,3 +263,23 @@ test("admin moves Excel records in one after another: queued receipts, carried-o
   await expect(page.getByText(tr.payments.evidenceAttached)).toBeVisible();
   await expect(page.getByRole("link", { name: "Dekont 245678998.pdf" }).first()).toBeVisible();
 });
+
+test("operations keeps the customer list: adds a customer with aliases and edits it", async ({ page }) => {
+  const c = tr.customers;
+  await login(page, DUAL.username, DUAL.final);
+  await page.getByRole("link", { name: tr.nav.customers }).click();
+  await page.getByRole("button", { name: c.new }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel(c.name).fill("Beta Gıda Ltd.");
+  await dialog.getByLabel(c.code).fill("2002");
+  await dialog.getByLabel(c.aliases).fill("BETA\nBETAGIDA");
+  await dialog.getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(c.toast.created)).toBeVisible();
+  await dialog.getByLabel(c.aliases).fill("BETA");
+  await dialog.getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(c.toast.updated)).toBeVisible();
+  await dialog.getByRole("button", { name: tr.common.close, exact: true }).click();
+  await expect(page.getByRole("cell", { name: "Beta Gıda Ltd." })).toBeVisible();
+  // The customer added by name from the opening-balance form is on the list too.
+  await expect(page.getByRole("cell", { name: "Örnek İthalat" })).toBeVisible();
+});
