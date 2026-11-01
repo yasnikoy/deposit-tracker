@@ -10,6 +10,7 @@ import { listOwnPayments, listReceiptQueue } from "@/server/payments";
 import { getTableLayout } from "@/server/preferences";
 import { listOwnRefunds } from "@/server/refunds";
 import { AccountingScreen, type AccountingTab } from "./accounting-screen";
+import { listCustomers } from "@/server/customers";
 
 const TABS: AccountingTab[] = ["new", "queue", "records", "refund", "refunds"];
 
@@ -33,6 +34,7 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
             blNumberPatterns,
             active,
           })),
+          customers: listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active })),
           currencies: listCurrencies(db, user),
           today: istanbulToday(),
         }}

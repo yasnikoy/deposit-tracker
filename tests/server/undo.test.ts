@@ -15,7 +15,7 @@ import { acceptSuggestion, getReplyDetail, recordEmailReplies, recordReplyWithou
 import { recordPortalRequest } from "@/server/requests";
 import { undoActions } from "@/server/undo";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul; the undo window is 10 minutes (seed).
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -72,7 +72,7 @@ describe("undo", () => {
     expect(() => undoActions(db, ops, { auditIds: ids }, later(11))).toThrow(expect.objectContaining({ messageKey: "undo.errors.expired", params: { minutes: 10 } }));
 
     const evidence = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
-    const refund = createRefund(db, acc, { agencyId: line, amountMinor: 150000, currency: "USD", valueDate: "2026-10-22", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
+    const refund = createRefund(db, acc, { agencyId: line, customerId: testCustomer(db), amountMinor: 150000, currency: "USD", valueDate: "2026-10-22", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
     if (refund.status !== "created") throw new Error("refund");
     confirmAllocation(db, ops, { refundId: refund.id, lines: allocationProposal(db, ops, refund.id).suggestions.exact[0], shortfall: null, remainderReason: null }, NOW);
     const allocationAudit = db.select().from(auditLog).where(eq(auditLog.action, "allocation.confirm")).get()!;

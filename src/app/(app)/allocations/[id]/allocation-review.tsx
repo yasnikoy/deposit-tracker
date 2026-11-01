@@ -36,7 +36,10 @@ export function AllocationReview({
   canConfirm: boolean;
 }) {
   const router = useRouter();
-  const { refund, candidates, suggestions } = proposal;
+  const { refund, candidates, otherCandidates, suggestions } = proposal;
+  // Other customers' B/Ls (same agency and currency) are not suggested, but can be added by hand.
+  const [showOthers, setShowOthers] = useState(false);
+  const rows = useMemo(() => (showOthers ? [...candidates, ...otherCandidates] : candidates), [showOthers, candidates, otherCandidates]);
   const money = (minor: number) => formatMoney(minor, refund.currency);
   const [amounts, setAmounts] = useState<Record<number, string>>({});
   const [deductionTypeId, setDeductionTypeId] = useState<number | null>(null);
@@ -49,7 +52,7 @@ export function AllocationReview({
   };
 
   const state = useMemo(() => {
-    const lines = candidates
+    const lines = rows
       .map((c) => ({ candidate: c, amountMinor: amounts[c.blId] ? parseAmountInput(amounts[c.blId]) : null }))
       .filter((l) => l.amountMinor !== null && l.amountMinor !== 0);
     const invalid = lines.some((l) => l.amountMinor === null || l.amountMinor! < 0 || l.amountMinor! > l.candidate.expectedMinor);
@@ -65,7 +68,7 @@ export function AllocationReview({
     if (lines.length === 0) problems.push(t("allocations.review.nothingChosen"));
     const shortfall = short.length === 1 ? { line: short[0], amountMinor: short[0].candidate.expectedMinor - short[0].amountMinor! } : null;
     return { lines, total, remainder, shortfall, problems };
-  }, [amounts, candidates, deductionTypeId, reason, refund.remainderMinor]);
+  }, [amounts, rows, deductionTypeId, reason, refund.remainderMinor]);
 
   const confirm = async () => {
     const result = await confirmAllocationAction({
@@ -83,7 +86,7 @@ export function AllocationReview({
     router.refresh();
   };
 
-  const blNo = (blId: number) => candidates.find((c) => c.blId === blId)?.blNo ?? String(blId);
+  const blNo = (blId: number) => rows.find((c) => c.blId === blId)?.blNo ?? String(blId);
   const typeName = deductionTypes.find((d) => d.id === deductionTypeId)?.name ?? "";
 
   return (
@@ -95,6 +98,9 @@ export function AllocationReview({
         <h1 className="text-lg font-semibold">
           {refund.agencyName} · {money(refund.amountMinor)}
         </h1>
+        <span>
+          {t("refunds.customer")}: {refund.customerName ?? t("common.none")}
+        </span>
         <span>
           {t("refunds.valueDate")}: {formatBusinessDate(refund.valueDate)}
         </span>
@@ -140,7 +146,13 @@ export function AllocationReview({
         </section>
       )}
 
-      {candidates.length > 0 && (
+      {otherCandidates.length > 0 && (
+        <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => setShowOthers((v) => !v)}>
+          {showOthers ? t("allocations.review.hideOthers") : t("allocations.review.showOthers", { count: otherCandidates.length })}
+        </Button>
+      )}
+
+      {rows.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="font-semibold">{t("allocations.review.split")}</h2>
           <table className="tabular w-full max-w-4xl">
@@ -155,7 +167,7 @@ export function AllocationReview({
               </tr>
             </thead>
             <tbody>
-              {candidates.map((c) => {
+              {rows.map((c) => {
                 const amount = amounts[c.blId] ? parseAmountInput(amounts[c.blId]) : null;
                 const diff = amount !== null && amount > 0 ? c.expectedMinor - amount : 0;
                 return (
@@ -164,6 +176,9 @@ export function AllocationReview({
                       <Link href={`/bls/${c.blId}`} className="font-mono hover:underline">
                         {c.blNo}
                       </Link>
+                      {refund.customerId !== null && c.customerId !== refund.customerId && (
+                        <span className="text-muted-foreground ml-2 text-xs">{c.customerName ?? t("allocations.review.noCustomer")}</span>
+                      )}
                       {c.disputedEntryId !== null && (
                         <Badge variant="destructive" className="ml-2" title={t("allocations.review.disputedHint")}>
                           {t("allocations.review.disputedDifference")}

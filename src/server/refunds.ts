@@ -6,11 +6,12 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies, refundAllocations, refunds } from "./db/schema";
+import { agencies, customers, refundAllocations, refunds } from "./db/schema";
 import { DomainError } from "./errors";
 import { attachDocument } from "./files";
 import { validateReferences, type DuplicateCandidate } from "./payments";
 import { getSetting } from "./settings";
+import { customerScope } from "./preferences";
 
 export type Refund = typeof refunds.$inferSelect;
 
@@ -67,6 +68,7 @@ function findDuplicates(
 
 const snapshot = (row: Refund) => ({
   agencyId: row.agencyId,
+  customerId: row.customerId,
   amountMinor: row.amountMinor,
   currency: row.currency,
   valueDate: row.valueDate,
@@ -82,6 +84,7 @@ export function createRefund(db: Db, actor: AuthUser, input: CreateRefundInput, 
   const roleUsed = authorize(actor, "refund.create");
   return db.transaction((tx): CreateRefundResult => {
     validateReferences(tx, { agencyId: input.agencyId, currency: input.currency, paidAt: input.valueDate }, now);
+    requireActiveCustomer(tx, input.customerId);
     if (!input.confirmDuplicate && getSetting("rules.duplicateWarning", {}, tx)) {
       const duplicates = findDuplicates(tx, input);
       if (duplicates.length > 0) return { status: "duplicate", duplicates };
@@ -91,6 +94,7 @@ export function createRefund(db: Db, actor: AuthUser, input: CreateRefundInput, 
       .insert(refunds)
       .values({
         agencyId: input.agencyId,
+        customerId: input.customerId,
         amountMinor: input.amountMinor,
         currency: input.currency,
         valueDate: input.valueDate,
@@ -121,6 +125,10 @@ export function createRefund(db: Db, actor: AuthUser, input: CreateRefundInput, 
   });
 }
 
+function requireActiveCustomer(tx: DbOrTx, customerId: number): void {
+  if (!tx.select().from(customers).where(eq(customers.id, customerId)).get()?.active) throw new DomainError("customers.errors.unknown");
+}
+
 function requireRefund(tx: DbOrTx, id: number): Refund {
   const row = tx.select().from(refunds).where(eq(refunds.id, id)).get();
   if (!row) throw new DomainError("errors.notFound");
@@ -142,7 +150,9 @@ export function correctRefund(db: Db, actor: AuthUser, input: CorrectRefundInput
     if (before.voidedAt) throw new DomainError("refunds.errors.voided");
     if (hasAllocation(tx, before.id)) throw new DomainError("refunds.errors.allocated");
     validateReferences(tx, { agencyId: input.agencyId, currency: input.currency, paidAt: input.valueDate }, now, before.agencyId);
-    const changes = { agencyId: input.agencyId, amountMinor: input.amountMinor, currency: input.currency, valueDate: input.valueDate };
+    // A customer deactivated since may stay on the refund it was entered with.
+    if (input.customerId !== before.customerId) requireActiveCustomer(tx, input.customerId);
+    const changes = { agencyId: input.agencyId, customerId: input.customerId, amountMinor: input.amountMinor, currency: input.currency, valueDate: input.valueDate };
     const after = tx
       .update(refunds)
       .set({ ...changes, updatedAt: now.toISOString() })
@@ -193,6 +203,8 @@ export type RefundListItem = {
   id: number;
   agencyId: number;
   agencyName: string;
+  customerId: number | null;
+  customerName: string | null;
   amountMinor: number;
   currency: string;
   valueDate: string;
@@ -209,14 +221,16 @@ export type RefundListItem = {
   voidReason: string | null;
 };
 
-function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string }[]): RefundListItem[] {
+function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string; customerName: string | null }[]): RefundListItem[] {
   const allocated = allocatedByRefund(db);
-  return rows.map(({ refund, agencyName }) => {
+  return rows.map(({ refund, agencyName, customerName }) => {
     const allocatedMinor = allocated.get(refund.id) ?? 0;
     return {
       id: refund.id,
       agencyId: refund.agencyId,
       agencyName,
+      customerId: refund.customerId,
+      customerName,
       amountMinor: refund.amountMinor,
       currency: refund.currency,
       valueDate: refund.valueDate,
@@ -235,7 +249,11 @@ function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string }[])
 }
 
 const refundRows = (db: DbOrTx) =>
-  db.select({ refund: refunds, agencyName: agencies.name }).from(refunds).innerJoin(agencies, eq(agencies.id, refunds.agencyId));
+  db
+    .select({ refund: refunds, agencyName: agencies.name, customerName: customers.name })
+    .from(refunds)
+    .innerJoin(agencies, eq(agencies.id, refunds.agencyId))
+    .leftJoin(customers, eq(customers.id, refunds.customerId));
 
 /** The accountant's own refunds, newest first. */
 export function listOwnRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
@@ -243,18 +261,22 @@ export function listOwnRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
   return toListItems(db, refundRows(db).where(eq(refunds.createdBy, actor.id)).orderBy(desc(refunds.valueDate), desc(refunds.id)).all());
 }
 
+/** Active refunds within the viewer's customer filter, oldest first. */
+function activeRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
+  const inScope = customerScope(db, actor);
+  return toListItems(db, refundRows(db).where(isNull(refunds.voidedAt)).orderBy(refunds.valueDate, refunds.id).all()).filter((r) => inScope(r.customerId));
+}
+
 /** Refunds whose rest operations left unallocated on purpose (with a reason), oldest first. */
 export function listRefundsWithRemainder(db: DbOrTx, actor: AuthUser): RefundListItem[] {
   authorize(actor, "allocation.view");
-  return toListItems(db, refundRows(db).where(isNull(refunds.voidedAt)).orderBy(refunds.valueDate, refunds.id).all()).filter((r) => r.status === "REMAINDER_LEFT");
+  return activeRefunds(db, actor).filter((r) => r.status === "REMAINDER_LEFT");
 }
 
 /** Operations work list: active refunds with money still to allocate, oldest first. */
 export function listRefundsToAllocate(db: DbOrTx, actor: AuthUser): RefundListItem[] {
   authorize(actor, "allocation.view");
-  return toListItems(db, refundRows(db).where(isNull(refunds.voidedAt)).orderBy(refunds.valueDate, refunds.id).all()).filter(
-    (r) => r.status === "OPEN" || r.status === "PARTIALLY_ALLOCATED",
-  );
+  return activeRefunds(db, actor).filter((r) => r.status === "OPEN" || r.status === "PARTIALLY_ALLOCATED");
 }
 
 export function getRefund(db: DbOrTx, id: number): RefundListItem {

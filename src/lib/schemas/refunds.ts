@@ -14,6 +14,8 @@ const amount = z
 
 const refundFields = {
   agencyId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.agency")).transform((v) => v as number),
+  // Every refund belongs to exactly one customer; a batched refund never mixes customers.
+  customerId: id.or(z.null()).refine((v) => v !== null, msg("refunds.errors.customer")).transform((v) => v as number),
   amountMinor: amount,
   currency: z.string().regex(/^[A-Z]{3}$/, msg("payments.errors.currency")),
   valueDate: z.string().refine(isValidIsoDate, msg("payments.errors.date")),

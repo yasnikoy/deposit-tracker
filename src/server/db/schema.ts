@@ -787,6 +787,8 @@ export const refunds = sqliteTable(
     agencyId: integer("agency_id")
       .notNull()
       .references(() => agencies.id),
+    // The one customer a refund is for (required for new refunds; null on refunds entered before v0.9.7).
+    customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
     amountMinor: integer("amount_minor").notNull(),
     currency: text("currency")
       .notNull()
@@ -811,6 +813,7 @@ export const refunds = sqliteTable(
     voidCheck("refunds_void", t),
     uniqueIndex("refunds_evidence_unique").on(t.evidenceDocumentId),
     index("refunds_duplicate_lookup").on(t.agencyId, t.valueDate, t.amountMinor),
+    index("refunds_customer").on(t.customerId),
   ],
 );
 

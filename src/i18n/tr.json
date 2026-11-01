@@ -1200,7 +1200,10 @@
     "keys": "← / → ile geçiş, Esc ile kapat"
   },
   "refunds": {
+    "customer": "Müşteri",
+    "customerSearch": "Müşteri adı veya kodu…",
     "errors": {
+      "customer": "Müşteri seçin; her iade tek bir müşteriye aittir.",
       "voided": "Bu iade kaydı iptal edilmiş.",
       "evidenceExists": "Bu iadenin dekontu veya faturası zaten var.",
       "allocated": "Onaylanmış dağıtımı olan iade düzeltilemez veya iptal edilemez; önce yönetici dağıtımı geri almalı."
@@ -1247,6 +1250,9 @@
     "empty": "Dağıtılacak iade yok.",
     "back": "İade dağıtımına dön",
     "review": {
+      "showOthers": "Diğer müşterilerin ve müşterisiz B/L'leri göster ({count}); elle eklenebilir, önerilmez",
+      "hideOthers": "Diğer müşterilerin B/L'lerini gizle",
+      "noCustomer": "müşterisiz",
       "toAllocate": "Dağıtılacak",
       "noCandidates": "Bu acente ve para biriminde, valör tarihinden önce talebi gönderilmiş açık B/L yok.",
       "suggestions": "Öneriler",

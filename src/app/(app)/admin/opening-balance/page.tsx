@@ -21,9 +21,9 @@ export default async function OpeningBalancePage() {
         refs={{
           agencies: listAgencies(db, user).map(({ id, name, bankSenderAliases, blNumberPatterns, active }) => ({ id, name, bankSenderAliases, blNumberPatterns, active })),
           currencies: listCurrencies(db, user),
+          customers: listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active })),
           today: istanbulToday(),
         }}
-        customers={listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
       />
     </>
   );

@@ -20,7 +20,7 @@ import { updateSettings } from "@/server/settings";
 import { approveWriteOff, listWriteOffs, proposeWriteOff, rejectWriteOff } from "@/server/write-offs";
 import { createTestDb, makeUser } from "../support/db";
 import { agencyInputSchema } from "@/lib/schemas/agencies";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -47,7 +47,7 @@ function refund(amount: number, at = NOW): number {
   const result = createRefund(
     db,
     acc,
-    { agencyId: line, amountMinor: usd(amount), currency: "USD", valueDate: at.toISOString().slice(0, 10), kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true },
+    { agencyId: line, customerId: testCustomer(db), amountMinor: usd(amount), currency: "USD", valueDate: at.toISOString().slice(0, 10), kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true },
     at,
   );
   if (result.status !== "created") throw new Error("refund not created");

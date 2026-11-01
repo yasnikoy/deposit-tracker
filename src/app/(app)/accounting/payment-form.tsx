@@ -17,9 +17,11 @@ import { createPaymentSchema } from "@/lib/schemas/payments";
 import type { Currency } from "@/server/lists";
 import type { DuplicateCandidate, PaymentPrefill } from "@/server/payments";
 import { createPaymentAction } from "./actions";
+import type { CustomerOption } from "@/components/customer-combobox";
 
 export type ReferenceData = {
   agencies: AgencyOption[];
+  customers: CustomerOption[];
   currencies: Currency[];
   today: string;
 };

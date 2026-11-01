@@ -28,8 +28,9 @@ import type { RefundListItem, RefundStatus } from "@/server/refunds";
 import { correctRefundAction, createRefundAction, voidRefundAction } from "./actions";
 import { EvidenceDrop } from "./evidence-drop";
 import type { ReferenceData } from "./payment-form";
+import { CustomerCombobox } from "@/components/customer-combobox";
 
-type Fields = { agencyId: number | null; amountText: string; currency: string; valueDate: string };
+type Fields = { agencyId: number | null; customerId: number | null; amountText: string; currency: string; valueDate: string };
 
 const firstError = (issues: { message: string }[]) => {
   const key = issues[0]?.message;
@@ -49,6 +50,16 @@ function RefundFields({ refs, values, onChange, idPrefix }: { refs: ReferenceDat
           value={values.agencyId}
           onChange={(agencyId) => onChange({ ...values, agencyId })}
           placeholder={t("payments.agencySearch")}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${idPrefix}-customer`}>{t("refunds.customer")}</Label>
+        <CustomerCombobox
+          id={`${idPrefix}-customer`}
+          customers={refs.customers}
+          value={values.customerId}
+          onChange={(customerId) => onChange({ ...values, customerId })}
+          placeholder={t("refunds.customerSearch")}
         />
       </div>
       <div className="grid grid-cols-[1fr_8rem_10rem] gap-3">
@@ -96,6 +107,7 @@ export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: ()
   const [evidence, setEvidence] = useState<{ id: number; originalName: string } | null>(null);
   const [values, setValues] = useState<Fields>({
     agencyId: null,
+    customerId: null,
     amountText: "",
     currency: refs.currencies.find((c) => c.active)?.code ?? "",
     valueDate: refs.today,
@@ -106,6 +118,7 @@ export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: ()
 
   const input = (confirmDuplicate: boolean) => ({
     agencyId: values.agencyId,
+    customerId: values.customerId,
     amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
     currency: values.currency,
     valueDate: values.valueDate,
@@ -179,6 +192,7 @@ export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: ()
                 setValues((v) => ({
                   ...v,
                   agencyId: p.agencyIds.length === 1 ? p.agencyIds[0] : v.agencyId,
+                  customerId: p.customerId ?? v.customerId,
                   amountText: p.amountMinor ? formatAmount(p.amountMinor) : v.amountText,
                   currency: p.currency ?? v.currency,
                   valueDate: p.paidAt ?? v.valueDate,
@@ -246,6 +260,7 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
         cell: ({ getValue }) => formatBusinessDate(getValue()),
       }),
       col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
+      col.accessor((r) => r.customerName ?? "", { id: "customer", meta: { label: "refunds.customer", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("amountMinor", {
         meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
         sortFn: "basic",
@@ -366,6 +381,7 @@ function CorrectRefundDialog({
 }) {
   const [values, setValues] = useState<Fields>({
     agencyId: refund.agencyId,
+    customerId: refund.customerId,
     amountText: formatAmount(refund.amountMinor),
     currency: refund.currency,
     valueDate: refund.valueDate,

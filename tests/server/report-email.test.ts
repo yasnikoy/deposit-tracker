@@ -15,7 +15,7 @@ import { listSentReports, queueReportEmail, reportEmailDraft, type ReportRequest
 import { recordPortalRequest } from "@/server/requests";
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -82,7 +82,7 @@ beforeEach(async () => {
   // Refund 6,300 for A + B + C, value date 21 Oct: C bears an unexplained 700.
   const unexplained = db.select().from(deductionTypes).where(eq(deductionTypes.code, "UNEXPLAINED")).get()!.id;
   const evidence = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
-  const refund = createRefund(db, acc, { agencyId: line, amountMinor: usd(6300), currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
+  const refund = createRefund(db, acc, { agencyId: line, customerId: testCustomer(db), amountMinor: usd(6300), currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
   if (refund.status !== "created") throw new Error("refund");
   const lines = allocationProposal(db, ops, refund.id).suggestions.fifo.lines.filter((l) => [a, b, c].includes(l.blId));
   confirmAllocation(db, ops, { refundId: refund.id, lines, shortfall: { blId: c, amountMinor: usd(700), deductionTypeId: unexplained }, remainderReason: null }, NOW);

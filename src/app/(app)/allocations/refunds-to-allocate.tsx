@@ -18,6 +18,7 @@ const columns = col.columns([
     cell: ({ getValue }) => formatBusinessDate(getValue()),
   }),
   col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
+  col.accessor((r) => r.customerName ?? "", { id: "customer", meta: { label: "refunds.customer", filter: "text" }, sortFn: "turkishText" }),
   col.accessor("amountMinor", {
     meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
     sortFn: "basic",

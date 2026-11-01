@@ -13,8 +13,10 @@ import { recordStatementDeductions } from "@/server/deductions";
 import { createRefundSchema } from "@/lib/schemas/refunds";
 import { attachRefundEvidence, correctRefund, createRefund, getRefund, listOwnRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
 import { recordPortalRequest } from "@/server/requests";
+import { createCustomer, updateCustomer } from "@/server/customers";
+import { saveCustomerFilter } from "@/server/preferences";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -39,7 +41,7 @@ function refund(agencyId: number, amount: number, valueDate = "2026-10-21", curr
   const result = createRefund(
     db,
     acc,
-    { agencyId, amountMinor: usd(amount), currency, valueDate, kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true },
+    { agencyId, customerId: testCustomer(db), amountMinor: usd(amount), currency, valueDate, kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true },
     NOW,
   );
   if (result.status !== "created") throw new Error("refund not created");
@@ -65,7 +67,7 @@ beforeEach(async () => {
 describe("refunds", () => {
   it("are entered by the accountant with a receipt; the duplicate warning asks for confirmation", () => {
     const evidence = storeUpload(db, acc, { originalName: "d.pdf", content: PDF, kind: "RECEIPT" }, NOW);
-    const input = { agencyId: line, amountMinor: usd(100), currency: "USD", valueDate: "2026-10-21", kind: "BANK" as const, evidenceDocumentId: evidence.id, confirmDuplicate: false };
+    const input = { agencyId: line, customerId: testCustomer(db), amountMinor: usd(100), currency: "USD", valueDate: "2026-10-21", kind: "BANK" as const, evidenceDocumentId: evidence.id, confirmDuplicate: false };
     expect(() => createRefund(db, ops, input, NOW)).toThrow(ForbiddenError);
     expect(createRefund(db, acc, input, NOW).status).toBe("created");
     const again = storeUpload(db, acc, { originalName: "d2.pdf", content: PDF, kind: "RECEIPT" }, NOW);
@@ -77,7 +79,7 @@ describe("refunds", () => {
   });
 
   it("can be saved without a receipt, which only its accountant attaches later, once", async () => {
-    const input = { agencyId: line, amountMinor: usd(250), currency: "USD", valueDate: "2026-10-21", kind: "BANK" as const, evidenceDocumentId: null, confirmDuplicate: false };
+    const input = { agencyId: line, customerId: testCustomer(db), amountMinor: usd(250), currency: "USD", valueDate: "2026-10-21", kind: "BANK" as const, evidenceDocumentId: null, confirmDuplicate: false };
     expect(createRefundSchema.safeParse(input).success).toBe(true);
     const created = createRefund(db, acc, input, NOW);
     if (created.status !== "created") throw new Error("refund not created");
@@ -126,7 +128,7 @@ describe("allocating a batched refund", () => {
     expect(listRefundsToAllocate(db, ops)).toEqual([]);
 
     // Frozen money records (rules 13, 15): no correction or void after a confirmed allocation.
-    expect(() => correctRefund(db, acc, { id: r, agencyId: line, amountMinor: usd(6000), currency: "USD", valueDate: "2026-10-21", reason: "x" }, NOW)).toThrow(
+    expect(() => correctRefund(db, acc, { id: r, agencyId: line, customerId: testCustomer(db), amountMinor: usd(6000), currency: "USD", valueDate: "2026-10-21", reason: "x" }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "refunds.errors.allocated" }),
     );
     expect(() => voidRefund(db, acc, { id: r, reason: "x" }, NOW)).toThrow(expect.objectContaining({ messageKey: "refunds.errors.allocated" }));
@@ -218,5 +220,57 @@ describe("allocating a batched refund", () => {
       expect.objectContaining({ messageKey: "allocations.errors.alreadyReversed" }),
     );
     expect(getBlDetail(db, ops, c, NOW).timeline.map((e) => e.action)).toEqual(expect.arrayContaining(["allocation.confirm", "allocation.reverse"]));
+  });
+});
+
+describe("refunds by customer", () => {
+  const otherCustomer = () => createCustomer(db, admin, { name: "Beta", code: null, aliases: ["BETA"] }, NOW);
+  const setCustomer = (blId: number, customerId: number | null) => db.update(billsOfLading).set({ customerId }).where(eq(billsOfLading.id, blId)).run();
+
+  it("need exactly one active customer; a correction may change it", () => {
+    const evidence = storeUpload(db, acc, { originalName: "d.pdf", content: PDF, kind: "RECEIPT" }, NOW);
+    const input = { agencyId: line, customerId: null, amountMinor: usd(100), currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id };
+    expect(createRefundSchema.safeParse(input).error?.issues[0].message).toBe("refunds.errors.customer");
+    const beta = otherCustomer();
+    updateCustomer(db, admin, { id: beta, customer: { name: "Beta", code: null, aliases: ["BETA"], active: false } }, NOW);
+    expect(() => createRefund(db, acc, { ...createRefundSchema.parse({ ...input, customerId: beta }), confirmDuplicate: true }, NOW)).toThrow(/customers.errors.unknown/);
+
+    const r = refund(line, 100);
+    expect(getRefund(db, r)).toMatchObject({ customerId: testCustomer(db), customerName: "Test Müşteri" });
+    const gamma = createCustomer(db, admin, { name: "Gamma", code: null, aliases: [] }, NOW);
+    correctRefund(db, acc, { id: r, agencyId: line, customerId: gamma, amountMinor: usd(100), currency: "USD", valueDate: "2026-10-21", reason: "yanlış müşteri" }, NOW);
+    expect(getRefund(db, r).customerId).toBe(gamma);
+  });
+
+  it("are suggested only the refund customer's B/Ls; others, and B/Ls without a customer, can still be added by hand", () => {
+    const a = requestedBl(line, "HAT0000001", 3000, "2026-09-01");
+    const b = requestedBl(line, "HAT0000002", 2500, "2026-09-02");
+    const c = requestedBl(line, "HAT0000003", 1500, "2026-09-03");
+    setCustomer(b, otherCustomer());
+    setCustomer(c, null);
+    const r = refund(line, 3000);
+    const proposal = allocationProposal(db, ops, r);
+    expect(proposal.candidates.map((x) => x.blId)).toEqual([a]);
+    expect(proposal.otherCandidates.map((x) => [x.blId, x.customerName])).toEqual([
+      [b, "Beta"],
+      [c, null],
+    ]);
+    expect(proposal.suggestions.exact).toEqual([[{ blId: a, amountMinor: usd(3000) }]]);
+
+    // Chosen by hand from another customer: still allowed, nothing is ever auto-confirmed.
+    const r2 = refund(line, 2500, "2026-10-21");
+    confirmAllocation(db, ops, { refundId: r2, lines: [{ blId: b, amountMinor: usd(2500) }], shortfall: null, remainderReason: null }, NOW);
+    expect(status(b)).toBe("COLLECTED");
+  });
+
+  it("to allocate follow the viewer's customer filter; refunds of other customers drop out", () => {
+    const beta = otherCustomer();
+    const mine = refund(line, 100);
+    const evidence = storeUpload(db, acc, { originalName: "b.pdf", content: PDF, kind: "RECEIPT" }, NOW);
+    const theirs = createRefund(db, acc, { agencyId: line, customerId: beta, amountMinor: usd(200), currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
+    if (theirs.status !== "created") throw new Error("refund");
+    expect(listRefundsToAllocate(db, ops).map((x) => x.id)).toEqual([mine, theirs.id]);
+    saveCustomerFilter(db, ops, [testCustomer(db)], NOW);
+    expect(listRefundsToAllocate(db, ops).map((x) => x.id)).toEqual([mine]);
   });
 });

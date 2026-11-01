@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useForm, useWatch, type FieldErrors, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { AgencyCombobox } from "@/components/agency-combobox";
-import { CustomerCombobox, type CustomerOption } from "@/components/customer-combobox";
+import { CustomerCombobox } from "@/components/customer-combobox";
 import { FileDrop, uploadErrorText, type UploadResponse } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +49,8 @@ const FIELD_OF: Record<string, keyof FormValues> = { amountMinor: "amountText", 
  * queue and fill the form one by one; the kind, agency, customer and currency carry over to
  * the next record, so usually only the amount, dates and B/L number change.
  */
-export function OpeningBalanceForm({ refs, customers }: { refs: ReferenceData; customers: CustomerOption[] }) {
+export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
+  const { customers } = refs;
   const router = useRouter();
   const activeCurrencies = refs.currencies.filter((c) => c.active);
   const [receipt, setReceipt] = useState<QueuedReceipt | null>(null);

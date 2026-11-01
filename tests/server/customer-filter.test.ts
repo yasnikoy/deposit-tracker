@@ -39,6 +39,7 @@ beforeEach(async () => {
   bls = { ornek: make("MEDU1000001"), beta: make("MEDU1000002"), none: make("MEDU1000003") };
   setCustomer(bls.ornek, ornek);
   setCustomer(bls.beta, beta);
+  setCustomer(bls.none, null);
 });
 
 describe("customer filter", () => {

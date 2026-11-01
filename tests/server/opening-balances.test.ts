@@ -16,7 +16,7 @@ import { prefillFromExtraction } from "@/server/payments";
 import { createRefund } from "@/server/refunds";
 import { listDueRequests } from "@/server/requests";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -84,9 +84,9 @@ describe("opening balances", () => {
     const fresh = createOpeningBalance(db, admin, input({ pastAttempts: 0, lastRequestOn: null }), NOW);
     expect(getBlDetail(db, ops, fresh, NOW).bl.status).toBe("DUE");
 
-    const blId = createOpeningBalance(db, admin, input({ blNo: "MEDU9000002" }), NOW);
+    const blId = createOpeningBalance(db, admin, input({ blNo: "MEDU9000002", customerId: testCustomer(db) }), NOW);
     const evidence = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
-    const refund = createRefund(db, acc, { agencyId: msc, amountMinor: 250000, currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
+    const refund = createRefund(db, acc, { agencyId: msc, customerId: testCustomer(db), amountMinor: 250000, currency: "USD", valueDate: "2026-10-21", kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
     if (refund.status !== "created") throw new Error("refund");
     expect(allocationProposal(db, ops, refund.id).candidates).toEqual([expect.objectContaining({ blId, firstRequestOn: "2026-10-12", expectedMinor: 250000 })]);
   });

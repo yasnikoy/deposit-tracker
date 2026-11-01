@@ -13,7 +13,7 @@ import { agingGrid, scorecardGrid } from "@/server/report-exports";
 import { recordPortalRequest } from "@/server/requests";
 import { approveWriteOff, proposeWriteOff } from "@/server/write-offs";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -35,7 +35,7 @@ function requestedBl(blNo: string, amount: number, currency = "USD"): number {
 
 function refund(amount: number, valueDate = "2026-10-21"): number {
   const evidence = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
-  const result = createRefund(db, acc, { agencyId: line, amountMinor: usd(amount), currency: "USD", valueDate, kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
+  const result = createRefund(db, acc, { agencyId: line, customerId: testCustomer(db), amountMinor: usd(amount), currency: "USD", valueDate, kind: "BANK", evidenceDocumentId: evidence.id, confirmDuplicate: true }, NOW);
   if (result.status !== "created") throw new Error("refund");
   return result.id;
 }

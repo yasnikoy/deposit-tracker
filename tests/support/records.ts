@@ -1,9 +1,10 @@
+import { eq } from "drizzle-orm";
 import { agencyInputSchema, type AgencyInput, type AgencyOverrides } from "@/lib/schemas/agencies";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { createBls } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { refundAllocations, refunds } from "@/server/db/schema";
+import { customers, refundAllocations, refunds } from "@/server/db/schema";
 import { storeUpload } from "@/server/files";
 import { addLedgerEntry } from "@/server/ledger";
 import { createPayment } from "@/server/payments";
@@ -39,10 +40,18 @@ export function makeAgency(db: Db, ops: AuthUser, name: string, overrides: Parti
 }
 
 /** A bank payment (by the accountant) and its B/L (by operations). */
+/** The customer test B/Ls and refunds belong to unless a test says otherwise (refunds need one). */
+export function testCustomer(db: Db): number {
+  const existing = db.select().from(customers).where(eq(customers.name, "Test Müşteri")).get();
+  if (existing) return existing.id;
+  const at = new Date().toISOString();
+  return db.insert(customers).values({ name: "Test Müşteri", createdAt: at, updatedAt: at }).returning().get().id;
+}
+
 export function makeBl(
   db: Db,
   users: { acc: AuthUser; ops: AuthUser },
-  input: { agencyId: number; blNo: string; amountMinor: number; paidAt: string; currency?: string; containers?: string[] },
+  input: { agencyId: number; blNo: string; amountMinor: number; paidAt: string; currency?: string; containers?: string[]; customerId?: number | null },
   now: Date,
 ): { paymentId: number; blId: number } {
   const result = createPayment(
@@ -62,7 +71,8 @@ export function makeBl(
     now,
   );
   if (result.status !== "created") throw new Error("payment not created");
-  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, containers: input.containers ?? [] }], now).created[0];
+  const customerId = input.customerId === undefined ? testCustomer(db) : input.customerId;
+  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, containers: input.containers ?? [], customerId }], now).created[0];
   if (!created) throw new Error("B/L not created");
   return { paymentId: result.id, blId: created.blId };
 }
@@ -81,7 +91,7 @@ export function confirmedAllocationFixture(
   const evidence = storeUpload(db, users.acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, input.now);
   const refund = db
     .insert(refunds)
-    .values({ agencyId: input.agencyId, amountMinor: input.amountMinor, currency, valueDate: at.slice(0, 10), kind: "BANK", evidenceDocumentId: evidence.id, createdBy: users.acc.id, createdAt: at, updatedAt: at })
+    .values({ agencyId: input.agencyId, customerId: testCustomer(db), amountMinor: input.amountMinor, currency, valueDate: at.slice(0, 10), kind: "BANK", evidenceDocumentId: evidence.id, createdBy: users.acc.id, createdAt: at, updatedAt: at })
     .returning()
     .get();
   const allocation = db

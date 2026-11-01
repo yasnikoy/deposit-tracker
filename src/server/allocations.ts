@@ -8,7 +8,7 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { billsOfLading, deductionTypes, ledgerEntries, refundAllocations, refunds, requests } from "./db/schema";
+import { billsOfLading, customers, deductionTypes, ledgerEntries, refundAllocations, refunds, requests } from "./db/schema";
 import { DomainError } from "./errors";
 import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, reinstateLedgerEntry } from "./ledger";
 import { allocatedByRefund, getRefund, type RefundListItem } from "./refunds";
@@ -33,6 +33,8 @@ export type CandidateBl = {
   expectedMinor: number;
   /** A disputed B/L: the deduction a payment of the difference cancels. */
   disputedEntryId: number | null;
+  customerId: number | null;
+  customerName: string | null;
 };
 
 /**
@@ -65,6 +67,7 @@ export function allocationCandidates(tx: DbOrTx, refund: { agencyId: number; cur
     if (r.requestedOn && (!current || r.requestedOn < current)) firstRequests.set(r.blId, r.requestedOn);
   }
   const ledger = tx.select().from(ledgerEntries).where(inArray(ledgerEntries.blId, ids)).all();
+  const customerNames = new Map(tx.select({ id: customers.id, name: customers.name }).from(customers).all().map((c) => [c.id, c.name]));
   return bls
     .map((bl) => {
       const balance = blBalance(
@@ -82,6 +85,8 @@ export function allocationCandidates(tx: DbOrTx, refund: { agencyId: number; cur
         ...balance,
         expectedMinor: disputed ? disputed.amountMinor : balance.expectedMinor,
         disputedEntryId: disputed?.id ?? null,
+        customerId: bl.customerId,
+        customerName: bl.customerId === null ? null : (customerNames.get(bl.customerId) ?? null),
       };
     })
     .filter((c) => c.firstRequestOn !== "" && c.firstRequestOn <= refund.valueDate && c.expectedMinor > 0)
@@ -90,7 +95,10 @@ export function allocationCandidates(tx: DbOrTx, refund: { agencyId: number; cur
 
 export type AllocationProposal = {
   refund: RefundListItem;
+  /** B/Ls of the refund's customer (all of them for a refund without a customer); suggestions come from these. */
   candidates: CandidateBl[];
+  /** Other open B/Ls of the same agency and currency, which a user may still add by hand. */
+  otherCandidates: CandidateBl[];
   suggestions: AllocationSuggestions;
 };
 
@@ -99,13 +107,17 @@ export function allocationProposal(db: DbOrTx, actor: AuthUser, refundId: number
   authorize(actor, "allocation.view");
   const refund = getRefund(db, refundId);
   if (refund.voidedAt) throw new DomainError("refunds.errors.voided");
-  const candidates = allocationCandidates(db, refund);
+  const all = allocationCandidates(db, refund);
+  // Suggestions only from the refund's customer; B/Ls without a customer are not suggested.
+  const ofCustomer = (c: CandidateBl) => refund.customerId === null || c.customerId === refund.customerId;
+  const candidates = all.filter(ofCustomer);
+  const otherCandidates = all.filter((c) => !ofCustomer(c));
   const suggestions = suggestAllocations({
     refundMinor: refund.remainderMinor,
     candidates,
     maxExact: getSetting("reconciliation.alternativeSuggestions", {}, db),
   });
-  return { refund, candidates, suggestions };
+  return { refund, candidates, otherCandidates, suggestions };
 }
 
 /**

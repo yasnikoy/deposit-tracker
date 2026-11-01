@@ -246,12 +246,25 @@ test("bulk reply: two agency replies get 'container not yet returned' in one con
 });
 
 test("allocate refund: the accountant enters a short refund; operations confirms FIFO with the difference as demurrage", async ({ page }) => {
+  // The B/L's customer (read from receipts in real use; set here since the test receipt names none).
+  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"));
+  try {
+    const at = new Date().toISOString();
+    const customer = db.prepare("INSERT INTO customers (name, aliases, active, created_at, updated_at) VALUES ('Hapag Müşteri', '[]', 1, ?, ?) RETURNING id").get(at, at) as { id: number };
+    db.prepare("UPDATE bills_of_lading SET customer_id = ? WHERE bl_no = ?").run(customer.id, BL_NO);
+  } finally {
+    db.close();
+  }
   await login(page, OPS.username, OPS.final);
   await page.goto("/accounting?tab=refund");
   await page.getByLabel(tr.files.drop).setInputFiles(pdf("iade-dekontu.pdf"));
   await expect(page.getByRole("link", { name: "iade-dekontu.pdf" })).toBeVisible();
   await pickAgency(page, "hapag", AGENCY);
   await page.getByLabel(tr.payments.amount).fill("2.400");
+  await page.getByRole("button", { name: tr.refunds.save }).click();
+  await expect(page.getByText(tr.refunds.errors.customer)).toBeVisible();
+  await page.getByRole("combobox", { name: tr.refunds.customer }).fill("hapag m");
+  await page.getByRole("option", { name: "Hapag Müşteri" }).click();
   await page.getByRole("button", { name: tr.refunds.save }).click();
   await expect(page.getByText(tr.refunds.saved)).toBeVisible();
 
@@ -287,7 +300,7 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   expect(tableCsv.suggestedFilename()).toMatch(/^all-bls-\d{4}-\d{2}-\d{2}\.csv$/);
   const lines = fs.readFileSync(await tableCsv.path(), "utf8").split("\r\n");
   expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.expected};${tr.bls.collected};${tr.bls.attempts};${tr.bls.lastRequestOn};${tr.bls.lastReply};${tr.bls.daysWaiting};${tr.bls.containers}`);
-  expect(lines[1]).toContain(`${BL_NO};${AGENCY};;;${tr.bls.statuses.COLLECTED};`);
+  expect(lines[1]).toContain(`${BL_NO};${AGENCY};Hapag Müşteri;;${tr.bls.statuses.COLLECTED};`);
   expect(lines[1]).toContain(";2.500,00;USD;");
   expect(lines).toHaveLength(3);
 
@@ -296,7 +309,7 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   await expect(page.getByText("1 satır kopyalandı")).toBeVisible();
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   // The copy-command fallback goes through a textarea, which turns CRLF into LF; Excel accepts both.
-  expect(copied.split(/\r?\n/)[1]).toContain(`${BL_NO}\t${AGENCY}\t\t\t${tr.bls.statuses.COLLECTED}\t`);
+  expect(copied.split(/\r?\n/)[1]).toContain(`${BL_NO}\t${AGENCY}\tHapag Müşteri\t\t${tr.bls.statuses.COLLECTED}\t`);
 
   await page.getByRole("link", { name: tr.nav.reports }).click();
   const scorecard = page.getByRole("heading", { name: tr.reports.scorecard.title }).locator("..");

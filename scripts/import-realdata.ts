@@ -450,6 +450,8 @@ async function main() {
       try {
         const result = createRefund(db, acc, {
           agencyId: ensureAgency(db, ops, entry.agency).id,
+          // The job-follow list does not say whose refund it is; the user corrects it in the app.
+          customerId: ensureCustomer(db, admin, "Müşterisi belirsiz (iş takip listesi)", null),
           amountMinor: minor(entry.amount),
           currency: "USD",
           valueDate: entry.date,
