@@ -2,6 +2,7 @@ import "server-only";
 import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND } from "@/domain/records";
 import type { OpeningBalanceInput } from "@/lib/schemas/opening-balances";
+import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -28,7 +29,8 @@ import { depositEvidence, validateReferences } from "./payments";
 export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBalanceInput, now: Date = new Date()): number {
   const roleUsed = authorize(actor, "openingBalance.create");
   return db.transaction((tx) => {
-    validateReferences(tx, input, now);
+    const agencyId = input.agencyId ?? agencyForNewName(tx, actor, "agency.createFromOpeningBalance", input.newAgencyName ?? "", now);
+    validateReferences(tx, { ...input, agencyId }, now);
     if (input.lastRequestOn !== null) {
       if (input.lastRequestOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
       if (input.lastRequestOn < input.paidAt) throw new DomainError("requests.errors.beforePayment");
@@ -48,7 +50,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
         depositPaymentId: null,
         customerId,
         fileNo: input.fileNo,
-        agencyId: input.agencyId,
+        agencyId,
         currency: input.currency,
         depositAmountMinor: input.amountMinor,
         paidAt: input.paidAt,
@@ -95,7 +97,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
         entityId: bl.id,
         after: {
           blNo: bl.blNo,
-          agencyId: input.agencyId,
+          agencyId,
           amountMinor: input.amountMinor,
           currency: input.currency,
           paidAt: input.paidAt,

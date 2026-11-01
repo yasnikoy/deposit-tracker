@@ -76,16 +76,23 @@ export function createAgency(db: Db, actor: AuthUser, input: AgencyInput, now: D
 }
 
 /**
- * The agency a payment names by text. An agency of that name (case-insensitive) is used as
- * it is; otherwise one is added with only its name, and operations is notified to complete
- * the card. Runs inside the payment's transaction, so a rejected payment adds no agency.
+ * The agency a payment or opening balance names by text. An agency of that name
+ * (case-insensitive) is used as it is; otherwise one is added with only its name, under the
+ * entry's own permission, and operations is notified to complete the card. Runs inside the
+ * entry's transaction, so a rejected entry adds no agency.
  */
-export function agencyForNewName(tx: DbOrTx, actor: AuthUser, rawName: string, now: Date): number {
+export function agencyForNewName(
+  tx: DbOrTx,
+  actor: AuthUser,
+  action: "agency.createFromPayment" | "agency.createFromOpeningBalance",
+  rawName: string,
+  now: Date,
+): number {
   const name = rawName.trim();
   if (name === "" || name.length > 100) throw new DomainError("payments.errors.agency");
   const existing = tx.select({ id: agencies.id }).from(agencies).where(eq(sql`lower(${agencies.name})`, name.toLowerCase())).get();
   if (existing) return existing.id;
-  const roleUsed = authorize(actor, "agency.createFromPayment");
+  const roleUsed = authorize(actor, action);
   const at = now.toISOString();
   const row = tx.insert(agencies).values({ name, createdAt: at, updatedAt: at }).returning().get();
   writeAudit(

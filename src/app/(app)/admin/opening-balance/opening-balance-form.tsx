@@ -24,6 +24,7 @@ import { createOpeningBalanceAction } from "./actions";
 type FormValues = {
   kind: PaymentKind;
   agencyId: number | null;
+  newAgencyName: string | null;
   customerId: number | null;
   newCustomerName: string | null;
   amountText: string;
@@ -42,7 +43,7 @@ type Prefill = NonNullable<Extract<UploadResponse, { ok: true }>["prefill"]>;
 type QueuedReceipt = { id: number; originalName: string; prefill: Prefill | null; read: boolean };
 
 /** Schema fields shown under another form field. */
-const FIELD_OF: Record<string, keyof FormValues> = { amountMinor: "amountText", containers: "containersText", newCustomerName: "customerId" };
+const FIELD_OF: Record<string, keyof FormValues> = { amountMinor: "amountText", containers: "containersText", newAgencyName: "agencyId", newCustomerName: "customerId" };
 
 /**
  * Open Excel records moved into the app one after another. Receipts dropped together wait in a
@@ -60,6 +61,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
 
   const toInput = (values: FormValues) => ({
     agencyId: values.agencyId,
+    newAgencyName: values.newAgencyName,
     customerId: values.customerId,
     newCustomerName: values.newCustomerName,
     kind: values.kind,
@@ -90,6 +92,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   const blank: FormValues = {
     kind: "BANK",
     agencyId: null,
+    newAgencyName: null,
     customerId: null,
     newCustomerName: null,
     amountText: "",
@@ -104,11 +107,12 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   };
   const form = useForm<FormValues>({ resolver, defaultValues: blank });
   const errors = form.formState.errors;
-  const [kind, agencyId, customerId, newCustomerName, amountText, currency, pastAttempts] = useWatch({
+  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts] = useWatch({
     control: form.control,
-    name: ["kind", "agencyId", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts"],
+    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts"],
   });
   const amount = parseAmountInput(amountText);
+  const isKnownAgency = (name: string) => refs.agencies.some((a) => a.name.toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
 
   /** Puts a receipt on the form: what it reads overrides, the rest stays as carried over. */
   const load = (next: QueuedReceipt | null) => {
@@ -116,7 +120,10 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     const p = next?.prefill;
     setCandidates(p?.blCandidates ?? []);
     if (!p) return;
-    if (p.agencyIds.length === 1) form.setValue("agencyId", p.agencyIds[0]);
+    if (p.agencyIds.length === 1) {
+      form.setValue("agencyId", p.agencyIds[0]);
+      form.setValue("newAgencyName", null);
+    }
     if (p.customerId !== null) {
       form.setValue("customerId", p.customerId);
       form.setValue("newCustomerName", null);
@@ -155,12 +162,14 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     const result = await createOpeningBalanceAction(toInput(values));
     if (!result.ok) return void toast.error(t(result.error, result.params));
     toast.success(t("openingBalances.saved"));
+    if (values.newAgencyName && !isKnownAgency(values.newAgencyName)) toast.info(t("payments.newAgencyAdded", { name: values.newAgencyName }));
     setCreated((list) => [{ id: result.data, blNo: values.blNo.toUpperCase().replace(/\s+/g, "") }, ...list]);
-    // The next record: kind, agency, customer and currency carry over; a new customer is now registered.
+    // The next record: kind, agency, customer and currency carry over; a new agency or customer is now registered.
     form.reset({
       ...blank,
       kind: values.kind,
       agencyId: values.agencyId,
+      newAgencyName: values.newAgencyName,
       customerId: values.customerId,
       newCustomerName: values.newCustomerName,
       currency: values.currency,
@@ -249,9 +258,12 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
               agencies={refs.agencies}
               value={agencyId}
               onChange={(id) => form.setValue("agencyId", id, { shouldValidate: form.formState.isSubmitted })}
+              newName={newAgencyName}
+              onNewName={(name) => form.setValue("newAgencyName", name, { shouldValidate: form.formState.isSubmitted })}
               placeholder={t("payments.agencySearch")}
               invalid={!!errors.agencyId}
             />
+            {newAgencyName && !isKnownAgency(newAgencyName) && <p className="text-muted-foreground text-xs">{t("openingBalances.newAgencyHelp")}</p>}
             {message(errors.agencyId?.message)}
           </div>
           <div className="flex flex-col gap-1.5">

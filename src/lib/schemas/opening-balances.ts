@@ -3,7 +3,7 @@ import { isValidIsoDate } from "@/domain/business-days";
 import { PAYMENT_KINDS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
 import { blNumberSchema, containerListSchema, fileNoSchema } from "./bls";
-import { paymentFields } from "./payments";
+import { agencyChoiceFields, agencyChoiceIssue, isAgencyChoice, paymentFields } from "./payments";
 
 const msg = (key: TranslationKey) => key;
 
@@ -11,13 +11,15 @@ const msg = (key: TranslationKey) => key;
 const MAX_PAST_ATTEMPTS = 50;
 
 /**
- * An open Excel record moved into the app (admin, rule 7 exception): the deposit as paid, its
+ * An open Excel record moved into the app (admin, rule 7 exception): the agency (or a new one
+ * by name, as on a payment), the deposit as paid, its
  * original receipt when at hand (it may be attached later, like a payment's), and the refund
  * requests already made outside the app.
  */
 export const openingBalanceSchema = z
   .object({
     ...paymentFields,
+    ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNo: blNumberSchema,
     containers: containerListSchema,
@@ -50,7 +52,8 @@ export const openingBalanceSchema = z
     if ((input.pastAttempts > 0) !== (input.lastRequestOn !== null)) {
       ctx.addIssue({ code: "custom", path: ["lastRequestOn"], message: msg("openingBalances.errors.lastRequest") });
     }
-  });
+  })
+  .refine(isAgencyChoice, agencyChoiceIssue);
 
 export type OpeningBalanceInput = z.infer<typeof openingBalanceSchema>;
 

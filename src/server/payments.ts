@@ -127,7 +127,7 @@ export function createPayment(
 ): CreatePaymentResult {
   const roleUsed = authorize(actor, "payment.create");
   return db.transaction((tx): CreatePaymentResult => {
-    const agencyId = input.agencyId ?? agencyForNewName(tx, actor, input.newAgencyName ?? "", now);
+    const agencyId = input.agencyId ?? agencyForNewName(tx, actor, "agency.createFromPayment", input.newAgencyName ?? "", now);
     validateReferences(tx, { ...input, agencyId }, now);
     if (!input.confirmDuplicate && getSetting("rules.duplicateWarning", {}, tx)) {
       const duplicates = findDuplicates(tx, { ...input, agencyId });

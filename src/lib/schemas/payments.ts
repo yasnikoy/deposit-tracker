@@ -32,19 +32,33 @@ const hasAgency = (input: { agencyId?: unknown; newAgencyName?: unknown }) =>
   (typeof input.agencyId === "number" && input.agencyId > 0) || hasNewName(input);
 
 /**
- * A payment names either an existing agency or, when the agency is not in the system yet,
- * a new agency name; operations completes that agency's card later.
+ * An entry that names either an existing agency or, when the agency is not in the system yet,
+ * a new agency name (payments and opening balances); operations completes that agency's card later.
  */
+export const agencyChoiceFields = {
+  agencyId: id.nullable(),
+  newAgencyName: z
+    .string()
+    .trim()
+    .max(100, msg("payments.errors.agencyNameLength"))
+    .transform((value) => value || null)
+    .nullish(),
+};
+
+/** Exactly one of an agency id or a new agency name: `.refine(isAgencyChoice, agencyChoiceIssue)`. */
+export const isAgencyChoice = (input: { agencyId?: unknown; newAgencyName?: unknown }) =>
+  hasAgency(input) && !(input.agencyId !== null && hasNewName(input));
+export const agencyChoiceIssue = {
+  path: ["agencyId"],
+  message: msg("payments.errors.agency"),
+  // Also when other fields are invalid, so the form shows every error at once.
+  when: ({ value }: { value: unknown }) => typeof value === "object" && value !== null,
+};
+
 export const createPaymentSchema = z
   .object({
     ...paymentFields,
-    agencyId: id.nullable(),
-    newAgencyName: z
-      .string()
-      .trim()
-      .max(100, msg("payments.errors.agencyNameLength"))
-      .transform((value) => value || null)
-      .nullish(),
+    ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNoHint,
     // Optional: the receipt or invoice can be attached later (rule 12).
@@ -52,12 +66,7 @@ export const createPaymentSchema = z
     queueItemId: id.nullable().default(null),
     confirmDuplicate: z.boolean().default(false),
   })
-  .refine((input) => hasAgency(input) && !(input.agencyId !== null && hasNewName(input)), {
-    path: ["agencyId"],
-    message: msg("payments.errors.agency"),
-    // Also when other fields are invalid, so the form shows every error at once.
-    when: ({ value }) => typeof value === "object" && value !== null,
-  });
+  .refine(isAgencyChoice, agencyChoiceIssue);
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 

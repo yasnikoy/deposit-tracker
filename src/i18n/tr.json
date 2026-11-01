@@ -1443,6 +1443,7 @@
     "customer": "Müşteri",
     "customerSearch": "Müşteri adı veya kodu…",
     "newCustomerHelp": "Bu müşteri kayıtlı değil; kayıtla birlikte yalnızca adıyla eklenir.",
+    "newAgencyHelp": "Bu acente sistemde yok; kayıtla birlikte yalnızca adıyla eklenir. Operasyon bilgilerini tamamlar.",
     "candidates": "Dekonttaki diğer B/L numaraları:",
     "fileNo": "Dosya no",
     "saved": "B/L açılış bakiyesiyle oluşturuldu.",

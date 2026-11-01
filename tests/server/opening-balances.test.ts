@@ -9,7 +9,7 @@ import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
 import { eq } from "drizzle-orm";
-import { auditLog, billsOfLading, customers } from "@/server/db/schema";
+import { agencies, auditLog, billsOfLading, customers } from "@/server/db/schema";
 import { createCustomer } from "@/server/customers";
 import { attachOpeningBalanceEvidence, createOpeningBalance } from "@/server/opening-balances";
 import { prefillFromExtraction } from "@/server/payments";
@@ -137,6 +137,24 @@ describe("opening balances", () => {
     expect(db.select().from(customers).all()).toHaveLength(1);
     expect(customerOf(second)).toBe(registered[0].id);
     expect(openingBalanceSchema.safeParse({ ...input(), customerId: registered[0].id, newCustomerName: "Başka" }).success).toBe(false);
+  });
+
+  it("name an agency not in the system yet: added by name under the admin role, reused by the next record", () => {
+    const agencyOf = (id: number) => db.select().from(billsOfLading).where(eq(billsOfLading.id, id)).get()!.agencyId;
+    const first = createOpeningBalance(db, admin, input({ agencyId: null, newAgencyName: " Yeni Hat Lojistik ", documentId: null }), NOW);
+    const added = db.select().from(agencies).all().find((a) => a.name === "Yeni Hat Lojistik")!;
+    expect(agencyOf(first)).toBe(added.id);
+    expect(db.select().from(auditLog).all().find((a) => a.action === "agency.create" && a.entityId === String(added.id))).toMatchObject({ roleUsed: "ADMIN" });
+
+    const second = createOpeningBalance(db, admin, input({ agencyId: null, newAgencyName: "yeni hat lojistik", blNo: "MEDU9000002", documentId: null }), NOW);
+    expect(agencyOf(second)).toBe(added.id);
+    expect(db.select().from(agencies).all()).toHaveLength(2);
+
+    // A rejected record adds no agency; exactly one of an agency or a new name.
+    expect(() => createOpeningBalance(db, admin, input({ agencyId: null, newAgencyName: "Başka Hat", blNo: "MEDU9000002", documentId: null }), NOW)).toThrow();
+    expect(db.select().from(agencies).all()).toHaveLength(2);
+    expect(openingBalanceSchema.safeParse({ ...input(), newAgencyName: "Başka" }).success).toBe(false);
+    expect(openingBalanceSchema.safeParse({ ...input(), agencyId: null }).success).toBe(false);
   });
 
   it("are prefilled from the receipt with customer and file number", () => {
