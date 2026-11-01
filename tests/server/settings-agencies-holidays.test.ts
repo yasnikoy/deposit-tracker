@@ -2,8 +2,8 @@ import { and, eq, getTableColumns } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { addBusinessDays } from "@/domain/business-days";
 import { settingDefinitions, OVERRIDABLE_SETTING_KEYS } from "@/domain/settings/definitions";
-import { agencyInputSchema } from "@/lib/schemas/agencies";
-import { createAgency, listAgencies, updateAgency, updateAgencyOverrides } from "@/server/agencies";
+import { AGENCY_EXPORT_FORMAT, AGENCY_EXPORT_VERSION, agencyCard, agencyExportFileSchema, agencyInputSchema, importAgenciesSchema } from "@/lib/schemas/agencies";
+import { createAgency, importAgencies, listAgencies, updateAgency, updateAgencyOverrides } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { loadCalendar } from "@/server/calendar";
 import type { Db } from "@/server/db/client";
@@ -148,6 +148,34 @@ describe("agencies and overrides", () => {
     for (const key of OVERRIDABLE_SETTING_KEYS) {
       expect(sqlNames, key).toContain((settingDefinitions[key] as { agencyColumn: string }).agencyColumn);
     }
+  });
+});
+
+describe("agency export and import", () => {
+  it("carries the cards to another installation, adds only new names and audits each one", async () => {
+    createAgency(db, ops, agencyInput());
+    createAgency(db, ops, agencyInput({ name: "Akkon", toRecipients: [], batchSending: false, blNumberPatterns: [String.raw`AKK[A-Z]{2}\d{8}`], notes: "Portal yok" }));
+    // What the Agencies screen writes to the file, read back as the other installation reads it.
+    const exported = JSON.parse(
+      JSON.stringify({ format: AGENCY_EXPORT_FORMAT, version: AGENCY_EXPORT_VERSION, exportedAt: "2026-11-01T10:00:00Z", agencies: listAgencies(db, ops).map(agencyCard) }),
+    );
+    const file = agencyExportFileSchema.parse(exported);
+
+    const office = createTestDb();
+    const officeOps = await makeUser(office, "ops", ["OPERATIONS"]);
+    createAgency(office, officeOps, agencyInput({ name: "msc türkiye", toRecipients: ["kayitli@msc.example"] }));
+    const officeAcc = await makeUser(office, "acc", ["ACCOUNTANT"]);
+    const importInput = importAgenciesSchema.parse({ agencies: exported.agencies });
+    expect(() => importAgencies(office, officeAcc, importInput)).toThrow(ForbiddenError);
+
+    expect(importAgencies(office, officeOps, importInput)).toEqual({ created: ["Akkon"], skipped: ["MSC Türkiye"] });
+    const akkon = listAgencies(office, officeOps).find((a) => a.name === "Akkon")!;
+    expect(agencyCard(akkon)).toEqual(file.agencies.find((a) => a.name === "Akkon"));
+    // The agency already there is left as it was.
+    expect(listAgencies(office, officeOps).find((a) => a.name === "msc türkiye")!.toRecipients).toEqual(["kayitli@msc.example"]);
+    expect(office.select().from(auditLog).where(eq(auditLog.action, "agency.create")).all()).toHaveLength(2);
+
+    expect(agencyExportFileSchema.safeParse({ ...exported, format: "other" }).success).toBe(false);
   });
 });
 

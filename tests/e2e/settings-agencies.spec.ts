@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import tr from "../../src/i18n/tr.json";
 import { E2E_ADMIN } from "./global-setup";
@@ -125,6 +126,29 @@ test("operations creates an agency; patterns are tested; only admins set overrid
   await expect(panel.getByLabel(tr.agencies.name)).toBeDisabled();
   await expect(panel.getByText(tr.agencies.overridesReadOnly)).toBeVisible();
   await expect(panel.getByText("3 iş günü")).toBeVisible();
+});
+
+test("agencies are exported to a file and imported from one, adding only new names", async ({ page }, testInfo) => {
+  await login(page, E2E_ADMIN.username, E2E_ADMIN.password, E2E_ADMIN.displayName);
+  await openSettingsPage(page, tr.nav.agencies);
+  const table = page.getByRole("table");
+  await table.getByRole("row", { name: /MSC Türkiye/ }).getByRole("checkbox", { name: tr.table.selectRow }).click();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: tr.agencies.transfer.export }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^acenteler-\d{4}-\d{2}-\d{2}\.json$/);
+  const file = JSON.parse(await readFile((await download.path())!, "utf8"));
+  expect(file.agencies).toMatchObject([{ name: "MSC Türkiye", toRecipients: ["iade@msc.example"], blNumberPatterns: ["MEDU\\d{7}"] }]);
+
+  // The same file plus an agency this installation does not have yet.
+  file.agencies.push({ ...file.agencies[0], name: "Akkon Denizcilik", toRecipients: [], blNumberPatterns: ["AKK[A-Z]{2}\\d{8}"] });
+  const path = testInfo.outputPath("acenteler.json");
+  await writeFile(path, JSON.stringify(file));
+  await page.locator('input[type="file"][accept*="json"]').setInputFiles(path);
+  const confirm = page.getByRole("dialog");
+  await expect(confirm.getByText("1 acente eklensin mi?")).toBeVisible();
+  await expect(confirm.getByText(/atlanacak: MSC Türkiye/)).toBeVisible();
+  await confirm.getByRole("button", { name: tr.agencies.transfer.confirm }).click();
+  await expect(page.getByText("1 acente eklendi.")).toBeVisible();
+  await expect(table.getByRole("cell", { name: "Akkon Denizcilik" })).toBeVisible();
 });
 
 test("admin sees the system health and takes a backup by hand; the public probe answers", async ({ page, request }) => {

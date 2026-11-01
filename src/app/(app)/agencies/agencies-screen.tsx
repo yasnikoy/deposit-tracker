@@ -14,6 +14,7 @@ import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { AgencyListItem } from "@/server/agencies";
 import { updateAgencyContactAction } from "./actions";
 import { AgencyForm } from "./agency-form";
+import { ExportAgenciesButton, ImportAgenciesButton } from "./agency-transfer";
 import { FormTemplateCard } from "./form-template-card";
 import { OverridesForm } from "./overrides-form";
 
@@ -132,11 +133,15 @@ export function AgenciesScreen({
           setSelected(a.id);
         }}
         rowClassName={(a) => (a.active ? undefined : "text-muted-foreground")}
+        bulkActions={(rows) => <ExportAgenciesButton agencies={rows} />}
         toolbar={
           permissions.create && (
-            <Button size="sm" onClick={() => setSelected("new")}>
-              <Plus /> {t("agencies.new")}
-            </Button>
+            <>
+              <Button size="sm" onClick={() => setSelected("new")}>
+                <Plus /> {t("agencies.new")}
+              </Button>
+              <ImportAgenciesButton existing={agencies} />
+            </>
           )
         }
       />

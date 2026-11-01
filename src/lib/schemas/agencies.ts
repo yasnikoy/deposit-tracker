@@ -48,11 +48,14 @@ export const agencyInputSchema = z
       .trim()
       .max(500)
       .refine((value) => value === "" || isHttpUrl(value), msg("agencies.errors.portalUrl"))
+      // null as stored, so an exported card reads back unchanged.
+      .nullable()
       .transform((value) => value || null),
     notes: z
       .string()
       .trim()
       .max(2000)
+      .nullable()
       .transform((value) => value || null),
   })
   .refine((agency) => agency.requestChannel !== "PORTAL" || agency.portalUrl !== null, {
@@ -63,6 +66,41 @@ export const agencyInputSchema = z
 export type AgencyInput = z.infer<typeof agencyInputSchema>;
 
 export const createAgencySchema = agencyInputSchema;
+
+/** Marks a file as an agency export of this app; the version changes only with an incompatible layout. */
+export const AGENCY_EXPORT_FORMAT = "deposit-tracker-agencies";
+export const AGENCY_EXPORT_VERSION = 1;
+const MAX_IMPORT = 500;
+
+/**
+ * An agency export file: the cards (contact, sender names, B/L patterns, channel, sending,
+ * notes). Setting overrides and form templates are not part of it.
+ */
+export const agencyExportFileSchema = z.object({
+  format: z.literal(AGENCY_EXPORT_FORMAT),
+  version: z.literal(AGENCY_EXPORT_VERSION),
+  exportedAt: z.string(),
+  agencies: z.array(agencyInputSchema).min(1).max(MAX_IMPORT),
+});
+export type AgencyExportFile = z.infer<typeof agencyExportFileSchema>;
+
+/** The card fields of an agency, as the export file carries them. */
+export function agencyCard(a: AgencyInput): AgencyInput {
+  return {
+    name: a.name,
+    active: a.active,
+    toRecipients: a.toRecipients,
+    ccRecipients: a.ccRecipients,
+    bankSenderAliases: a.bankSenderAliases,
+    blNumberPatterns: a.blNumberPatterns,
+    batchSending: a.batchSending,
+    requestChannel: a.requestChannel,
+    portalUrl: a.portalUrl,
+    notes: a.notes,
+  };
+}
+
+export const importAgenciesSchema = z.object({ agencies: z.array(agencyInputSchema).min(1).max(MAX_IMPORT) });
 export const updateAgencySchema = z.object({ id: z.number().int().positive(), agency: agencyInputSchema });
 
 /** Inline edit of one contact field; the whole card is validated again on the server. */

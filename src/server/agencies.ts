@@ -60,18 +60,44 @@ export function listAgencies(db: Db, actor: AuthUser): AgencyListItem[] {
     .map(({ agency, formTemplateName }) => ({ ...toView(agency), formTemplateName }));
 }
 
+function insertAgency(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, input: AgencyInput, now: Date): number {
+  const at = now.toISOString();
+  const row = tx.insert(agencies).values({ ...input, createdAt: at, updatedAt: at }).returning().get();
+  writeAudit(
+    tx,
+    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(row) },
+    now,
+  );
+  return row.id;
+}
+
 export function createAgency(db: Db, actor: AuthUser, input: AgencyInput, now: Date = new Date()): number {
   const roleUsed = authorize(actor, "agency.create");
-  const at = now.toISOString();
   return db.transaction((tx) => {
     if (nameTaken(tx, input.name)) throw new DomainError("agencies.errors.nameTaken");
-    const row = tx.insert(agencies).values({ ...input, createdAt: at, updatedAt: at }).returning().get();
-    writeAudit(
-      tx,
-      { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(row) },
-      now,
-    );
-    return row.id;
+    return insertAgency(tx, actor, roleUsed, input, now);
+  });
+}
+
+/**
+ * Adds the agency cards of an export file (e.g. from a test installation) in one transaction,
+ * each audited as `agency.create`. A name that already exists here (case-insensitive), or
+ * repeats in the file, is skipped and never overwritten.
+ */
+export function importAgencies(db: Db, actor: AuthUser, input: { agencies: AgencyInput[] }, now: Date = new Date()): { created: string[]; skipped: string[] } {
+  const roleUsed = authorize(actor, "agency.create");
+  return db.transaction((tx) => {
+    const created: string[] = [];
+    const skipped: string[] = [];
+    for (const agency of input.agencies) {
+      if (nameTaken(tx, agency.name)) {
+        skipped.push(agency.name);
+        continue;
+      }
+      insertAgency(tx, actor, roleUsed, agency, now);
+      created.push(agency.name);
+    }
+    return { created, skipped };
   });
 }
 

@@ -1,8 +1,8 @@
 "use server";
 
-import { createAgencySchema, setFormTemplateSchema, updateAgencyContactSchema, updateAgencyOverridesSchema, updateAgencySchema } from "@/lib/schemas/agencies";
+import { createAgencySchema, importAgenciesSchema, setFormTemplateSchema, updateAgencyContactSchema, updateAgencyOverridesSchema, updateAgencySchema } from "@/lib/schemas/agencies";
 import { runAction } from "@/server/actions";
-import { createAgency, updateAgency, updateAgencyContact, updateAgencyOverrides } from "@/server/agencies";
+import { createAgency, importAgencies, updateAgency, updateAgencyContact, updateAgencyOverrides } from "@/server/agencies";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
@@ -11,6 +11,11 @@ import { setAgencyFormTemplate } from "@/server/forms";
 export async function createAgencyAction(input: unknown): Promise<ActionResult<number>> {
   const { user } = await requireSession();
   return runAction(createAgencySchema, input, (data) => createAgency(getDb(), user, data));
+}
+
+export async function importAgenciesAction(input: unknown): Promise<ActionResult<{ created: string[]; skipped: string[] }>> {
+  const { user } = await requireSession();
+  return runAction(importAgenciesSchema, input, (data) => importAgencies(getDb(), user, data));
 }
 
 export async function updateAgencyAction(input: unknown): Promise<ActionResult<number[]>> {

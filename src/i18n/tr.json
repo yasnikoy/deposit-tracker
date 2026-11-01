@@ -573,6 +573,19 @@
     "globalValue": "Genel: {value}",
     "saveOverrides": "İstisnaları kaydet",
     "readOnly": "Acente bilgilerini operasyon rolü düzenler.",
+    "transfer": {
+      "export": "Dışa aktar",
+      "exported": "{count} acente dışa aktarıldı.",
+      "fileName": "acenteler",
+      "import": "İçe aktar",
+      "invalidFile": "Bu dosya bir acente dışa aktarma dosyası değil ya da bozuk.",
+      "nothingNew": "Dosyadaki acentelerin hepsi zaten kayıtlı; eklenecek acente yok.",
+      "confirmTitle": "{count} acente eklensin mi?",
+      "confirmHint": "Acente kartları dosyadaki bilgilerle eklenir. Ayar istisnaları ve form şablonları dosyada yoktur.",
+      "confirmSkipped": "Zaten kayıtlı olduğu için atlanacak: {names}. Kayıtlı acenteler değiştirilmez.",
+      "confirm": "Acenteleri ekle",
+      "imported": "{count} acente eklendi."
+    },
     "toast": {
       "created": "Acente oluşturuldu.",
       "updated": "Acente güncellendi.",
