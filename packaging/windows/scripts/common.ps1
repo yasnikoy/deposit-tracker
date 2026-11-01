@@ -39,7 +39,9 @@ function Read-DepositEnv {
     $values = [ordered]@{}
     if (Test-Path $EnvFile) {
         foreach ($line in Get-Content -Path $EnvFile -Encoding UTF8) {
-            if ($line -match '^\s*([A-Z_]+)\s*=\s*(.*?)\s*$') { $values[$Matches[1]] = $Matches[2] }
+            # Case-sensitive: -match ignores case with the current culture, and on Turkish Windows
+            # the I in EMAIL_MODE lowercases to a dotless ı outside [A-Z], so the line was skipped.
+            if ($line -cmatch '^\s*([A-Z_]+)\s*=\s*(.*?)\s*$') { $values[$Matches[1]] = $Matches[2] }
         }
     }
     return $values
