@@ -476,6 +476,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
+- Nothing yet.
+
+**Nov 1, 2026 — accounting entry before collection, v0.11.0**
+
 - New B/L status `ACCOUNTING_PENDING` (*Muhasebe kaydı bekliyor*), at the user's decision. A B/L whose settlement involved a deduction (demurrage, cleaning, statement deductions, classified shortfalls, write-offs) or an offset refund waits there instead of closing. An accountant confirms the entry in our accounting software, which closes it as `COLLECTED`: on the Muhasebe kaydı tab of the Accounting screen (one or several, with a confirmation listing them) or on the B/L detail. The action is `bl.recordAccounting` (accountant role only), audited as `bl.accountingRecorded` and undoable within the undo window. A full bank refund without deductions closes at once, as before. B/Ls collected earlier stay collected. The dashboard counts the waiting B/Ls for accountants. Migration 0021 widens the status check; its generated index expression was corrected by hand (drizzle-kit quoted `upper("bl_no")` as a column name).
 
 **Nov 1, 2026 — customers throughout, one Settings area, faster opening balances, v0.10.0**
