@@ -1,8 +1,9 @@
 "use server";
 
 import { createAgencySchema, importAgenciesSchema, setFormTemplateSchema, updateAgencyContactSchema, updateAgencyOverridesSchema, updateAgencySchema } from "@/lib/schemas/agencies";
+import { deleteRecordSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
-import { createAgency, importAgencies, updateAgency, updateAgencyContact, updateAgencyOverrides } from "@/server/agencies";
+import { createAgency, deleteAgency, importAgencies, updateAgency, updateAgencyContact, updateAgencyOverrides } from "@/server/agencies";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
@@ -36,4 +37,9 @@ export async function updateAgencyOverridesAction(input: unknown): Promise<Actio
 export async function setAgencyFormTemplateAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(setFormTemplateSchema, input, (data) => setAgencyFormTemplate(getDb(), user, data));
+}
+
+export async function deleteAgencyAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(deleteRecordSchema, input, (data) => deleteAgency(getDb(), user, data));
 }

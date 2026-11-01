@@ -1,13 +1,14 @@
 import "server-only";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { matchByAliases } from "@/domain/agency";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { Role } from "@/domain/roles";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { customers } from "./db/schema";
+import { billsOfLading, customers, refunds } from "./db/schema";
 import { DomainError } from "./errors";
+import { assertUnlinked } from "./record-links";
 
 export type Customer = typeof customers.$inferSelect;
 export type CustomerInput = { name: string; code: string | null; aliases: string[] };
@@ -97,4 +98,22 @@ export function suggestCustomer(tx: DbOrTx, text: string): number | null {
   const active = tx.select().from(customers).where(and(eq(customers.active, true), ne(customers.name, ""))).all();
   const ids = matchByAliases(text, active.map((c) => ({ id: c.id, aliases: [...c.aliases, c.name] })));
   return ids.length === 1 ? ids[0] : null;
+}
+
+/**
+ * Deletes a customer no B/L or refund names (admin, with a reason), e.g. one entered for a
+ * test; the audit log keeps the card. Any other customer is deactivated instead.
+ */
+export function deleteCustomer(db: Db, actor: AuthUser, input: { id: number; reason: string }, now: Date = new Date()): void {
+  const roleUsed = authorize(actor, "customer.delete");
+  db.transaction((tx) => {
+    const customer = tx.select().from(customers).where(eq(customers.id, input.id)).get();
+    if (!customer) throw new DomainError("errors.notFound");
+    const count = (table: typeof billsOfLading | typeof refunds) =>
+      tx.select({ n: sql<number>`count(*)` }).from(table).where(eq(table.customerId, customer.id)).get()?.n ?? 0;
+    assertUnlinked({ bls: count(billsOfLading), refunds: count(refunds) }, "customers.errors.inUse");
+    tx.delete(customers).where(eq(customers.id, customer.id)).run();
+    const card = { name: customer.name, code: customer.code, aliases: customer.aliases, active: customer.active };
+    writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "customer.delete", entityType: "customer", entityId: customer.id, before: card, reason: input.reason }, now);
+  });
 }

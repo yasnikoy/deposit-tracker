@@ -9,6 +9,9 @@ const id = z.number().int().positive();
 
 export const requiredReasonSchema = z.string().trim().min(1, msg("payments.errors.reason")).max(500);
 
+/** Deleting an agency or customer no record names; the reason goes to the audit log. */
+export const deleteRecordSchema = z.object({ id, reason: requiredReasonSchema });
+
 export const paymentFields = {
   agencyId: id.or(z.null()).refine((v) => v !== null, msg("payments.errors.agency")).transform((v) => v as number),
   amountMinor: z

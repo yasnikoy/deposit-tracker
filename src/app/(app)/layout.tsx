@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     // Settings: one "Ayarlar" entry for everyone; its side menu shows what the user's roles allow.
     { href: "/settings", label: "nav.personalSettings", section: "personal", visible: true },
     { href: "/agencies", label: "nav.agencies", section: "general", visible: can(user, "agency.view").allowed },
+    { href: "/customers", label: "nav.customers", section: "general", visible: can(user, "customer.view").allowed },
     { href: "/admin/settings", label: "nav.appSettings", section: "admin", visible: can(user, "settings.view").allowed },
     { href: "/admin/templates", label: "nav.templates", section: "admin", visible: can(user, "settings.view").allowed },
     { href: "/admin/holidays", label: "nav.holidays", section: "admin", visible: can(user, "holiday.manage").allowed },

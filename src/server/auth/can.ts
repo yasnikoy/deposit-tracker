@@ -39,6 +39,8 @@ const rules = {
   // Setting overrides are settings, so only admins change them.
   "agency.updateOverrides": only("ADMIN"),
   "agency.updateFormTemplate": only("ADMIN"),
+  // Only an agency no record names (e.g. a test entry); others are deactivated instead.
+  "agency.delete": only("ADMIN"),
   "document.upload": only("ACCOUNTANT", "OPERATIONS", "ADMIN"),
   "document.view": ALL_ROLES,
   // Money enters through the accountant role; corrections only on own records (rule 7).
@@ -78,6 +80,8 @@ const rules = {
   "customer.view": ALL_ROLES,
   // Customers are a list like the others: an admin keeps them (Listeler).
   "customer.manage": only("ADMIN"),
+  // Only a customer no record names; others are deactivated instead.
+  "customer.delete": only("ADMIN"),
   // Team notes on B/Ls, with @mentions.
   "note.add": only("OPERATIONS"),
   // Each user sees and marks read only their own notifications.

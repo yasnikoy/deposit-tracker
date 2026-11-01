@@ -264,10 +264,12 @@ test("admin moves Excel records in one after another: queued receipts, carried-o
   await expect(page.getByRole("link", { name: "Dekont 245678998.pdf" }).first()).toBeVisible();
 });
 
-test("an admin keeps the customer list under Lists: adds a customer with aliases and edits it", async ({ page }) => {
+test("an admin keeps the customer list under General: adds, edits, and deletes one no record names", async ({ page }) => {
   const c = tr.customers;
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await page.goto("/admin/lists");
+  await page.getByRole("navigation", { name: tr.nav.settings }).getByRole("link", { name: tr.nav.customers }).click();
+  await expect(page).toHaveURL(/\/customers$/);
   await page.getByRole("button", { name: c.new }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(c.name).fill("Beta Gıda Ltd.");
@@ -282,4 +284,23 @@ test("an admin keeps the customer list under Lists: adds a customer with aliases
   await expect(page.getByRole("cell", { name: "Beta Gıda Ltd." })).toBeVisible();
   // The customer added by name from the opening-balance form is on the list too.
   await expect(page.getByRole("cell", { name: "Örnek İthalat" })).toBeVisible();
+
+  // Beta is on no record yet, so it can be deleted (with a reason); Örnek İthalat is on a B/L.
+  await page.getByRole("cell", { name: "Örnek İthalat" }).click();
+  await dialog.getByRole("button", { name: tr.recordDelete.button }).click();
+  const confirm = page.getByRole("dialog", { name: /silinsin mi/ });
+  await confirm.getByRole("textbox").fill("Yanlış kayıt");
+  await confirm.getByRole("button", { name: tr.common.delete }).click();
+  await expect(page.getByText(/Bu müşteri kayıtlarda kullanılıyor \(\d+ B\/L\)/)).toBeVisible();
+  await confirm.getByRole("button", { name: tr.common.cancel }).click();
+  await expect(confirm).toHaveCount(0);
+  await dialog.getByRole("button", { name: tr.common.close, exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+
+  await page.getByRole("cell", { name: "Beta Gıda Ltd." }).click();
+  await dialog.getByRole("button", { name: tr.recordDelete.button }).click();
+  await confirm.getByRole("textbox").fill("Deneme kaydı");
+  await confirm.getByRole("button", { name: tr.common.delete }).click();
+  await expect(page.getByText("“Beta Gıda Ltd.” silindi.")).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Beta Gıda Ltd." })).toHaveCount(0);
 });

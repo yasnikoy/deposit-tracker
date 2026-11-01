@@ -12,7 +12,8 @@ import { t } from "@/i18n";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { AgencyListItem } from "@/server/agencies";
-import { updateAgencyContactAction } from "./actions";
+import { DeleteRecord } from "@/components/delete-record";
+import { deleteAgencyAction, updateAgencyContactAction } from "./actions";
 import { AgencyForm } from "./agency-form";
 import { ExportAgenciesButton, ImportAgenciesButton } from "./agency-transfer";
 import { FormTemplateCard } from "./form-template-card";
@@ -23,7 +24,7 @@ const splitList = (text: string) => text.split(/[,;\s]+/).map((part) => part.tri
 const AGENCY_STATUSES = ["active", "incomplete", "inactive"] as const;
 type AgencyStatus = (typeof AGENCY_STATUSES)[number];
 
-export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean; updateFormTemplate: boolean };
+export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean; updateFormTemplate: boolean; delete: boolean };
 
 export function AgenciesScreen({
   agencies,
@@ -162,6 +163,7 @@ export function AgenciesScreen({
             {agency && (
               <OverridesForm key={`${agency.id}:${JSON.stringify(agency.overrides)}`} agency={agency} globals={globals} editable={permissions.updateOverrides} />
             )}
+            {agency && permissions.delete && <DeleteRecord name={agency.name} onDelete={(reason) => deleteAgencyAction({ id: agency.id, reason })} onDeleted={close} />}
           </div>
         </DetailDialog>
       )}

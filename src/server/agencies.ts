@@ -9,9 +9,10 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies, documents } from "./db/schema";
+import { agencies, billsOfLading, depositPayments, documents, emails, notifications, refunds, reportEmails } from "./db/schema";
 import { DomainError } from "./errors";
 import { notify, usersWithRole } from "./notifications";
+import { assertUnlinked, type RecordLinks } from "./record-links";
 
 export type Agency = typeof agencies.$inferSelect;
 export type AgencyWithOverrides = Omit<Agency, (typeof agencyOverrideFields)[keyof typeof agencyOverrideFields]> & {
@@ -239,6 +240,45 @@ export function updateAgencyOverrides(
         after: overridesOf(after),
         reason: input.reason,
       },
+      now,
+    );
+  });
+}
+
+const countWhere = (tx: DbOrTx, table: typeof billsOfLading | typeof depositPayments | typeof refunds | typeof emails, id: number) =>
+  tx.select({ n: sql<number>`count(*)` }).from(table).where(eq(table.agencyId, id)).get()?.n ?? 0;
+
+/** Every record that names the agency, voided ones included (they stay in history). */
+function agencyLinks(tx: DbOrTx, agency: Agency): RecordLinks {
+  return {
+    bls: countWhere(tx, billsOfLading, agency.id),
+    payments: countWhere(tx, depositPayments, agency.id),
+    refunds: countWhere(tx, refunds, agency.id),
+    emails: countWhere(tx, emails, agency.id),
+    reportEmails:
+      tx
+        .select({ n: sql<number>`count(*)` })
+        .from(reportEmails)
+        .where(sql`exists (select 1 from json_each(${reportEmails.filters}, '$.agencyIds') where value = ${agency.id})`)
+        .get()?.n ?? 0,
+    formTemplate: agency.formTemplateDocumentId === null ? 0 : 1,
+  };
+}
+
+/**
+ * Deletes an agency no record names (admin, with a reason), e.g. one entered for a test. Its
+ * notifications go with it; the audit log keeps the card. Any other agency is deactivated instead.
+ */
+export function deleteAgency(db: Db, actor: AuthUser, input: { id: number; reason: string }, now: Date = new Date()): void {
+  const roleUsed = authorize(actor, "agency.delete");
+  db.transaction((tx) => {
+    const agency = requireAgency(tx, input.id);
+    assertUnlinked(agencyLinks(tx, agency), "agencies.errors.inUse");
+    tx.delete(notifications).where(and(eq(notifications.entityType, "agency"), eq(notifications.entityId, agency.id))).run();
+    tx.delete(agencies).where(eq(agencies.id, agency.id)).run();
+    writeAudit(
+      tx,
+      { actorUserId: actor.id, roleUsed, action: "agency.delete", entityType: "agency", entityId: agency.id, before: snapshot(agency), reason: input.reason },
       now,
     );
   });

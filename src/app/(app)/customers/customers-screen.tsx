@@ -10,10 +10,21 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { t } from "@/i18n";
 import type { TableLayout } from "@/lib/schemas/table-layout";
+import { DeleteRecord } from "@/components/delete-record";
+import { deleteCustomerAction } from "./actions";
 import { CustomerForm } from "./customer-form";
 
-/** Registered customers: searchable list, card in a dialog (accounting and operations edit). */
-export function CustomersScreen({ customers, layout, canManage }: { customers: CustomerOption[]; layout: TableLayout | null; canManage: boolean }) {
+/** Registered customers: searchable list, card in a dialog (an admin edits, and deletes one no record names). */
+export function CustomersScreen({
+  customers,
+  layout,
+  permissions,
+}: {
+  customers: CustomerOption[];
+  layout: TableLayout | null;
+  permissions: { manage: boolean; delete: boolean };
+}) {
+  const canManage = permissions.manage;
   const [selected, setSelected] = useState<number | "new" | null>(null);
   const [order, setOrder] = useState<string[]>([]);
   const close = useCallback(() => setSelected(null), []);
@@ -69,7 +80,12 @@ export function CustomersScreen({ customers, layout, canManage }: { customers: C
           navigation={customer ? detailNavigation(order, String(customer.id), (id) => setSelected(Number(id))) : null}
           onClose={close}
         >
-          <CustomerForm key={selected} customer={customer ?? null} readOnly={!canManage} onCreated={(id) => setSelected(id)} />
+          <div className="flex flex-col gap-6">
+            <CustomerForm key={selected} customer={customer ?? null} readOnly={!canManage} onCreated={(id) => setSelected(id)} />
+            {customer && permissions.delete && (
+              <DeleteRecord name={customer.name} onDelete={(reason) => deleteCustomerAction({ id: customer.id, reason })} onDeleted={close} />
+            )}
+          </div>
         </DetailDialog>
       )}
     </>

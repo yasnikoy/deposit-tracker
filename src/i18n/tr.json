@@ -38,6 +38,7 @@
     "settings": "Ayarlar",
     "holidays": "Tatiller",
     "agencies": "Acenteler",
+    "customers": "Müşteriler",
     "accounting": "Muhasebe",
     "createBls": "B/L oluştur",
     "lists": "Listeler",
@@ -593,6 +594,7 @@
     },
     "errors": {
       "nameTaken": "Bu adla bir acente zaten var.",
+      "inUse": "Bu acente kayıtlarda kullanılıyor ({links}); silinemez. Kullanılmayacaksa pasif yapın.",
       "email": "Geçersiz e-posta adresi.",
       "tooMany": "En fazla 20 satır girilebilir.",
       "alias": "Banka gönderen adı en fazla 100 karakter olabilir.",
@@ -1632,8 +1634,24 @@
       "alias": "Bir ad en fazla 100 karakter olabilir.",
       "unknown": "Müşteri bulunamadı veya pasif.",
       "nameTaken": "Bu adla bir müşteri zaten kayıtlı.",
-      "codeTaken": "Bu kodla bir müşteri zaten kayıtlı."
+      "codeTaken": "Bu kodla bir müşteri zaten kayıtlı.",
+      "inUse": "Bu müşteri kayıtlarda kullanılıyor ({links}); silinemez. Kullanılmayacaksa pasif yapın."
     }
+  },
+  "recordLinks": {
+    "bls": "{count} B/L",
+    "payments": "{count} ödeme",
+    "refunds": "{count} iade",
+    "emails": "{count} e-posta",
+    "reportEmails": "{count} rapor e-postası filtresi",
+    "formTemplate": "form şablonu"
+  },
+  "recordDelete": {
+    "button": "Kaydı sil",
+    "hint": "Yalnızca hiçbir kayıtta kullanılmayan (ör. deneme için girilmiş) bir kayıt silinebilir; diğerleri pasif yapılır.",
+    "confirmTitle": "“{name}” silinsin mi?",
+    "confirmDescription": "Kayıt kalıcı olarak silinir; işlem geri alınamaz. Denetim kaydında kalır.",
+    "deleted": "“{name}” silindi."
   },
   "system": {
     "title": "Sistem durumu",

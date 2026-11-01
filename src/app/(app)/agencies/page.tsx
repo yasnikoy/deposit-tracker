@@ -30,6 +30,7 @@ export default async function AgenciesPage({ searchParams }: { searchParams: Pro
           update: can(user, "agency.update").allowed,
           updateOverrides: can(user, "agency.updateOverrides").allowed,
           updateFormTemplate: can(user, "agency.updateFormTemplate").allowed,
+          delete: can(user, "agency.delete").allowed,
         }}
       />
     </>
