@@ -29,6 +29,14 @@ if (git("status", "--porcelain", "--untracked-files=no", "--", "src", "scripts",
 if (git("tag", "--list", tag) !== tag) fail(`tag ${tag} is missing`);
 if (git("rev-list", "-n", "1", tag) !== git("rev-parse", "HEAD")) fail(`tag ${tag} is not the current commit`);
 
+// Versions belong to releases (ARCHITECTURE → Change log): what is released must have left
+// "Unreleased" for an entry titled with this version.
+const unreleased = (fs.readFileSync(path.join(ROOT, "docs", "ARCHITECTURE.md"), "utf8").split("## Change log")[1] ?? "")
+  .split(/\n(?=\*\*)/)
+  .find((e) => e.startsWith("**Unreleased**"));
+const pending = (unreleased ?? "").split("\n").filter((l) => l.startsWith("- ") && l.trim() !== "- Nothing yet.");
+if (pending.length > 0) fail(`the change log still lists changes under "Unreleased"; move them into the ${tag} entry first`);
+
 // Sign, and check against the public key the app has built in.
 if (!fs.existsSync(keyFile)) fail(`release key not found: ${keyFile}`);
 const data = fs.readFileSync(zip);

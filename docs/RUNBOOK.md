@@ -236,10 +236,15 @@ Never send `deposit.key` or `deposit.sqlite`.
 
 ## 13. Publishing a release (developer)
 
-On the development machine, from a clean `main`:
+A version number belongs to a published release, never to a commit (ARCHITECTURE → Change log).
+Between releases, commits leave `package.json` alone and add their change-log lines under
+**Unreleased**. On the development machine, from a clean `main`:
 
-1. Raise the version (`package.json`) and add the change-log entry with `vX.Y.Z` in its title in
-   `docs/ARCHITECTURE.md`; commit and tag `vX.Y.Z`.
+1. Choose the version: a new minor version (0.10.0 → 0.11.0) for features or database
+   migrations, a patch (0.10.0 → 0.10.1) for fixes only. Turn **Unreleased** into one entry titled
+   with the date and `vX.Y.Z`, and leave a fresh **Unreleased** with "- Nothing yet." above it.
+   Raise the version in `package.json`, commit, and tag `vX.Y.Z`. `pnpm release` refuses a version
+   without its entry, or with lines still under Unreleased.
 2. `pnpm build:portable` → `dist/deposit-tracker-X.Y.Z-win-x64.zip`.
 3. `pnpm release` — signs it (key: `~/.config/deposit-tracker/release-private-key.pem`) and shows
    what would be published.

@@ -787,7 +787,7 @@ export const refunds = sqliteTable(
     agencyId: integer("agency_id")
       .notNull()
       .references(() => agencies.id),
-    // The one customer a refund is for (required for new refunds; null on refunds entered before v0.9.7).
+    // The one customer a refund is for (required for new refunds; null on refunds entered before v0.10.0).
     customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
     amountMinor: integer("amount_minor").notNull(),
     currency: text("currency")

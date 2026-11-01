@@ -332,7 +332,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **B/L creation.** Operations creates B/Ls one at a time from a payment, or in bulk from a table of payments without a B/L: each row is prefilled (agency, amount, currency, B/L number candidate) and B/L numbers and container lists can be typed or pasted from Excel. Rows are saved together after validation; invalid rows stay in the table with their errors. B/L numbers are stored upper-case without spaces (3–40 characters: letters, digits, `-`, `/`) and are unique among active B/Ls across all agencies; a number that does not match the agency's patterns only shows a warning. Container numbers must have the ISO 6346 form (4 letters, 7 digits); a wrong check digit only shows a warning. The B/L number can be edited until the first request is sent; containers can always be edited.
 
-**Incoming refunds.** The accountant enters agency (searchable by bank sender aliases), customer, amount, currency, value date and, optionally, the receipt (attachable later), with the same duplicate warning. Every refund belongs to exactly one customer: a batched refund never mixes customers. The customer is suggested from the receipt description through customer aliases (only when exactly one matches) or picked by hand from the customer list (kept by an admin under Listeler), and is required. Refunds entered before v0.9.7 have none until corrected. Offsets are entered the same way with kind `OFFSET` and the invoice as evidence. Refunds arrive in full; there is no bank-fee tolerance.
+**Incoming refunds.** The accountant enters agency (searchable by bank sender aliases), customer, amount, currency, value date and, optionally, the receipt (attachable later), with the same duplicate warning. Every refund belongs to exactly one customer: a batched refund never mixes customers. The customer is suggested from the receipt description through customer aliases (only when exactly one matches) or picked by hand from the customer list (kept by an admin under Listeler), and is required. Refunds entered before v0.10.0 have none until corrected. Offsets are entered the same way with kind `OFFSET` and the invoice as evidence. Refunds arrive in full; there is no bank-fee tolerance.
 
 **Receipt reading.** All payments and refunds pass through one bank, so its PDF receipt has one known layout. For a text-based PDF receipt the app extracts sender or beneficiary name, amount, currency, date and (outgoing) B/L number candidates, matches the name to an agency through its bank sender aliases, and prefills the form. Every field stays editable and manual entry is always possible. Extraction runs on the host PC. Scanned or photographed receipts are entered manually in v1.
 
@@ -358,7 +358,7 @@ Voided records disappear from working lists, balances and reports, remain visibl
 
 **Undo.** A user can undo their own recent action within the undo window: a recorded reply type, a deduction from a statement, an email-to-B/L link made by hand or by accepting a match, a form upload, a B/L number or container edit, and (build step 7) a note or an inline field edit. The success message offers "Geri al" for a few seconds, and the B/L timeline offers it on the user's own events for the rest of the window. Undo writes a compensating entry or a set-once flag (reply undone, link unlinked, upload withdrawn; nothing is deleted) and an audit row referencing the original; the timeline shows both. It needs the permission of the original action, takes back several rows of one action together (e.g. a bulk reply), and is refused once the B/L moved on: a link with a recorded reply, a form already sent, an edit changed again, a status changed since. A *not yet returned* reply or a statement deduction that closed the B/L returns the B/L to the status before it. Confirmed allocations, sent emails, money records, write-offs, classifications, disputes and settings cannot be undone this way.
 
-**Allocation suggestions.** Candidates are B/Ls of the refund's customer, agency and currency. B/Ls of other customers and B/Ls without a customer are not suggested. The review screen lists them under "show other customers' B/Ls", where they can be added by hand. A refund without a customer (entered before v0.9.7) suggests from all customers, with at least one request sent on or before the value date, still open and not voided. Expected amount per B/L = deposit − recorded deductions − already allocated. The engine returns ranked alternatives:
+**Allocation suggestions.** Candidates are B/Ls of the refund's customer, agency and currency. B/Ls of other customers and B/Ls without a customer are not suggested. The review screen lists them under "show other customers' B/Ls", where they can be added by hand. A refund without a customer (entered before v0.10.0) suggests from all customers, with at least one request sent on or before the value date, still open and not voided. Expected amount per B/L = deposit − recorded deductions − already allocated. The engine returns ranked alternatives:
 
 1. **Exact subset:** combinations of candidates whose expected amounts sum exactly to the refund, oldest-first combinations ranked higher.
 2. **FIFO:** fill oldest B/Ls first (by first request date); the last one absorbs the shortfall.
@@ -470,49 +470,36 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
-**Nov 1, 2026 — B/L detail: emails in place, customer; settings contents, v0.9.8**
+**How versions and this log work.** A version number belongs to a published release, never to a commit. Changes go under **Unreleased** as they are committed; the version in `package.json` stays as it is. Building a release turns Unreleased into one entry titled with the date and `vX.Y.Z`, raises the version, tags the commit and publishes (RUNBOOK → Publishing a release). Semantic Versioning, before 1.0: a new minor version (0.10.0 → 0.11.0) for new features or database migrations, a patch (0.10.0 → 0.10.1) for fixes only. A change that needs manual steps on the office PC raises the major version, which the in-app update never installs by itself (Updates).
 
-- B/L detail: clicking an email of the chain (received or sent) opens it in a dialog on the B/L instead of the Replies screen. An incoming email shows its message, attachments and linked B/Ls with the quick reply-type buttons, suggestions and deductions, as on the Replies screen. A sent request shows as sent. This needs `reply.view` (operations), like the Replies screen; for others the subject is plain text. `getReplyDetail` now also serves our sent agency emails, but not internal report emails.
-- B/L detail: the customer shows in the summary and is changed in place: set, change or clear (`bl.setCustomer`: accounting, operations or admin, audited).
-- Settings: the active page in the side menu has a marker bar. Long settings pages have a contents menu that highlights the section in view while scrolling (`SectionNav`, used by Uygulama ayarları).
+**Unreleased**
 
-**Nov 1, 2026 — customer on refunds, matching by customer, v0.9.7**
+- Nothing yet.
 
-- As decided on Oct 31: every new refund has exactly one customer (required, `refunds.customer_id`, migration 0020; earlier refunds keep none). The refund form and the correction pick it from the customer list. The receipt suggests it through customer aliases. Refund lists show it. Refunds to allocate follow the viewer's customer filter.
-- Allocation suggestions come only from B/Ls of the refund's customer. Other customers' B/Ls and B/Ls without a customer, of the same agency and currency, stay confirmable: the review screen shows them behind a "show other customers' B/Ls" button, with their customer named. Confirmation rules are unchanged.
-- B/Ls without a customer are not suggested and must be added by hand; since v0.9.8 their customer can be set on the B/L detail.
+**Nov 1, 2026 — customers throughout, one Settings area, faster opening balances, v0.10.0**
 
-**Nov 1, 2026 — one Settings area, customer filter, v0.9.6**
-
-- The header has one **Ayarlar** (Settings) entry for every user instead of the admin-only "Yönetim" (Admin) menu. Settings pages show a side menu grouped into *Kişisel* (Personal: everyone), *Genel* (General: Acenteler) and *Yönetim* (Admin: Uygulama ayarları, E-posta şablonları, Tatiller, Listeler, Kullanıcılar, Sistem durumu). It shows only what the user's roles allow. Admin work screens (Silme onayları, Açılış bakiyesi) moved to the top menu. Acenteler moved from the top menu into Settings. URLs are unchanged.
-- Per-user customer filter (Customer filter), set under Kişisel ayarlar, with no banner. One `customerScope` check applies it where lists read their records.
-
-**Nov 1, 2026 — customers under Listeler, admin only, v0.9.5**
-
-- At the user's decision, customers are a list like the others: the customer list moves from its own page into Listeler (Lists), and only an admin adds or edits customers (`customer.manage`: admin). This replaces "accounting and operations maintain customers" (Oct 31) and the v0.9.3 page. Everyone can still pick customers where a form asks for one.
-
-**Nov 1, 2026 — customer and file number in All B/Ls, file number without "T", v0.9.4**
-
-- The All B/Ls table shows the customer and the file number as columns with filters and search (only there, for now).
-- File numbers are `26-12345`. The receipt reader drops the `T` of `T26-12345` and reads exactly five digits. Entered values are normalised the same way: `T` dropped, `2612345` gets its hyphen, anything else is rejected. B/Ls created from payments read before this change are normalised too. Migration 0019 strips the `T` from stored file numbers; other values stay as they are.
-
-**Nov 1, 2026 — customer list, v0.9.3**
-
-- New *Müşteriler* (Customers) page next to Acenteler, as decided on Oct 31 (first part). Everyone can read it. Accounting and operations add customers and edit name, code, aliases and active (`customer.manage`; `customer.update` audited with before/after; unique names in Turkish case and unique codes). It is a page of its own rather than part of Listeler (Lists), which is admin-only. Deactivated customers stay on their records but are no longer offered or suggested from receipts.
-- Still open from the Oct 31 decisions: customer and file number on the B/L screens, the per-user customer filter, and customer on refunds with allocation by customer.
-
-**Nov 1, 2026 — faster opening-balance entry, v0.9.2**
-
-- The opening-balance receipt is optional (rule 12 relaxed at the user's decision, like payments and refunds). The B/L detail shows "Dekont yok" for a migrated B/L without one, and an admin or operations (`openingBalance.attachEvidence`) attaches it once, audited. Requests for it warn about the missing receipt, as for payments.
-- Sequential entry: several receipts dropped at once wait in a queue on the page (client-side; nothing is stored until a record is saved). Each one fills the form from the receipt, through the same prefill as payments. That prefill now also returns the customer (aliases or name, only when exactly one matches) and the file number. The kind, agency, customer and currency carry over to the next record. The past request count starts at 0.
-- Customer on opening balances: picked from registered customers, or named; a new name is registered with the record (`customer.create`, audited under the admin role, name only). There is still no customer screen, so aliases cannot be added yet: the receipt suggests a new customer only when its full name appears in the description.
-- The agency and customer pickers share one search combobox, which now also shows a value set from outside (receipt prefill, carried-over values).
-- No change to request timing: it was already computed like any B/L's. The help text said the first request was due "at once", which held only for older payments, and now says so correctly.
-
-**Nov 1, 2026 — firewall rule on every network type, local subnet only, v0.9.1**
-
-- After `firewall.cmd`, Windows asked about network access for `node.exe` again at each start on a PC whose office connection was classified as public: the rule covered only the domain and private profiles. Reclassifying the connection is IT's decision, so the rule now covers every profile instead, restricted to the PC's own local subnet (remote address `LocalSubnet`). Office PCs on the same subnet can connect; other networks and the internet cannot. The trade-off: on an untrusted network (e.g. public Wi-Fi), devices on that same subnet could reach the login page. That is acceptable for an office desktop on Ethernet.
-- A rule from v0.9.0 (domain and private only) is reported as missing by `setup.cmd` and `start.cmd`. IT runs `firewall.cmd` once more.
+- Firewall: the `firewall.cmd` rule now covers every network type (domain, private and public), but only the PC's own local subnet (remote address `LocalSubnet`). Before, an office connection classified as public kept Windows asking about `node.exe` at each start, and other PCs could not connect. Reclassifying the connection is IT's decision, so the rule changed instead. Trade-off: on an untrusted network (e.g. public Wi-Fi), devices on that same subnet could reach the login page; acceptable for an office desktop on Ethernet. A v0.9.0 rule is reported as missing by `setup.cmd` and `start.cmd`; IT runs `firewall.cmd` once more.
+- Opening balances, entered one after another:
+  - The receipt is optional (rule 12 relaxed at the user's decision, like payments and refunds). An admin or operations attaches it later from the B/L detail, once, audited (`openingBalance.attachEvidence`). Requests warn about the missing receipt.
+  - Several receipts dropped at once wait in a queue on the page (client-side) and fill the form one by one. Receipt prefill now also returns the customer (aliases or name, only when exactly one matches) and the file number. Kind, agency, customer and currency carry over to the next record. The past request count starts at 0.
+  - The customer is picked, or named; a new name is registered with the record (`customer.create`, audited under the admin role).
+  - Request timing is unchanged: it was already computed like any B/L's. The help text no longer says the first request is due "at once"; that held only for older payments.
+- Customers:
+  - The customer list is a section of Listeler (Lists). Only an admin adds or edits customers (`customer.manage`): name, code, aliases (how staff write the name in transfer descriptions, so receipts name the customer) and active. This replaces the Oct 31 "accounting and operations maintain customers". Customers are deactivated, never deleted.
+  - The B/L detail shows the customer and sets, changes or clears it in place (`bl.setCustomer`: accounting, operations or admin, audited).
+  - All B/Ls shows customer and file number as columns with filters and search.
+  - File numbers are `26-12345`. The receipt reader drops the `T` of `T26-12345` and reads exactly five digits. Entered values are normalised the same way, and anything else is rejected. Migration 0019 strips the `T` from stored file numbers.
+- Refunds by customer (as decided on Oct 31):
+  - Every new refund has exactly one customer (required; `refunds.customer_id`, migration 0020; earlier refunds have none until corrected). It is picked in the refund form and the correction, suggested from the receipt, and shown in refund lists.
+  - Allocation suggestions come only from the refund customer's B/Ls. Other customers' B/Ls and B/Ls without a customer, of the same agency and currency, stay confirmable behind "show other customers' B/Ls". Confirmation rules are unchanged.
+- One Settings area: the header has one **Ayarlar** entry for every user instead of the admin-only "Yönetim" menu.
+  - Its side menu shows only what the user's roles allow: *Kişisel* (everyone), *Genel* (Acenteler) and *Yönetim* (Uygulama ayarları, E-posta şablonları, Tatiller, Listeler, Kullanıcılar, Sistem durumu). The active page is marked.
+  - Uygulama ayarları has a contents menu that highlights the section in view (`SectionNav`).
+  - Admin work screens (Silme onayları, Açılış bakiyesi) moved to the top menu. URLs are unchanged.
+- Per-user customer filter under Kişisel ayarlar, with no banner (Customer filter). One `customerScope` check applies it where lists read their records.
+- B/L detail: an email of the chain (received or sent) opens in a dialog on the B/L instead of the Replies screen. An incoming one shows the message, attachments and linked B/Ls with the quick reply-type buttons, suggestions and deductions; a sent request shows as sent. It needs `reply.view` (operations), as the Replies screen does.
+- The agency and customer pickers share one search combobox, which also shows a value set from outside (receipt prefill, carried-over values).
+- Versioning: the version changes only when a release is built (see the start of this change log); 0.9.1–0.9.8 were never published.
 
 **Nov 1, 2026 — setup without administrator rights, v0.9.0**
 

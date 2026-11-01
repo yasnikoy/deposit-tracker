@@ -50,7 +50,7 @@ function customerAndFile(tx: DbOrTx, row: BlRowInput, payment: typeof depositPay
   const suggested = row.customerId === undefined && extraction.description ? suggestCustomer(tx, extraction.description) : null;
   return {
     customerId: row.customerId ?? suggested,
-    // Payments read before v0.9.4 kept the "T" of the description.
+    // Payments read before v0.10.0 kept the "T" of the description.
     fileNo: row.fileNo === undefined ? fileNoOf(extraction.fileNumber) : row.fileNo && normalizeFileNo(row.fileNo),
   };
 }
