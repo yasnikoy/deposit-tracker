@@ -122,6 +122,8 @@ try {
     if ($firewall -eq $true) { Write-Host "Port $port ofis ağına açık." }
     elseif ($firewall -eq $false) { Write-FirewallHelp ([int]$port) }
     else { Write-Host 'Güvenlik duvarı kuralları okunamadı. Diğer bilgisayarlardan açılmıyorsa BT firewall.cmd dosyasını çalıştırsın.' -ForegroundColor Yellow }
+    $public = Get-PublicConnections
+    if ($public.Count -gt 0) { Write-PublicNetworkHelp $public }
     Write-Host ''
     Write-Host 'İlk girişten sonra: Ayarlar -> E-posta, Kullanıcılar, Acenteler; Ayarlar -> Yedekleme -> İkinci yedek konumu.'
     Wait-Close

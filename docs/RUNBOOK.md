@@ -62,6 +62,11 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
    If Windows shows its own "allow access?" prompt when the app first starts and nobody with an
    administrator account is at hand, click **Cancel**: the app keeps working on this PC.
    `firewall.cmd` later removes the block rules that Cancel leaves for `node.exe`.
+   If the prompt comes back at every start after `firewall.cmd`, Windows treats the office
+   connection as a **public** network, where the rule never applies (and other PCs cannot
+   connect). `start.cmd` warns about it. `firewall.cmd` offers to switch the connection to
+   private; by hand: Settings → Network & Internet → Ethernet → Network profile type → Private
+   (administrator).
 
    Without `firewall.cmd`, by hand (administrator): Windows Defender Firewall with Advanced
    Security (`wf.msc`) → Inbound Rules → New Rule… → Custom → This program path:

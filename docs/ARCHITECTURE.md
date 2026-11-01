@@ -469,6 +469,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Nov 1, 2026 — public network warning, v0.9.1**
+
+- After `firewall.cmd`, Windows asked about network access for `node.exe` again at each start on a PC whose connection was classified as public. The rule deliberately leaves out public networks. `setup.cmd` and `start.cmd` now warn when a connection is public (no administrator rights needed to check). `firewall.cmd` offers to switch such a connection to private, with the administrator's consent. The rule itself still never covers public networks.
+
 **Nov 1, 2026 — setup without administrator rights, v0.9.0**
 
 - `setup.cmd`, `start.cmd` and `stop.cmd` no longer ask for administrator approval. The task runs as the signed-in user with an interactive logon and starts at that user's Windows sign-in instead of at boot, with no stored password. There are no more account or password questions, and no S4U. The window is hidden through `conhost --headless`. Trade-off: the app runs only while that user is signed in. On the office's auto-login PCs that is from boot.

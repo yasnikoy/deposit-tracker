@@ -19,6 +19,17 @@ try {
         -Program $NodeExe -Profile Domain, Private | Out-Null
     Write-Host "Port $port ofis ağına açıldı (etki alanı ve özel ağ; genel ağlar kapalı)." -ForegroundColor Green
     Write-Host "Program: $NodeExe"
+    # The rule skips public networks on purpose; an office connection marked public is moved
+    # to private here, with the administrator's consent.
+    foreach ($c in Get-PublicConnections) {
+        $answer = (Read-Host "'$($c.InterfaceAlias)' bağlantısı 'Ortak ağ' (Public) olarak tanımlı; kural burada geçerli olmaz. Bu ofis ağı mı, 'Özel ağ' yapılsın mı? (E/h)").Trim().ToLower()
+        if ($answer -in @('', 'e', 'evet', 'y')) {
+            Set-NetConnectionProfile -InterfaceIndex $c.InterfaceIndex -NetworkCategory Private
+            Write-Host "'$($c.InterfaceAlias)' artık özel ağ." -ForegroundColor Green
+        } else {
+            Write-Host 'Değiştirilmedi: bu bağlantıdan diğer bilgisayarlar uygulamaya ulaşamaz.' -ForegroundColor Yellow
+        }
+    }
 } catch {
     Write-Host "Güvenlik duvarı ayarlanamadı: $($_.Exception.Message)" -ForegroundColor Red
 }

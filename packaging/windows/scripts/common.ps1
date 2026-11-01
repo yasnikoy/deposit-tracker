@@ -119,6 +119,21 @@ function Test-FirewallRule([int]$Port) {
     }
 }
 
+# Connected networks Windows treats as public. The firewall rule never covers public networks,
+# so on one of them other PCs cannot connect and Windows asks again about node.exe at each start.
+function Get-PublicConnections {
+    @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $_.NetworkCategory -eq 'Public' })
+}
+
+function Write-PublicNetworkHelp($Connections) {
+    foreach ($c in $Connections) {
+        Write-Host "Uyarı: '$($c.InterfaceAlias)' bağlantısı Windows'ta 'Ortak ağ' (Public) olarak tanımlı." -ForegroundColor Yellow
+    }
+    Write-Host 'Güvenlik duvarı kuralı ortak ağlarda geçerli değildir: diğer bilgisayarlar bağlanamaz ve Windows her' -ForegroundColor Yellow
+    Write-Host 'başlatmada ağ erişimi sorar (o pencerede İptal deyin). Ofis ağıysa BT bağlantıyı "Özel ağ" yapsın:' -ForegroundColor Yellow
+    Write-Host 'firewall.cmd bunu da sorar; veya Ayarlar -> Ağ ve İnternet -> Ethernet -> Ağ profili türü -> Özel.' -ForegroundColor Yellow
+}
+
 # Shown when the firewall rule is missing: the one step that needs an administrator.
 function Write-FirewallHelp([int]$Port) {
     Write-Host "Diğer bilgisayarların uygulamaya ulaşması için Windows Güvenlik Duvarı'nda port $Port açılmalı." -ForegroundColor Yellow
