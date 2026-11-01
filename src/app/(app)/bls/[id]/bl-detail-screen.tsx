@@ -30,6 +30,8 @@ import { NotesSection } from "./notes-section";
 import type { MentionableUser } from "../note-editor";
 import type { CustomerOption } from "@/components/customer-combobox";
 import { CustomerField } from "./customer-field";
+import { recordAccountingEntryAction } from "../../accounting/actions";
+import { toastWithUndo } from "@/components/undo-toast";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -63,6 +65,8 @@ export type BlDetailPermissions = {
   proposeWriteOff: boolean;
   addNote: boolean;
   setCustomer: boolean;
+  /** Confirm the accounting entry of a B/L settled with deductions or an offset. */
+  recordAccounting: boolean;
 };
 
 export function BlDetailScreen({
@@ -118,6 +122,19 @@ export function BlDetailScreen({
         <BlStatusBadge status={bl.status} voided={!!bl.voidedAt} voidReason={bl.voidReason} />
         <span>{bl.agencyName}</span>
         <div className="ml-auto flex gap-2">
+          {can.recordAccounting && bl.status === "ACCOUNTING_PENDING" && !bl.voidedAt && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                const result = await recordAccountingEntryAction({ blIds: [bl.id] });
+                if (!result.ok) return void toast.error(t(result.error, result.params));
+                toastWithUndo(t("payments.accountingEntries.recorded", { count: 1 }), result.data, () => router.refresh());
+                router.refresh();
+              }}
+            >
+              {t("payments.accountingEntries.record")}
+            </Button>
+          )}
           {can.edit && !bl.voidedAt && (
             <Button size="sm" variant="outline" onClick={() => setDialog("edit")}>
               {t("bls.edit")}

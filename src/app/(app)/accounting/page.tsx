@@ -11,8 +11,9 @@ import { getTableLayout } from "@/server/preferences";
 import { listOwnRefunds } from "@/server/refunds";
 import { AccountingScreen, type AccountingTab } from "./accounting-screen";
 import { listCustomers } from "@/server/customers";
+import { listAwaitingAccounting } from "@/server/bl-overview";
 
-const TABS: AccountingTab[] = ["new", "queue", "records", "refund", "refunds"];
+const TABS: AccountingTab[] = ["new", "queue", "records", "refund", "refunds", "entries"];
 
 export default async function AccountingPage({ searchParams }: PageProps<"/accounting">) {
   const { user } = await requireSession();
@@ -44,6 +45,8 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
         layout={getTableLayout(db, user.id, "my-payments")}
         refundsLayout={getTableLayout(db, user.id, "my-refunds")}
         canCreateBl={can(user, "bl.create").allowed}
+        entries={listAwaitingAccounting(db, user)}
+        entriesLayout={getTableLayout(db, user.id, "accounting-entries")}
       />
     </>
   );

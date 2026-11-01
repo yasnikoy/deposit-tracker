@@ -16,6 +16,7 @@ import { listDueRequests } from "./requests";
 import { getSetting } from "./settings";
 import { pendingWriteOffCount } from "./write-offs";
 import { customerScope } from "./preferences";
+import { isSettled } from "@/domain/bl-lifecycle";
 
 export type Position = BlOverview & {
   open: boolean;
@@ -37,7 +38,7 @@ function positionsOf(db: DbOrTx, bls: BlOverview[]): Position[] {
   return bls
     .filter((bl) => !bl.voidedAt)
     .map((bl) => {
-      const open = bl.status !== "COLLECTED";
+      const open = !isSettled(bl.status);
       const unexplained = bl.status === "DEDUCTION_OPEN" || bl.status === "DISPUTED" ? openUnexplained(db, bl.id).reduce((sum, e) => sum + e.amountMinor, 0) : 0;
       return { ...bl, open, outstandingMinor: open ? bl.expectedMinor + unexplained : 0 };
     });
@@ -123,6 +124,8 @@ export type DashboardSummary = {
   pending: {
     paymentsWithoutBl: Count;
     refundsToAllocate: Count;
+    /** Settled B/Ls waiting for the accountant's accounting entry. */
+    accountingEntries: Count;
     unprocessedReplies: { count: number; overdue: number } | null;
     unallocated: { count: number; totals: CurrencyTotal[] } | null;
     writeOffsAwaiting: Count;
@@ -168,6 +171,7 @@ export function dashboardSummary(db: DbOrTx, actor: AuthUser, now: Date = new Da
     pending: {
       paymentsWithoutBl: allowed("bl.viewAwaiting") ? countPaymentsAwaitingBl(db) : null,
       refundsToAllocate: allowed("allocation.view") ? listRefundsToAllocate(db, actor).length : null,
+      accountingEntries: allowed("bl.recordAccounting") ? all.filter((p) => p.status === "ACCOUNTING_PENDING").length : null,
       unprocessedReplies: unprocessed ? { count: unprocessed.count, overdue: unprocessed.overdue } : null,
       unallocated: remainder ? { count: remainder.length, totals: totalsByCurrency(remainder.map((r) => ({ currency: r.currency, amountMinor: r.remainderMinor }))) } : null,
       writeOffsAwaiting: allowed("writeOff.view") ? pendingWriteOffCount(db) : null,

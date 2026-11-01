@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InvalidTransitionError, nextStatus, statusAfterReversal, statusAfterUndo } from "@/domain/bl-lifecycle";
+import { closingStatus, InvalidTransitionError, isSettled, nextStatus, statusAfterReversal, statusAfterUndo } from "@/domain/bl-lifecycle";
 
 describe("refund request sent (email sent or portal request recorded)", () => {
   it("moves a paid B/L to REQUESTED and brings an awaiting-return B/L back to REQUESTED", () => {
@@ -129,5 +129,42 @@ describe("undo of an action that moved the B/L (within the undo window)", () => 
     ] as const) {
       expect(() => statusAfterUndo({ current: after, before, after })).toThrow(InvalidTransitionError);
     }
+  });
+});
+
+describe("accounting entry for closures with deductions or offsets", () => {
+  it("lands a closing B/L on ACCOUNTING_PENDING when a deduction or an offset refund was involved, else on COLLECTED", () => {
+    expect(closingStatus("COLLECTED", { hasDeduction: false, hasOffsetRefund: false })).toBe("COLLECTED");
+    expect(closingStatus("COLLECTED", { hasDeduction: true, hasOffsetRefund: false })).toBe("ACCOUNTING_PENDING");
+    expect(closingStatus("COLLECTED", { hasDeduction: false, hasOffsetRefund: true })).toBe("ACCOUNTING_PENDING");
+    // Only a closure waits; other moves are untouched.
+    expect(closingStatus("DEDUCTION_OPEN", { hasDeduction: true, hasOffsetRefund: true })).toBe("DEDUCTION_OPEN");
+  });
+
+  it("closes only from ACCOUNTING_PENDING once the accountant records the entry", () => {
+    expect(nextStatus("ACCOUNTING_PENDING", "ACCOUNTING_RECORDED")).toBe("COLLECTED");
+    for (const from of ["PAID", "REQUESTED", "AWAITING_RETURN", "DEDUCTION_OPEN", "DISPUTED", "COLLECTED"] as const) {
+      expect(() => nextStatus(from, "ACCOUNTING_RECORDED")).toThrow(InvalidTransitionError);
+    }
+  });
+
+  it("is settled: no requests, replies, allocations or write-offs move it", () => {
+    for (const event of ["REFUND_REQUEST_SENT", "NOT_RETURNED_REPLY", "ALLOCATION_SETTLED", "STATEMENT_SETTLED", "WRITE_OFF_APPROVED", "DEDUCTION_DISPUTED"] as const) {
+      expect(() => nextStatus("ACCOUNTING_PENDING", event)).toThrow(InvalidTransitionError);
+    }
+    expect(isSettled("ACCOUNTING_PENDING")).toBe(true);
+    expect(isSettled("COLLECTED")).toBe(true);
+    expect(isSettled("DISPUTED")).toBe(false);
+  });
+
+  it("a reversed allocation reopens it like a collected B/L", () => {
+    expect(statusAfterReversal("ACCOUNTING_PENDING", "REQUESTED")).toBe("REQUESTED");
+  });
+
+  it("undo takes back the accountant's entry, and a settling statement that left the B/L waiting", () => {
+    expect(statusAfterUndo({ current: "COLLECTED", before: "ACCOUNTING_PENDING", after: "COLLECTED" })).toBe("ACCOUNTING_PENDING");
+    expect(statusAfterUndo({ current: "ACCOUNTING_PENDING", before: "REQUESTED", after: "ACCOUNTING_PENDING" })).toBe("REQUESTED");
+    // Moved on since (the entry was recorded): the statement can no longer be undone this way.
+    expect(() => statusAfterUndo({ current: "COLLECTED", before: "REQUESTED", after: "ACCOUNTING_PENDING" })).toThrow(InvalidTransitionError);
   });
 });

@@ -79,6 +79,7 @@ export default async function DashboardPage() {
           items={[
             { label: "dashboard.paymentsWithoutBl", count: pending.paymentsWithoutBl, href: "/bls/new" },
             { label: "dashboard.refundsToAllocate", count: pending.refundsToAllocate, href: "/allocations" },
+            { label: "dashboard.accountingEntries", count: pending.accountingEntries, href: "/accounting?tab=entries" },
             {
               label: "dashboard.unprocessedReplies",
               count: pending.unprocessedReplies?.count ?? null,

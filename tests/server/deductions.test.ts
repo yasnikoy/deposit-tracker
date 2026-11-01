@@ -105,7 +105,7 @@ describe("deductions from a statement before payment", () => {
       { blId: c, amountMinor: usd(800) },
     ]);
     confirmAllocation(db, ops, { refundId: r, lines: exact[0], shortfall: null, remainderReason: null }, NOW);
-    expect([status(a), status(b), status(c)]).toEqual(["COLLECTED", "COLLECTED", "COLLECTED"]);
+    expect([status(a), status(b), status(c)]).toEqual(["COLLECTED", "COLLECTED", "ACCOUNTING_PENDING"]);
   });
 
   it("need a real type, a statement, a requested B/L, and must leave something to refund", () => {
@@ -145,7 +145,7 @@ describe("deductions from a statement before payment", () => {
       },
       NOW,
     );
-    expect(status(c)).toBe("COLLECTED");
+    expect(status(c)).toBe("ACCOUNTING_PENDING");
     expect(balance(c)).toMatchObject({ collectedMinor: 0, deductionsMinor: usd(1500), expectedMinor: 0 });
     // Closed: no more requests, no allocation candidate, nothing to write off.
     expect(listDueRequests(db, ops, MONDAY).DUE.flatMap((g) => g.rows).map((r) => r.blId)).not.toContain(c);
@@ -191,7 +191,7 @@ describe("an unexplained shortfall", () => {
       },
       NOW,
     );
-    expect(status(c)).toBe("COLLECTED");
+    expect(status(c)).toBe("ACCOUNTING_PENDING");
     expect(balance(c)).toMatchObject({ deductionsMinor: usd(700), expectedMinor: 0 });
     expect(getBlDetail(db, ops, c, NOW).timeline.map((e) => e.action)).toContain("deduction.classify");
   });
@@ -297,7 +297,7 @@ describe("an unexplained shortfall", () => {
       expect.objectContaining({ messageKey: "deductions.errors.clearNote" }),
     );
     classifyDeduction(db, ops, { entryId: unexplainedEntry(c).id, lines, documentId: null, note: "Acentenin dökümü kabul edildi" }, NOW);
-    expect(status(c)).toBe("COLLECTED");
+    expect(status(c)).toBe("ACCOUNTING_PENDING");
     expect(getBlDetail(db, ops, c, NOW).timeline.map((e) => e.action)).toContain("deduction.disputeCleared");
   });
 });
@@ -313,7 +313,7 @@ describe("write-offs", () => {
 
     expect(() => approveWriteOff(db, ops, { writeOffId: id, note: null }, NOW)).toThrow(ForbiddenError);
     approveWriteOff(db, admin, { writeOffId: id, note: null }, NOW);
-    expect(status(c)).toBe("COLLECTED");
+    expect(status(c)).toBe("ACCOUNTING_PENDING");
     // The write-off replaces the unexplained deduction.
     expect(balance(c)).toMatchObject({ deductionsMinor: usd(700), expectedMinor: 0 });
     expect(unexplainedEntry(c)).toBeUndefined();
@@ -332,7 +332,7 @@ describe("write-offs", () => {
 
     const again = proposeWriteOff(db, ops, { blId: a, reason: "Acente kapandı" }, NOW);
     approveWriteOff(db, admin, { writeOffId: again, note: "Onaylandı" }, NOW);
-    expect(status(a)).toBe("COLLECTED");
+    expect(status(a)).toBe("ACCOUNTING_PENDING");
     expect(balance(a)).toMatchObject({ deductionsMinor: usd(3000), expectedMinor: 0 });
     expect(listWriteOffs(db, admin).decided.map((w) => w.state)).toEqual(["APPROVED", "REJECTED"]);
     expect(() => proposeWriteOff(db, ops, { blId: a, reason: "x" }, NOW)).toThrow(expect.objectContaining({ messageKey: "writeOffs.errors.closed" }));

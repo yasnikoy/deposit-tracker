@@ -11,7 +11,7 @@ import type { Db, DbOrTx } from "./db/client";
 import { agencies, billsOfLading, deductionTypes, users, writeOffs } from "./db/schema";
 import { blLedgerBalance, openUnexplained } from "./deductions";
 import { DomainError } from "./errors";
-import { addLedgerEntry, compensateLedgerEntry } from "./ledger";
+import { addLedgerEntry, closingStatusFor, compensateLedgerEntry } from "./ledger";
 import { notify, usersWithRole } from "./notifications";
 
 type BlRow = typeof billsOfLading.$inferSelect;
@@ -121,6 +121,8 @@ export function approveWriteOff(db: Db, actor: AuthUser, input: { writeOffId: nu
       now,
     );
     if (blLedgerBalance(tx, bl).expectedMinor !== 0) throw new DomainError("writeOffs.errors.amountChanged");
+    // A write-off is a deduction, so the B/L waits for the accounting entry.
+    status = closingStatusFor(tx, bl.id, status);
     const at = now.toISOString();
     tx.update(writeOffs)
       .set({ state: "APPROVED", decidedBy: actor.id, decidedAt: at, decisionNote: input.note, ledgerEntryId: entry.id })

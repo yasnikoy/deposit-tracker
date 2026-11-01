@@ -26,6 +26,7 @@ import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, hasConfirme
 import { notify, operationsOnBl } from "./notifications";
 import { parseReceipt, type ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
+import { isSettled, type StoredBlStatus } from "@/domain/bl-lifecycle";
 
 export type Payment = typeof depositPayments.$inferSelect;
 
@@ -206,7 +207,7 @@ function addToExistingBl(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, pay
     .get();
   if (!bl) return null;
   if (bl.agencyId !== payment.agencyId || bl.currency !== payment.currency) throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
-  if (bl.status === "COLLECTED") throw new DomainError("payments.errors.additionalClosed", { bl: bl.blNo });
+  if (isSettled(bl.status as StoredBlStatus)) throw new DomainError("payments.errors.additionalClosed", { bl: bl.blNo });
   const at = now.toISOString();
   tx.update(depositPayments).set({ additionalToBlId: bl.id, updatedAt: at }).where(eq(depositPayments.id, payment.id)).run();
   addLedgerEntry(

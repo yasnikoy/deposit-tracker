@@ -122,7 +122,7 @@ describe("allocating a batched refund", () => {
     };
     expect(() => confirmAllocation(db, acc, input, NOW)).toThrow(ForbiddenError);
     confirmAllocation(db, ops, input, NOW);
-    expect([status(a), status(b), status(c)]).toEqual(["COLLECTED", "COLLECTED", "COLLECTED"]);
+    expect([status(a), status(b), status(c)]).toEqual(["COLLECTED", "COLLECTED", "ACCOUNTING_PENDING"]);
     expect(getBlDetail(db, ops, c, NOW).bl).toMatchObject({ depositMinor: usd(1500), collectedMinor: usd(800), deductionsMinor: usd(700), expectedMinor: 0 });
     expect(getRefund(db, r)).toMatchObject({ status: "ALLOCATED", remainderMinor: 0 });
     expect(listRefundsToAllocate(db, ops)).toEqual([]);
@@ -155,7 +155,7 @@ describe("allocating a batched refund", () => {
       ],
     ]);
     confirmAllocation(db, ops, { refundId: r, lines: exact[0], shortfall: null, remainderReason: null }, NOW);
-    expect(status(c)).toBe("COLLECTED");
+    expect(status(c)).toBe("ACCOUNTING_PENDING");
   });
 
   it("an overpayment leaves the remainder on the refund, only with a reason", () => {

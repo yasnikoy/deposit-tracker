@@ -42,6 +42,7 @@ const UNDOABLE: Record<string, { permission: Action; undo: (tx: DbOrTx, actor: A
   "bl.update": { permission: "bl.update", undo: undoBlUpdate },
   "note.add": { permission: "note.add", undo: (tx, actor, audit, now) => undoNote(tx, actor, (audit.after as { noteId: number }).noteId, now) },
   "agency.update": { permission: "agency.update", undo: undoAgencyUpdate },
+  "bl.accountingRecorded": { permission: "bl.recordAccounting", undo: undoAccountingEntry },
 };
 
 const isUndone = (tx: DbOrTx, auditId: number) => !!tx.select({ id: auditLog.id }).from(auditLog).where(eq(auditLog.undoOf, auditId)).get();
@@ -152,6 +153,14 @@ function undoStatementDeduction(tx: DbOrTx, actor: AuthUser, audit: AuditRow, no
   for (const entry of active) compensateLedgerEntry(tx, entry, actor.id, now);
   setStatus(tx, bl, status, now);
   return { before: { status: bl.status, entryIds }, after: { status } };
+}
+
+/** The accounting entry no longer counts: the B/L waits for it again, unless it moved on since. */
+function undoAccountingEntry(tx: DbOrTx, _actor: AuthUser, audit: AuditRow, now: Date): Snapshot {
+  const bl = activeBl(tx, Number(audit.entityId));
+  const status = restoredStatus(bl, (audit.before as { status: StoredBlStatus }).status, (audit.after as { status: StoredBlStatus }).status);
+  setStatus(tx, bl, status, now);
+  return { before: { status: bl.status }, after: { status } };
 }
 
 /** A link made by hand or by accepting a match is taken back, while no reply was recorded on it. */

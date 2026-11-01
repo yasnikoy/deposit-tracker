@@ -43,6 +43,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         proposeWriteOff: can(user, "writeOff.propose").allowed,
         addNote: can(user, "note.add").allowed,
         setCustomer: can(user, "bl.setCustomer").allowed,
+        recordAccounting: can(user, "bl.recordAccounting").allowed,
       }}
       mentionable={mentionableUsers(getDb())}
       customers={listCustomers(getDb(), user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}

@@ -36,8 +36,10 @@ import { discardQueueItemAction, voidPaymentAction } from "./actions";
 import { CorrectPaymentDialog } from "./correct-payment-dialog";
 import { EvidenceDrop } from "./evidence-drop";
 import { PaymentForm, type ReferenceData, type SavedPayment } from "./payment-form";
+import type { BlOverview } from "@/server/bl-overview";
+import { AccountingEntries } from "./accounting-entries";
 
-export type AccountingTab = "new" | "queue" | "records" | "refund" | "refunds";
+export type AccountingTab = "new" | "queue" | "records" | "refund" | "refunds" | "entries";
 
 type Status = "awaitingBl" | "hasBl" | "voided";
 const statusOf = (p: PaymentListItem): Status => (p.voidedAt ? "voided" : p.blId ? "hasBl" : "awaitingBl");
@@ -51,6 +53,8 @@ export function AccountingScreen({
   layout,
   refundsLayout,
   canCreateBl,
+  entries,
+  entriesLayout,
 }: {
   tab: AccountingTab;
   refs: ReferenceData;
@@ -60,6 +64,9 @@ export function AccountingScreen({
   layout: TableLayout | null;
   refundsLayout: TableLayout | null;
   canCreateBl: boolean;
+  /** B/Ls waiting for the accounting entry. */
+  entries: BlOverview[];
+  entriesLayout: TableLayout | null;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState<SavedPayment | null>(null);
@@ -82,6 +89,7 @@ export function AccountingScreen({
     { id: "records", label: t("payments.myRecords") },
     { id: "refund", label: t("refunds.newTitle") },
     { id: "refunds", label: t("refunds.myRefunds") },
+    { id: "entries", label: `${t("payments.accountingEntries.tab")}${entries.length ? ` (${entries.length})` : ""}` },
   ];
 
   return (
@@ -130,6 +138,8 @@ export function AccountingScreen({
         </Card>
       ) : tab === "refunds" ? (
         <MyRefunds refunds={refunds} refs={refs} layout={refundsLayout} />
+      ) : tab === "entries" ? (
+        <AccountingEntries bls={entries} layout={entriesLayout} />
       ) : (
         <MyRecords payments={payments} refs={refs} layout={layout} />
       )}

@@ -116,6 +116,7 @@
     "failed": "Gönderilemeyen talepler",
     "pending": "Eşleştirme bekleyenler",
     "paymentsWithoutBl": "B/L'si oluşturulmamış ödemeler",
+    "accountingEntries": "Muhasebe kaydı bekleyen B/L",
     "refundsToAllocate": "Dağıtılacak iadeler",
     "unprocessedReplies": "İşlenmemiş yanıtlar",
     "overdueReplies": "{count} tanesi uyarı süresini geçti",
@@ -662,6 +663,17 @@
     }
   },
   "payments": {
+    "accountingEntries": {
+      "tab": "Muhasebe kaydı",
+      "hint": "Kesintiyle (demuraj, temizlik, silme vb.) veya mahsup faturasıyla kapanan B/L'ler. İç muhasebe programına kaydı yaptıktan sonra işaretleyin; B/L ancak o zaman tahsil edilmiş sayılır. Tam iadeyle kapananlar buraya gelmez.",
+      "empty": "Muhasebe kaydı bekleyen B/L yok.",
+      "record": "Muhasebe kaydı yapıldı",
+      "recordSelected": "Seçilenlerin muhasebe kaydı yapıldı",
+      "confirmTitle": "Muhasebe kaydı yapıldı mı?",
+      "confirmText": "Bu B/L'lerin kesinti veya mahsup kaydını muhasebe programına girdiğinizi onaylıyorsunuz. B/L'ler \"Tahsil edildi\" olur.",
+      "recorded": "{count} B/L tahsil edildi olarak kapandı.",
+      "deductions": "Kesintiler"
+    },
     "kinds": {
       "BANK": "Banka havalesi",
       "OFFSET": "Fatura mahsubu"
@@ -771,6 +783,7 @@
       "AWAITING_RETURN": "Konteyner dönüşü bekleniyor",
       "DEDUCTION_OPEN": "Kesinti açık",
       "DISPUTED": "İtirazlı",
+      "ACCOUNTING_PENDING": "Muhasebe kaydı bekliyor",
       "COLLECTED": "Tahsil edildi"
     },
     "voidedBadge": "İptal",
@@ -794,7 +807,8 @@
       "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
       "voided": "Bu B/L iptal edilmiş.",
       "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez.",
-      "fileNo": "Dosya numarası 26-12345 biçiminde olmalı (yıl, tire, 5 rakam)."
+      "fileNo": "Dosya numarası 26-12345 biçiminde olmalı (yıl, tire, 5 rakam).",
+      "notAwaitingAccounting": "B/L {bl} muhasebe kaydı beklemiyor."
     },
     "allTitle": "B/L'ler",
     "currency": "Para birimi",
@@ -861,6 +875,7 @@
         "create": "B/L oluşturuldu",
         "update": "B/L düzenlendi",
         "setCustomer": "B/L müşterisi değişti",
+        "accountingRecorded": "Muhasebe kaydı yapıldı",
         "void": "B/L iptal edildi",
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
         "overrides": "B/L ayar istisnaları değişti",

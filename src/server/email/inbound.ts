@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, asc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, notInArray } from "drizzle-orm";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import { findBlNumbers } from "@/domain/replies";
 import { writeAudit } from "../audit";
@@ -91,7 +91,8 @@ function mentionedOpenBls(tx: DbOrTx, message: ParsedMessage): { id: number; age
   const open = tx
     .select({ id: billsOfLading.id, blNo: billsOfLading.blNo, agencyId: billsOfLading.agencyId })
     .from(billsOfLading)
-    .where(and(isNull(billsOfLading.voidedAt), ne(billsOfLading.status, "COLLECTED")))
+    // Settled B/Ls (collected, or waiting only for the accounting entry) get no more replies to match.
+    .where(and(isNull(billsOfLading.voidedAt), notInArray(billsOfLading.status, ["COLLECTED", "ACCOUNTING_PENDING"])))
     .all();
   const found = new Set(findBlNumbers(`${message.subject}\n${message.text}`, open.map((bl) => bl.blNo)));
   return open.filter((bl) => found.has(bl.blNo));

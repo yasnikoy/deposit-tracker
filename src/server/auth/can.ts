@@ -84,6 +84,8 @@ const rules = {
   // Accountants follow the Operations work lists read-only.
   "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),
   "bl.update": only("OPERATIONS"),
+  // A settled B/L with deductions or an offset is collected once accounting has booked it.
+  "bl.recordAccounting": only("ACCOUNTANT"),
   // Which customer a B/L belongs to; not a money field. Admins keep the customer list.
   "bl.setCustomer": only("OPERATIONS", "ACCOUNTANT", "ADMIN"),
   "bl.void": only("OPERATIONS", "ADMIN"),

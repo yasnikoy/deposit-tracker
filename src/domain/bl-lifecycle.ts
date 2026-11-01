@@ -15,6 +15,7 @@ export type BlEvent =
   | "DEDUCTION_CLASSIFIED"
   | "DIFFERENCE_PAID"
   | "WRITE_OFF_APPROVED"
+  | "ACCOUNTING_RECORDED"
   | "ACTION_UNDONE";
 
 export class InvalidTransitionError extends Error {
@@ -79,9 +80,25 @@ const TRANSITIONS: Record<BlEvent, Partial<Record<StoredBlStatus, StoredBlStatus
     DEDUCTION_OPEN: "COLLECTED",
     DISPUTED: "COLLECTED",
   },
+  // An accountant booked the deductions or offset in our accounting software.
+  ACCOUNTING_RECORDED: {
+    ACCOUNTING_PENDING: "COLLECTED",
+  },
 };
 
-const REVERSIBLE: readonly StoredBlStatus[] = ["COLLECTED", "DEDUCTION_OPEN", "DISPUTED"];
+/**
+ * Where a B/L lands when an event closes it: a closure that involved a deduction (any type,
+ * write-offs included) or an offset refund waits for an accountant's accounting entry
+ * (ACCOUNTING_PENDING); a plain full refund closes at once. Other moves are unchanged.
+ */
+export function closingStatus(to: StoredBlStatus, involved: { hasDeduction: boolean; hasOffsetRefund: boolean }): StoredBlStatus {
+  return to === "COLLECTED" && (involved.hasDeduction || involved.hasOffsetRefund) ? "ACCOUNTING_PENDING" : to;
+}
+
+/** Nothing left to collect or request: closed, or settled and waiting only for the accounting entry. */
+export const isSettled = (status: StoredBlStatus | "DUE") => status === "COLLECTED" || status === "ACCOUNTING_PENDING";
+
+const REVERSIBLE: readonly StoredBlStatus[] = ["COLLECTED", "ACCOUNTING_PENDING", "DEDUCTION_OPEN", "DISPUTED"];
 /** Statuses an allocation starts from: a refund, or the payment of a disputed difference. */
 const ALLOCATABLE: readonly StoredBlStatus[] = ["REQUESTED", "AWAITING_RETURN", "DISPUTED"];
 
@@ -97,8 +114,17 @@ export function nextStatus(from: StoredBlStatus, event: BlEvent): StoredBlStatus
   return to;
 }
 
-/** The only status changes an undo may take back (rule 17): a "not yet returned" reply and a settling statement. */
-const UNDOABLE_EVENTS: readonly BlEvent[] = ["NOT_RETURNED_REPLY", "STATEMENT_SETTLED"];
+/**
+ * The only status changes an undo may take back (rule 17): a "not yet returned" reply, a
+ * settling statement and an accountant's accounting entry.
+ */
+const UNDOABLE_EVENTS: readonly BlEvent[] = ["NOT_RETURNED_REPLY", "STATEMENT_SETTLED", "ACCOUNTING_RECORDED"];
+
+/** Where an event took the B/L, also when its closure was held for the accounting entry. */
+const reaches = (event: BlEvent, before: StoredBlStatus, after: StoredBlStatus) => {
+  const to = TRANSITIONS[event][before];
+  return to === after || (to === "COLLECTED" && after === "ACCOUNTING_PENDING");
+};
 
 /**
  * Undo within the window (rule 17): the B/L returns to its status before the action, but only
@@ -108,6 +134,6 @@ const UNDOABLE_EVENTS: readonly BlEvent[] = ["NOT_RETURNED_REPLY", "STATEMENT_SE
 export function statusAfterUndo(s: { current: StoredBlStatus; before: StoredBlStatus; after: StoredBlStatus }): StoredBlStatus {
   if (s.current !== s.after) throw new InvalidTransitionError(s.current, "ACTION_UNDONE");
   if (s.before === s.after) return s.current;
-  if (!UNDOABLE_EVENTS.some((event) => TRANSITIONS[event][s.before] === s.after)) throw new InvalidTransitionError(s.current, "ACTION_UNDONE");
+  if (!UNDOABLE_EVENTS.some((event) => reaches(event, s.before, s.after))) throw new InvalidTransitionError(s.current, "ACTION_UNDONE");
   return s.before;
 }

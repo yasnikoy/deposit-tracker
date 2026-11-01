@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
-import type { StoredBlStatus } from "@/domain/bl-lifecycle";
+import { isSettled, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import type { AllocationState, BlStatus, DeductionSource, DeductionTypeCode, LedgerType, PaymentKind } from "@/domain/records";
 import { OVERRIDABLE_SETTING_KEYS, type OverridableSettingKey } from "@/domain/settings/definitions";
 import { matchBl, parseBlSearch, type BlMatchField } from "@/lib/bl-search";
@@ -103,7 +103,7 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
       today,
       calendar,
     );
-    const open = !row.voidedAt && status !== "COLLECTED";
+    const open = !row.voidedAt && !isSettled(status);
     return {
       ...blBalance(
         entries.filter((e) => e.blId === row.id),
@@ -154,6 +154,12 @@ export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()):
     .filter(({ bl }) => inScope(bl.customerId))
     .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
   return toOverviews(db, actor, rows, now);
+}
+
+/** Accounting's work list: settled B/Ls with deductions or an offset, waiting for the accounting entry. */
+export function listAwaitingAccounting(db: DbOrTx, actor: AuthUser, now: Date = new Date()): BlOverview[] {
+  authorize(actor, "bl.recordAccounting");
+  return listAllBls(db, actor, now).filter((bl) => !bl.voidedAt && bl.status === "ACCOUNTING_PENDING");
 }
 
 /** Every B/L for scheduled jobs (e.g. the weekly summary), which run without a signed-in user. */
@@ -470,7 +476,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     overrides,
     deductionTarget: deductionTarget(db, found.bl),
     writeOffs: blWriteOffs(db, id),
-    writeOffAmountMinor: found.bl.voidedAt || found.bl.status === "COLLECTED" ? 0 : writeOffAmount(db, found.bl),
+    writeOffAmountMinor: found.bl.voidedAt || isSettled(found.bl.status as StoredBlStatus) ? 0 : writeOffAmount(db, found.bl),
     form,
   };
 }

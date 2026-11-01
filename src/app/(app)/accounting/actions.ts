@@ -1,8 +1,10 @@
 "use server";
 
+import { z } from "zod";
 import { attachEvidenceSchema, correctPaymentSchema, createPaymentSchema, discardQueueItemSchema, voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
+import { recordAccountingEntry } from "@/server/bls";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
 import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, readUploadedReceipt, voidPayment, type CreatePaymentResult } from "@/server/payments";
@@ -57,4 +59,11 @@ export async function attachPaymentEvidenceAction(input: unknown): Promise<Actio
 export async function attachRefundEvidenceAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(attachRefundEvidenceSchema, input, (data) => attachRefundEvidence(getDb(), user, data));
+}
+
+const accountingEntrySchema = z.object({ blIds: z.array(z.number().int().positive()).min(1).max(200) });
+
+export async function recordAccountingEntryAction(input: unknown): Promise<ActionResult<number[]>> {
+  const { user } = await requireSession();
+  return runAction(accountingEntrySchema, input, (data) => recordAccountingEntry(getDb(), user, data));
 }

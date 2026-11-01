@@ -12,7 +12,7 @@ import type { Db, DbOrTx } from "./db/client";
 import { billsOfLading, deductionTypes, documents, emailAttachments, emailBlLinks, ledgerEntries } from "./db/schema";
 import { DomainError } from "./errors";
 import { attachDocument } from "./files";
-import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, type LedgerEntry } from "./ledger";
+import { activeLedgerEntries, addLedgerEntry, closingStatusFor, compensateLedgerEntry, type LedgerEntry } from "./ledger";
 
 type BlRow = typeof billsOfLading.$inferSelect;
 type DeductionTypeRow = typeof deductionTypes.$inferSelect;
@@ -119,7 +119,7 @@ export function recordStatementDeductions(db: Db, actor: AuthUser, input: Record
     );
     let status = bl.status as StoredBlStatus;
     if (total === before.expectedMinor) {
-      status = nextStatus(status, "STATEMENT_SETTLED");
+      status = closingStatusFor(tx, bl.id, nextStatus(status, "STATEMENT_SETTLED"));
       tx.update(billsOfLading).set({ status, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
     }
     const auditId = writeAudit(
@@ -195,7 +195,7 @@ export function classifyDeduction(db: Db, actor: AuthUser, input: ClassifyDeduct
     let status = bl.status as StoredBlStatus;
     if (openUnexplained(tx, bl.id).length === 0 && blLedgerBalance(tx, bl).expectedMinor === 0) {
       try {
-        status = nextStatus(status, "DEDUCTION_CLASSIFIED");
+        status = closingStatusFor(tx, bl.id, nextStatus(status, "DEDUCTION_CLASSIFIED"));
       } catch (error) {
         if (error instanceof InvalidTransitionError) throw new DomainError("deductions.errors.notUnexplained");
         throw error;

@@ -283,6 +283,18 @@ test("allocate refund: the accountant enters a short refund; operations confirms
   await expect(page.getByText("1 B/L'ye dağıtım onaylandı.")).toBeVisible();
   await expect(page.getByText(tr.allocations.empty)).toBeVisible();
 
+  // A closure with a deduction waits until accounting has booked it.
+  await page.goto("/bls");
+  await expect(page.getByRole("row").filter({ hasText: BL_NO })).toContainText(tr.bls.statuses.ACCOUNTING_PENDING);
+  const entries = tr.payments.accountingEntries;
+  await page.goto("/accounting?tab=entries");
+  await page.getByRole("row").filter({ hasText: BL_NO }).getByRole("button", { name: entries.record }).click();
+  const confirm = page.getByRole("dialog");
+  await expect(confirm.getByText(`${BL_NO} · ${AGENCY} · 100,00 USD`)).toBeVisible();
+  await confirm.getByRole("button", { name: entries.record }).click();
+  await expect(page.getByText(entries.recorded.replace("{count}", "1"))).toBeVisible();
+  await expect(page.getByText(entries.empty)).toBeVisible();
+
   await page.goto("/bls");
   await expect(page.getByRole("row").filter({ hasText: BL_NO })).toContainText(tr.bls.statuses.COLLECTED);
 });

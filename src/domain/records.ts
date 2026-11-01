@@ -26,6 +26,8 @@ export const BL_STATUSES = [
   "AWAITING_RETURN",
   "DEDUCTION_OPEN",
   "DISPUTED",
+  // Settled with a deduction or an offset: closed once an accountant books it (ACCOUNTING_RECORDED).
+  "ACCOUNTING_PENDING",
   "COLLECTED",
 ] as const;
 export type BlStatus = (typeof BL_STATUSES)[number];

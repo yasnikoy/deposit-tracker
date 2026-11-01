@@ -13,6 +13,7 @@ import { DomainError } from "./errors";
 import { nameBlDocuments, type DocumentRename } from "./files";
 import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
 import { isValidFileNo, normalizeFileNo } from "@/domain/file-number";
+import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 
 export type BlRowError = {
   index: number;
@@ -227,6 +228,34 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
     );
     return [auditId];
   });
+}
+
+/**
+ * An accountant confirms the accounting entry of settled B/Ls whose closure involved a
+ * deduction or an offset (ACCOUNTING_PENDING → COLLECTED). One audit row per B/L, so each can
+ * be undone within the undo window. Returns the audit ids.
+ */
+export function recordAccountingEntry(db: Db, actor: AuthUser, input: { blIds: number[] }, now: Date = new Date()): number[] {
+  const roleUsed = authorize(actor, "bl.recordAccounting");
+  return db.transaction((tx) =>
+    [...new Set(input.blIds)].map((blId) => {
+      const bl = requireBl(tx, blId);
+      if (bl.voidedAt) throw new DomainError("bls.errors.voided");
+      let status: StoredBlStatus;
+      try {
+        status = nextStatus(bl.status as StoredBlStatus, "ACCOUNTING_RECORDED");
+      } catch (error) {
+        if (error instanceof InvalidTransitionError) throw new DomainError("bls.errors.notAwaitingAccounting", { bl: bl.blNo });
+        throw error;
+      }
+      tx.update(billsOfLading).set({ status, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+      return writeAudit(
+        tx,
+        { actorUserId: actor.id, roleUsed, action: "bl.accountingRecorded", entityType: "bill_of_lading", entityId: bl.id, before: { status: bl.status }, after: { status } },
+        now,
+      );
+    }),
+  );
 }
 
 /**

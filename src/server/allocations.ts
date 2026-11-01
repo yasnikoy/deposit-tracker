@@ -10,7 +10,7 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { billsOfLading, customers, deductionTypes, ledgerEntries, refundAllocations, refunds, requests } from "./db/schema";
 import { DomainError } from "./errors";
-import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, reinstateLedgerEntry } from "./ledger";
+import { activeLedgerEntries, addLedgerEntry, closingStatusFor, compensateLedgerEntry, reinstateLedgerEntry } from "./ledger";
 import { allocatedByRefund, getRefund, type RefundListItem } from "./refunds";
 import { getSetting } from "./settings";
 
@@ -215,6 +215,7 @@ export function confirmAllocation(db: Db, actor: AuthUser, input: ConfirmAllocat
         if (error instanceof InvalidTransitionError) throw new DomainError("allocations.errors.notCandidate");
         throw error;
       }
+      status = closingStatusFor(tx, line.blId, status);
       tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, line.blId)).run();
       writeAudit(
         tx,

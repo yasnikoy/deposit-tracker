@@ -89,7 +89,7 @@ describe("undo", () => {
   it("of a statement deduction compensates it and reopens a B/L it closed", () => {
     const demurrage = db.select().from(deductionTypes).all().find((t) => t.code === null)!.id;
     const ids = recordStatementDeductions(db, ops, { blId: bl, documentId: upload("DEDUCTION_STATEMENT"), lines: [{ deductionTypeId: demurrage, amountMinor: 150000 }] }, NOW);
-    expect(status(bl)).toBe("COLLECTED");
+    expect(status(bl)).toBe("ACCOUNTING_PENDING");
     undoActions(db, ops, { auditIds: ids }, later(5));
     expect(status(bl)).toBe("REQUESTED");
     expect(getBlDetail(db, ops, bl, later(5)).bl).toMatchObject({ deductionsMinor: 0, expectedMinor: 150000 });

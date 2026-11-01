@@ -1,9 +1,10 @@
 import "server-only";
 import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
+import { closingStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import type { DeductionSource, LedgerType } from "@/domain/records";
 import type { DbOrTx } from "./db/client";
-import { billsOfLading, ledgerEntries } from "./db/schema";
+import { billsOfLading, ledgerEntries, refundAllocations, refunds } from "./db/schema";
 
 /** Ledger rows are append-only: a correction writes a compensating entry, never an update. */
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
@@ -119,4 +120,21 @@ export function ledgerDeposit(tx: DbOrTx, blId: number): number {
     )
     .get();
   return row?.total ?? 0;
+}
+
+/**
+ * The status a B/L lands on when an event takes it to `to`: a closure waits for the accounting
+ * entry when the B/L has an active deduction (any type, write-offs included) or was refunded
+ * by an offset (B/L lifecycle). Call it after the closing ledger entries are written.
+ */
+export function closingStatusFor(tx: DbOrTx, blId: number, to: StoredBlStatus): StoredBlStatus {
+  if (to !== "COLLECTED") return to;
+  const hasDeduction = activeLedgerEntries(tx, blId, ["DEDUCTION"]).length > 0;
+  const hasOffsetRefund = !!tx
+    .select({ id: refundAllocations.id })
+    .from(refundAllocations)
+    .innerJoin(refunds, eq(refunds.id, refundAllocations.refundId))
+    .where(and(eq(refundAllocations.blId, blId), eq(refundAllocations.state, "CONFIRMED"), eq(refunds.kind, "OFFSET")))
+    .get();
+  return closingStatus(to, { hasDeduction, hasOffsetRefund });
 }
