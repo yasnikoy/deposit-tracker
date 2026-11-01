@@ -1,10 +1,12 @@
 import "server-only";
 import { and, eq } from "drizzle-orm";
+import { z } from "zod";
 import { tableLayoutSchema, type TableLayout } from "@/lib/schemas/table-layout";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { DbOrTx } from "./db/client";
-import { userPreferences } from "./db/schema";
+import { customers, userPreferences } from "./db/schema";
+import { DomainError } from "./errors";
 
 const tableKey = (tableId: string) => `table:${tableId}`;
 
@@ -35,4 +37,41 @@ export function saveTableLayout(
     .values({ userId: user.id, key, value: layout, updatedAt })
     .onConflictDoUpdate({ target: [userPreferences.userId, userPreferences.key], set: { value: layout, updatedAt } })
     .run();
+}
+
+const CUSTOMER_FILTER = "customerFilter";
+const customerFilterSchema = z.object({ customerIds: z.array(z.number().int().positive()) });
+
+/** The customers a user follows; empty means all (no filter). */
+export function getCustomerFilter(db: DbOrTx, userId: number): number[] {
+  const row = db
+    .select({ value: userPreferences.value })
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, userId), eq(userPreferences.key, CUSTOMER_FILTER)))
+    .get();
+  const parsed = customerFilterSchema.safeParse(row?.value);
+  return parsed.success ? parsed.data.customerIds : [];
+}
+
+/** Personal setting, like table layouts: not a business change, so not audited. */
+export function saveCustomerFilter(db: DbOrTx, user: AuthUser, customerIds: number[], now: Date = new Date()): void {
+  authorize(user, "preferences.saveOwn");
+  const ids = [...new Set(customerIds)];
+  const known = new Set(db.select({ id: customers.id }).from(customers).all().map((c) => c.id));
+  if (ids.some((id) => !known.has(id))) throw new DomainError("customers.errors.unknown");
+  const value = { customerIds: ids };
+  const updatedAt = now.toISOString();
+  db.insert(userPreferences)
+    .values({ userId: user.id, key: CUSTOMER_FILTER, value, updatedAt })
+    .onConflictDoUpdate({ target: [userPreferences.userId, userPreferences.key], set: { value, updatedAt } })
+    .run();
+}
+
+/**
+ * Whether a record is in the viewer's customer filter (Customer filter): with no filter
+ * everything is, and records without a customer always are. A convenience, not access control.
+ */
+export function customerScope(db: DbOrTx, viewer: AuthUser): (customerId: number | null) => boolean {
+  const followed = new Set(getCustomerFilter(db, viewer.id));
+  return (customerId) => followed.size === 0 || customerId === null || followed.has(customerId);
 }

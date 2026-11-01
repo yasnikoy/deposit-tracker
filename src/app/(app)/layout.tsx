@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppHeader, type NavItem } from "@/components/app-shell/app-header";
+import { SettingsFrame } from "@/components/app-shell/settings-frame";
 import { ShortcutsDialog } from "@/components/app-shell/shortcuts-dialog";
 import { can } from "@/server/auth/can";
 import { t } from "@/i18n";
@@ -25,28 +26,30 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/allocations", label: "nav.allocations", visible: can(user, "allocation.view").allowed },
     { href: "/bls", label: "nav.allBls", visible: can(user, "bl.view").allowed },
     { href: "/bls/new", label: "nav.createBls", visible: can(user, "bl.viewAwaiting").allowed },
-    { href: "/agencies", label: "nav.agencies", visible: can(user, "agency.view").allowed },
     { href: "/reports", label: "nav.reports", visible: can(user, "report.view").allowed },
-    { href: "/admin/settings", label: "nav.settings", visible: can(user, "settings.view").allowed },
-    { href: "/admin/templates", label: "nav.templates", visible: can(user, "settings.view").allowed },
-    { href: "/admin/holidays", label: "nav.holidays", visible: can(user, "holiday.manage").allowed },
-    { href: "/admin/lists", label: "nav.lists", visible: can(user, "lists.manage").allowed },
-    { href: "/admin/users", label: "nav.users", visible: can(user, "user.list").allowed },
     { href: "/admin/write-offs", label: "nav.writeOffs", visible: can(user, "writeOff.view").allowed },
     { href: "/admin/opening-balance", label: "nav.openingBalance", visible: can(user, "openingBalance.create").allowed },
-    { href: "/admin/system", label: "nav.system", visible: can(user, "system.view").allowed },
+    // Settings: one "Ayarlar" entry for everyone; its side menu shows what the user's roles allow.
+    { href: "/settings", label: "nav.personalSettings", section: "personal", visible: true },
+    { href: "/agencies", label: "nav.agencies", section: "general", visible: can(user, "agency.view").allowed },
+    { href: "/admin/settings", label: "nav.appSettings", section: "admin", visible: can(user, "settings.view").allowed },
+    { href: "/admin/templates", label: "nav.templates", section: "admin", visible: can(user, "settings.view").allowed },
+    { href: "/admin/holidays", label: "nav.holidays", section: "admin", visible: can(user, "holiday.manage").allowed },
+    { href: "/admin/lists", label: "nav.lists", section: "admin", visible: can(user, "lists.manage").allowed },
+    { href: "/admin/users", label: "nav.users", section: "admin", visible: can(user, "user.list").allowed },
+    { href: "/admin/system", label: "nav.system", section: "admin", visible: can(user, "system.view").allowed },
   ];
   const db = getDb();
   const unprocessed = can(user, "reply.view").allowed ? unprocessedSummary(db) : null;
   const writeOffsWaiting = can(user, "writeOff.view").allowed ? pendingWriteOffCount(db) : 0;
   const nav: NavItem[] = items
     .filter((item) => item.visible)
-    .map(({ href, label }) =>
-      href === "/replies" && unprocessed
-        ? { href, label, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0, label: "nav.unprocessedBadge" } }
-        : href === "/admin/write-offs" && writeOffsWaiting > 0
-          ? { href, label, badge: { count: writeOffsWaiting, alert: false, label: "nav.writeOffsBadge" } }
-          : { href, label },
+    .map(({ visible: _visible, ...item }): NavItem =>
+      item.href === "/replies" && unprocessed
+        ? { ...item, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0, label: "nav.unprocessedBadge" } }
+        : item.href === "/admin/write-offs" && writeOffsWaiting > 0
+          ? { ...item, badge: { count: writeOffsWaiting, alert: false, label: "nav.writeOffsBadge" } }
+          : item,
     );
   const outages = mailOutages(db);
   const dryRun = getEnv().EMAIL_MODE !== "live";
@@ -70,7 +73,9 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
           </Link>
         </div>
       )}
-      <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">{children}</main>
+      <main className="flex min-h-0 flex-1 flex-col gap-4 p-4">
+        <SettingsFrame items={nav.filter((item) => item.section)}>{children}</SettingsFrame>
+      </main>
       <ShortcutsDialog />
     </div>
   );

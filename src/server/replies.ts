@@ -28,6 +28,7 @@ import type { Mailbox, MailboxSummary } from "./email/mailbox";
 import { deductionTarget, type DeductionTarget } from "./deductions";
 import { DomainError } from "./errors";
 import { getSetting } from "./settings";
+import { customerScope } from "./preferences";
 
 type EmailRow = typeof emails.$inferSelect;
 
@@ -88,6 +89,9 @@ export function listReplies(db: DbOrTx, actor: AuthUser, now: Date = new Date())
     .orderBy(desc(emails.receivedAt), desc(emails.id))
     .all();
   const links = linkStates(db);
+  // An email concerning only B/Ls outside the viewer's customer filter is left out.
+  const inScope = customerScope(db, actor);
+  const customerOf = new Map(db.select({ id: billsOfLading.id, customerId: billsOfLading.customerId }).from(billsOfLading).all().map((b) => [b.id, b.customerId]));
   const suggestions = db
     .select({ emailId: emailMatchSuggestions.emailId, blNo: billsOfLading.blNo })
     .from(emailMatchSuggestions)
@@ -103,6 +107,7 @@ export function listReplies(db: DbOrTx, actor: AuthUser, now: Date = new Date())
   const lists: ReplyLists = { TO_PROCESS: [], MATCHES: [], PROCESSED: [] };
   for (const { email, agencyName } of incoming) {
     const own = links.filter((l) => l.emailId === email.id);
+    if (own.length > 0 && !own.some((l) => inScope(customerOf.get(l.blId) ?? null))) continue;
     const base = {
       emailId: email.id,
       receivedAt: email.receivedAt!,

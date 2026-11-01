@@ -23,6 +23,7 @@ import { currentBlForm } from "./forms";
 import { replyHistory } from "./reply-history";
 import { lacksPaymentEvidence } from "./payments";
 import { getSetting } from "./settings";
+import { customerScope } from "./preferences";
 
 /** Every request-timing duration, resolved: B/L override → agency override → global. */
 export type TimingDurations = RequestDurations & StatementDurations;
@@ -241,7 +242,8 @@ export type DueLists = Record<DueList, DueGroup[]> & { FAILED: FailedRequest[]; 
 export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Date()): DueLists {
   authorize(actor, "request.view");
   const today = istanbulToday(now);
-  const entries = dueEntries(db, now);
+  const inScope = customerScope(db, actor);
+  const entries = dueEntries(db, now).filter((e) => inScope(e.bl.customerId));
   const ledger = entries.length
     ? db
         .select()

@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, ChevronDown, CircleUser, KeyRound, LogOut } from "lucide-react";
+import { Bell, CircleUser, KeyRound, LogOut, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/(auth)/actions";
@@ -19,7 +19,16 @@ import { cn } from "@/lib/utils";
 import { GlobalSearch } from "./global-search";
 
 /** A badge count on the item; `alert` marks it as needing attention (e.g. overdue replies); `label` is read out. */
-export type NavItem = { href: string; label: TranslationKey; badge?: { count: number; alert: boolean; label: TranslationKey } };
+export type NavItem = {
+  href: string;
+  label: TranslationKey;
+  badge?: { count: number; alert: boolean; label: TranslationKey };
+  /** Set for settings pages: they sit behind the one "Ayarlar" entry, grouped in its side menu. */
+  section?: SettingsSection;
+};
+
+export const SETTINGS_SECTIONS = ["personal", "general", "admin"] as const;
+export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 function Badge({ badge }: { badge: NavItem["badge"] }) {
   if (!badge || badge.count === 0) return null;
@@ -35,9 +44,6 @@ function Badge({ badge }: { badge: NavItem["badge"] }) {
     </span>
   );
 }
-
-/** Admin pages (settings, lists, users, approvals, …) are grouped in one menu so the header fits a desktop screen. */
-const isAdminPage = (item: NavItem) => item.href.startsWith("/admin/");
 
 export function AppHeader({
   nav,
@@ -55,9 +61,8 @@ export function AppHeader({
   const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
   const activeHref = nav.filter((item) => matches(item.href)).sort((a, b) => b.href.length - a.href.length)[0]?.href;
   const isActive = (href: string) => href === activeHref;
-  const admin = nav.filter(isAdminPage);
-  // The menu shows the first admin badge (e.g. write-offs waiting), so it is visible while closed.
-  const adminBadge = admin.find((item) => item.badge && item.badge.count > 0)?.badge;
+  const settings = nav.filter((item) => item.section);
+  const settingsActive = settings.some((item) => matches(item.href));
 
   return (
     <header className="bg-background sticky top-0 z-20 flex h-11 items-center gap-4 border-b px-4">
@@ -65,40 +70,29 @@ export function AppHeader({
         {t("app.name")} <span className="text-muted-foreground text-xs font-normal">v{version}</span>
       </Link>
       <nav className="flex items-center gap-1">
-        {nav.filter((item) => !isAdminPage(item)).map((item) => (
+        {nav.filter((item) => !item.section).map((item) => (
           <Link
             key={item.href}
             href={item.href}
-            aria-current={isActive(item.href) ? "page" : undefined}
+            aria-current={isActive(item.href) && !settingsActive ? "page" : undefined}
             className={cn(
               "hover:bg-muted rounded-md px-2.5 py-1",
-              isActive(item.href) && "bg-muted font-medium",
+              isActive(item.href) && !settingsActive && "bg-muted font-medium",
             )}
           >
             {t(item.label)}
             <Badge badge={item.badge} />
           </Link>
         ))}
-        {admin.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" className={cn("hover:bg-muted flex items-center rounded-md px-2.5 py-1", admin.some((item) => isActive(item.href)) && "bg-muted font-medium")}>
-                {t("nav.admin")}
-                {adminBadge && <Badge badge={adminBadge} />}
-                <ChevronDown className="ml-1 size-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-              {admin.map((item) => (
-                <DropdownMenuItem key={item.href} asChild>
-                  <Link href={item.href} aria-current={isActive(item.href) ? "page" : undefined} className={cn(isActive(item.href) && "font-medium")}>
-                    {t(item.label)}
-                    <Badge badge={item.badge} />
-                  </Link>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {settings.length > 0 && (
+          <Link
+            href="/settings"
+            aria-current={settingsActive ? "page" : undefined}
+            className={cn("hover:bg-muted flex items-center gap-1 rounded-md px-2.5 py-1", settingsActive && "bg-muted font-medium")}
+          >
+            <Settings className="size-3.5" />
+            {t("nav.settings")}
+          </Link>
         )}
       </nav>
       <div className="ml-auto flex items-center gap-2">

@@ -50,10 +50,30 @@
     "writeOffs": "Silme onayları",
     "writeOffsBadge": "Onay bekleyen {count} silme önerisi",
     "openingBalance": "Açılış bakiyesi",
-    "admin": "Yönetim",
     "reports": "Raporlar",
     "notifications": "Bildirimler",
-    "system": "Sistem durumu"
+    "system": "Sistem durumu",
+    "appSettings": "Uygulama ayarları",
+    "personalSettings": "Kişisel ayarlar"
+  },
+  "settingsNav": {
+    "personal": "Kişisel",
+    "general": "Genel",
+    "admin": "Yönetim"
+  },
+  "personalSettings": {
+    "title": "Kişisel ayarlar",
+    "customerFilter": "Takip ettiğim müşteriler",
+    "customerFilterHint": "Seçtiğiniz müşterilerle sınırlanır: B/L listeleri, arama, talepler, yanıtlar, iade dağıtımı, panel, raporlar ve bildirimleriniz. Müşterisi girilmemiş kayıtlar her zaman görünür. Bir kayda doğrudan bağlantıyla her zaman ulaşılır. Hiçbiri seçili değilse tüm müşteriler görünür. Yalnızca sizin görünümünüzü etkiler.",
+    "search": "Müşteri ara…",
+    "none": "Henüz kayıtlı müşteri yok (Ayarlar → Listeler).",
+    "selected": "{count} müşteri seçili",
+    "all": "Filtre yok: tüm müşteriler görünür",
+    "clear": "Seçimi temizle",
+    "save": "Filtreyi kaydet",
+    "saved": "Müşteri filtresi kaydedildi.",
+    "password": "Şifre",
+    "changePassword": "Şifremi değiştir"
   },
   "roles": {
     "ACCOUNTANT": "Muhasebe",

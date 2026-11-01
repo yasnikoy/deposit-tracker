@@ -8,6 +8,7 @@ import type { Db, DbOrTx } from "./db/client";
 import { billsOfLading, notes, notifications, replies, requests, userRoles, users } from "./db/schema";
 import { unprocessedReplies } from "./replies";
 import { getSetting } from "./settings";
+import { customerScope } from "./preferences";
 
 export type NotificationDetail = Record<string, string | number | null>;
 
@@ -74,22 +75,32 @@ const LIST_LIMIT = 100;
 /** The viewer's own notifications, newest first. */
 export function listNotifications(db: DbOrTx, actor: AuthUser): NotificationItem[] {
   authorize(actor, "notification.view");
+  const shown = inCustomerFilter(db, actor);
   return db
     .select()
     .from(notifications)
     .where(eq(notifications.userId, actor.id))
     .orderBy(desc(notifications.id))
-    .limit(LIST_LIMIT)
     .all()
+    .filter(shown)
+    .slice(0, LIST_LIMIT)
     .map((n) => ({ id: n.id, kind: n.kind, entityType: n.entityType, entityId: n.entityId, detail: n.detail, createdAt: n.createdAt, read: n.readAt !== null }));
 }
 
 export function unreadNotificationCount(db: DbOrTx, actor: AuthUser): number {
   return db
-    .select({ id: notifications.id })
+    .select()
     .from(notifications)
     .where(and(eq(notifications.userId, actor.id), isNull(notifications.readAt)))
-    .all().length;
+    .all()
+    .filter(inCustomerFilter(db, actor)).length;
+}
+
+/** Notifications about a B/L outside the viewer's customer filter are not shown (others always are). */
+function inCustomerFilter(db: DbOrTx, actor: AuthUser): (n: { entityType: string; entityId: number }) => boolean {
+  const inScope = customerScope(db, actor);
+  const customerOf = new Map(db.select({ id: billsOfLading.id, customerId: billsOfLading.customerId }).from(billsOfLading).all().map((b) => [b.id, b.customerId]));
+  return (n) => n.entityType !== "bill_of_lading" || inScope(customerOf.get(n.entityId) ?? null);
 }
 
 /** Marks the viewer's own notifications read (all of them without ids); others' are untouched. */

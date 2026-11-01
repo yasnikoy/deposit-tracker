@@ -42,8 +42,8 @@ export async function pickAgency(page: Page, search: string, name: string) {
   await page.getByRole("option", { name: new RegExp(name) }).click();
 }
 
-/** Admin pages live in the header's "Yönetim" menu. */
-export async function openAdminPage(page: Page, label: string) {
-  await page.getByRole("button", { name: tr.nav.admin }).click();
-  await page.getByRole("menuitem", { name: label }).click();
+/** Settings pages (admin ones included) open from the header's "Ayarlar" entry and its side menu. */
+export async function openSettingsPage(page: Page, label: string) {
+  await page.getByRole("banner").getByRole("link", { name: tr.nav.settings, exact: true }).click();
+  await page.getByRole("navigation", { name: tr.nav.settings }).getByRole("link", { name: label, exact: true }).click();
 }

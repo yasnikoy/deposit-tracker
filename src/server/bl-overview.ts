@@ -44,6 +44,7 @@ import { blPayments, depositEvidence } from "./payments";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
+import { customerScope } from "./preferences";
 
 export type BlOverview = BlBalance & {
   id: number;
@@ -140,12 +141,17 @@ function blRows(db: DbOrTx) {
     .leftJoin(customers, eq(customers.id, billsOfLading.customerId));
 }
 
-/** Every B/L, voided ones included (the screen filters them), newest payment first. */
+/**
+ * Every B/L, voided ones included (the screen filters them), newest payment first, within the
+ * viewer's customer filter. Lists, search, reports and the dashboard build on it.
+ */
 export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()): BlOverview[] {
   authorize(actor, "bl.view");
+  const inScope = customerScope(db, actor);
   const rows = blRows(db)
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
+    .filter(({ bl }) => inScope(bl.customerId))
     .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
   return toOverviews(db, actor, rows, now);
 }

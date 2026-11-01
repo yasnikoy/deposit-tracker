@@ -15,6 +15,7 @@ import { unprocessedSummary } from "./replies";
 import { listDueRequests } from "./requests";
 import { getSetting } from "./settings";
 import { pendingWriteOffCount } from "./write-offs";
+import { customerScope } from "./preferences";
 
 export type Position = BlOverview & {
   open: boolean;
@@ -133,17 +134,19 @@ export type DashboardSummary = {
 export function dashboardSummary(db: DbOrTx, actor: AuthUser, now: Date = new Date()): DashboardSummary {
   const allowed = (action: Parameters<typeof can>[1]) => can(actor, action).allowed;
   const all = allowed("bl.view") ? positions(db, actor, now) : [];
+  const inScope = customerScope(db, actor);
   const month = istanbulToday(now).slice(0, 7);
 
   const collectedThisMonth = allowed("bl.view")
     ? totalsByCurrency(
         db
-          .select({ currency: refunds.currency, amountMinor: refundAllocations.amountMinor })
+          .select({ currency: refunds.currency, amountMinor: refundAllocations.amountMinor, customerId: billsOfLading.customerId })
           .from(refundAllocations)
           .innerJoin(refunds, eq(refunds.id, refundAllocations.refundId))
           .innerJoin(billsOfLading, eq(billsOfLading.id, refundAllocations.blId))
           .where(and(eq(refundAllocations.state, "CONFIRMED"), sql`substr(${refunds.valueDate}, 1, 7) = ${month}`, isNull(billsOfLading.voidedAt)))
-          .all(),
+          .all()
+          .filter((row) => inScope(row.customerId)),
       )
     : [];
 
