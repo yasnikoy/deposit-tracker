@@ -488,6 +488,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
+- Nothing yet.
+
+**Nov 1, 2026 — agency export and import, deleting unused agencies and customers, customers under General, new template wording, v0.12.0**
+
 - The opening-balance form adds an agency that is not in the system yet, as the payment form does: type its name in the agency field and pick *Yeni acente ekle*. It is added with its name only, in the record's transaction, audited as `agency.create` under the admin role (new permission `agency.createFromOpeningBalance`), and operations is notified to complete the card. The next record carries the name over and uses the agency just added.
 - The template preview in settings showed `{date}` raw in the report email and the weekly summary, and every weekly-summary placeholder too: they had no sample value. The samples now sit next to the placeholder lists, and a test checks that every placeholder has one.
 - The email templates as reworded on the development install are now the starting texts in the seed: greeting *Merhabalar,* instead of *Sayın {agency_name} yetkilisi,*, subjects without "B/L" before the number, and a blank line before the signature; the report email names the attachments as Excel files. Templates nobody has edited now take the seed's current text on start (audited as `emailTemplate.seed` with before and after), so this reaches existing installations too. A template an admin has saved is never changed.
