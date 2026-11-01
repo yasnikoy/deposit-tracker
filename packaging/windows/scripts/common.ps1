@@ -1,8 +1,12 @@
-# Shared by the Deposit Tracker scripts. Layout (ARCHITECTURE -> Operations and deployment):
-#   <root>\app          program files (this zip; replaced by updates)
+# Shared by the Deposit Tracker scripts. Layout (ARCHITECTURE -> Operations and deployment);
+# <root> is the DepositTracker folder from the zip, wherever it was unpacked (Desktop, Documents):
+#   <root>\*.cmd        launchers (setup, start, stop, backup, create-admin) and BENIOKU.txt
+#   <root>\app          program files (replaced by updates)
 #   <root>\data         database, uploaded files, logs, backups (never touched by updates)
 #   <root>\deposit.key  mail-password key (outside data, never in backups)
-#   <root>\deposit.env  settings written by setup.cmd (port, folders, email mode)
+#   <root>\deposit.env  settings written by setup.cmd (port, email mode)
+# The folders are never stored: they follow <root>, so the folder can be moved (then setup.cmd
+# again, for the task).
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -42,6 +46,8 @@ function Import-DepositEnv {
     foreach ($entry in (Read-DepositEnv).GetEnumerator()) {
         [Environment]::SetEnvironmentVariable($entry.Key, $entry.Value, 'Process')
     }
+    $env:DATA_DIR = Join-Path $RootDir 'data'
+    $env:KEY_FILE = Join-Path $RootDir 'deposit.key'
     $env:NODE_ENV = 'production'
     $env:HOSTNAME = '0.0.0.0'
     $env:NEXT_TELEMETRY_DISABLED = '1'

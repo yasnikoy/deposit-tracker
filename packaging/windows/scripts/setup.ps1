@@ -26,13 +26,18 @@ function Ask-YesNo([string]$Question, [bool]$Default) {
 
 try {
     Write-Title 'Deposit Tracker kurulumu'
-    Write-Host "Program klasörü : $AppDir"
     Write-Host "Kurulum klasörü : $RootDir"
-    if ((Split-Path -Leaf $AppDir) -ne 'app') {
-        Write-Host "Uyarı: zip'in içeriği genellikle C:\DepositTracker\app klasörüne açılır." -ForegroundColor Yellow
-    }
-    if (-not (Ask-YesNo 'Veri, anahtar ve ayar dosyası bu kurulum klasörüne yazılsın mı?' $true)) {
-        Write-Host 'Zip içeriğini istediğiniz yerdeki bir "app" klasörüne açıp setup.cmd dosyasını yeniden çalıştırın.'
+    Write-Host "Program         : $AppDir"
+    Write-Host "Veriler         : $(Join-Path $RootDir 'data')"
+    # A synced folder copies the database while it is being written and can corrupt it.
+    $synced = @($env:OneDrive, $env:OneDriveConsumer, $env:OneDriveCommercial) | Where-Object { $_ -and $RootDir.StartsWith($_.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) }
+    if ($synced) {
+        Write-Host 'Uyarı: bu klasör OneDrive ile eşitleniyor. Eşitleme, kullanılan veritabanını bozabilir.' -ForegroundColor Yellow
+        Write-Host 'Masaüstü veya Belgeler OneDrive''a bağlıysa DepositTracker klasörünü OneDrive dışındaki bir klasöre taşıyın' -ForegroundColor Yellow
+        Write-Host '(örneğin kullanıcı klasörünüzün içine) ve setup.cmd dosyasını oradan çalıştırın.' -ForegroundColor Yellow
+        if (-not (Ask-YesNo 'Yine de bu klasöre kurulsun mu?' $false)) { Wait-Close; exit 1 }
+    } elseif (-not (Ask-YesNo 'Veri, anahtar ve ayar dosyası bu klasöre yazılsın mı?' $true)) {
+        Write-Host 'DepositTracker klasörünü istediğiniz yere taşıyıp setup.cmd dosyasını oradan çalıştırın.'
         Wait-Close; exit 1
     }
 
@@ -52,8 +57,6 @@ try {
     $settings = @(
         "# Deposit Tracker ayarları (setup.cmd yazar). Değiştirdikten sonra stop.cmd ve start.cmd.",
         "PORT=$port",
-        "DATA_DIR=$dataDir",
-        "KEY_FILE=$(Join-Path $RootDir 'deposit.key')",
         "EMAIL_MODE=$(if ($live) { 'live' } else { 'dry-run' })"
     )
     New-Item -ItemType Directory -Force -Path $dataDir | Out-Null

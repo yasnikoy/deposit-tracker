@@ -36,7 +36,7 @@ type Fetch = typeof fetch;
 const store = globalThis as unknown as { depositUpdateState?: UpdateState };
 export const updateState = (): UpdateState => (store.depositUpdateState ??= { checkedAt: null, error: null, available: null, staged: null });
 
-/** The installation folder (C:\DepositTracker), set by run.ps1; absent in development. */
+/** The installation folder (the one holding `app` and `data`), set by run.ps1; absent in development. */
 export const installRoot = (): string | null => process.env.APP_ROOT || null;
 
 /** Exit code that tells run.ps1 to install the staged update and start again right away. */

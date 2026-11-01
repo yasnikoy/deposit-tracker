@@ -23,7 +23,7 @@ const fail = (message) => {
 const git = (...args) => execFileSync("git", args, { cwd: ROOT }).toString().trim();
 
 if (!fs.existsSync(zip)) fail(`${path.relative(ROOT, zip)} not found; run pnpm build:portable first`);
-const packaged = execFileSync("bsdtar", ["-xOf", zip, "./VERSION"]).toString().trim();
+const packaged = execFileSync("bsdtar", ["-xOf", zip, "./DepositTracker/app/VERSION"]).toString().trim();
 if (packaged !== version) fail(`the zip holds version ${packaged}, package.json says ${version}; rebuild it`);
 if (git("status", "--porcelain", "--untracked-files=no", "--", "src", "scripts", "packaging", "drizzle", "seed", "package.json")) fail("uncommitted changes in the app; commit them first");
 if (git("tag", "--list", tag) !== tag) fail(`tag ${tag} is missing`);

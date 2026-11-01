@@ -1,27 +1,31 @@
 Deposit Tracker - Windows kurulumu
 ==================================
 
-1. Bu zip'in içeriğini C:\DepositTracker\app klasörüne açın.
-2. setup.cmd dosyasına çift tıklayın ve Windows'un yönetici onayını verin.
-   Port, e-posta modu, ilk yönetici hesabı, otomatik başlatma ve Windows hesabınızın
-   şifresi sorulur. (Şifre yalnızca Windows Görev Zamanlayıcı'ya verilir; hesabın şifresi
-   yoksa boş bırakın. Otomatik başlatmada uygulama Windows açılınca kimse oturum açmadan
-   başlar; seçmezseniz start.cmd ile başlatılır.)
+1. Zip dosyasını Masaüstü'ne veya Belgeler klasörüne çıkarın. İçinden tek bir
+   DepositTracker klasörü çıkar; uygulama bu klasörden çalışır.
+   (Masaüstü veya Belgeler OneDrive ile eşitleniyorsa kurulum uyarır; o zaman klasörü
+   OneDrive dışındaki bir yere koyun.)
+2. DepositTracker klasöründeki setup.cmd dosyasına çift tıklayın ve Windows'un yönetici
+   onayını verin. Port, e-posta modu, ilk yönetici hesabı, otomatik başlatma ve Windows
+   hesabınızın şifresi sorulur. (Şifre yalnızca Windows Görev Zamanlayıcı'ya verilir;
+   hesabın şifresi yoksa boş bırakın. Otomatik başlatmada uygulama Windows açılınca kimse
+   oturum açmadan başlar; seçmezseniz start.cmd ile başlatılır.)
 3. Kurulumun sonunda gösterilen adresi tarayıcıda açın, örneğin http://192.168.1.20:3000
    Ofisteki diğer kişiler de aynı adresi kullanır.
 
-Klasörler
-  C:\DepositTracker\app          program (güncellemeler yalnızca bunu değiştirir)
-  C:\DepositTracker\data         veritabanı, dosyalar, kayıtlar, yedekler
-  C:\DepositTracker\deposit.key  e-posta şifrelerinin anahtarı: kaybetmeyin, ayrıca saklayın
-  C:\DepositTracker\deposit.env  kurulum ayarları
+DepositTracker klasörü
+  app          program (güncellemeler yalnızca bunu ve komut dosyalarını değiştirir)
+  data         veritabanı, dosyalar, kayıtlar, yedekler (kurulumda oluşur)
+  deposit.key  e-posta şifrelerinin anahtarı: kaybetmeyin, ayrıca saklayın
+  deposit.env  kurulum ayarları
 
-Komutlar (app klasöründe)
+Komutlar (DepositTracker klasöründe)
   start.cmd         uygulamayı başlatır
   stop.cmd          uygulamayı durdurur
   backup.cmd        hemen yedek alır
   create-admin.cmd  yeni yönetici hesabı (kimse yönetici olarak giremiyorsa)
   setup.cmd         ayarları değiştirmek için yeniden çalıştırılabilir
 
-Sorun olursa: C:\DepositTracker\data\logs klasöründeki console.log ve günlük kayıtlar.
+Klasörü taşımak için: stop.cmd, klasörü taşıyın, yeni yerinde setup.cmd.
+Sorun olursa: start.cmd hatanın nedenini gösterir; ayrıntılar data\logs klasöründe.
 Ayrıntılı kılavuz: docs/RUNBOOK.md (GitHub deposunda).

@@ -1,17 +1,21 @@
 # Deposit Tracker — Runbook
 
 For the person whose PC runs the app and the IT colleague who helps. Every step assumes the
-standard layout below. Background and reasons: `docs/ARCHITECTURE.md` → Operations and deployment.
+layout below. Background and reasons: `docs/ARCHITECTURE.md` → Operations and deployment.
+The `DepositTracker` folder comes from the release zip and can sit anywhere, e.g. on the
+Desktop or in Documents (not in a folder synced by OneDrive); paths below are relative to it.
 
 ```
-C:\DepositTracker\app           program files (the release zip; replaced by updates)
-C:\DepositTracker\data          database, uploaded files, logs, backups
-C:\DepositTracker\deposit.key   key that encrypts the mail passwords (keep a copy elsewhere!)
-C:\DepositTracker\deposit.env   settings written by setup.cmd (port, folders, email mode)
+DepositTracker\*.cmd          setup, start, stop, backup, create-admin; BENIOKU.txt
+DepositTracker\app            program files (replaced by updates)
+DepositTracker\data           database, uploaded files, logs, backups
+DepositTracker\deposit.key    key that encrypts the mail passwords (keep a copy elsewhere!)
+DepositTracker\deposit.env    settings written by setup.cmd (port, email mode)
+DepositTracker\run-error.log  only if the task failed before the app started
 ```
 
-The app runs as the scheduled task **DepositTracker**, under your Windows account, from Windows
-startup, without anyone logging in. People open it at `http://<PC's IP address>:<port>`
+The app runs as the scheduled task **DepositTracker**, under your Windows account; with automatic
+start (setup's default) from Windows startup, without anyone logging in. People open it at `http://<PC's IP address>:<port>`
 (e.g. `http://192.168.1.20:3000`); office PCs all share the name "UserPC", so the name does not work.
 
 ## Contents
@@ -35,8 +39,10 @@ startup, without anyone logging in. People open it at `http://<PC's IP address>:
 Before you start: Windows 10/11 x64, 8 GB RAM, 20 GB free disk; sleep disabled during office
 hours; ideally IT has given the PC a fixed IP (DHCP reservation).
 
-1. Download `deposit-tracker-<version>-win-x64.zip` from the release page and unzip its contents
-   to `C:\DepositTracker\app` (so that `C:\DepositTracker\app\setup.cmd` exists).
+1. Download `deposit-tracker-<version>-win-x64.zip` from the release page and extract it to the
+   Desktop or Documents. It holds one folder, `DepositTracker`, with `setup.cmd` at its top.
+   If Desktop/Documents are synced by OneDrive, setup warns: then put the folder elsewhere in
+   your user folder.
 2. Double-click `setup.cmd` and approve the administrator prompt. It asks:
    - **Port** — Enter for 3000 (it checks that the port is free).
    - **Send emails for real?** — No for a test installation (dry-run: emails are stored, never sent).
@@ -55,7 +61,7 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
 4. In the app (Yönetim menu): Ayarlar → E-posta sunucusu (section 2), Kullanıcılar (section 3), Acenteler
    (with B/L number patterns and form templates), Listeler (bank accounts), Tatiller, standing
    documents, and **Ayarlar → Yedekleme → İkinci yedek konumu** (section 7).
-5. Copy `C:\DepositTracker\deposit.key` to a safe place (section 9).
+5. Copy `deposit.key` (in the `DepositTracker` folder) to a safe place (section 9).
 
 `setup.cmd` can be run again at any time to change the port, the email mode, automatic start or the account; it
 keeps the data.
@@ -75,7 +81,7 @@ Yönetim → Kullanıcılar → Yeni kullanıcı: username, name, roles (Muhaseb
 several allowed) and a temporary password; the user sets their own at first login. Users are
 deactivated, never deleted. Locked out after failed logins: "Kilidi aç" on the same page.
 
-No admin can log in any more: run `create-admin.cmd` in `C:\DepositTracker\app` to create a new
+No admin can log in any more: run `create-admin.cmd` in the `DepositTracker` folder to create a new
 admin from the command line.
 
 ## 4. Add an agency form template
@@ -87,7 +93,7 @@ the prefilled form from each B/L.
 
 ## 5. Start, stop, check
 
-In `C:\DepositTracker\app` (each asks for administrator approval):
+In the `DepositTracker` folder (`start`/`stop`/`setup` ask for administrator approval):
 
 | Command | Does |
 | --- | --- |
@@ -116,8 +122,9 @@ says what happened; send it with `data\logs\console*.log` to the developer.
 
 1. Download the zip (and read the release notes: a major version lists extra steps).
 2. `stop.cmd`.
-3. Rename `C:\DepositTracker\app` to `app-previous` (delete an older `app-previous` first).
-4. Unzip the new zip to `C:\DepositTracker\app`.
+3. Rename `app` to `app-previous` (delete an older `app-previous` first).
+4. Extract the new zip somewhere else, copy its `DepositTracker\app` folder and its `.cmd` files
+   into your `DepositTracker` folder (never its `data`).
 5. `start.cmd`. Migrations run on start, after an automatic backup.
 
 **Manual roll back:** `stop.cmd`, rename `app` to `app-failed`, rename `app-previous` to `app`,
@@ -159,12 +166,12 @@ Everything entered after that backup's time is gone; enter it again from the pap
 
 ## 9. Back up and restore the key file
 
-`C:\DepositTracker\deposit.key` encrypts the stored mail passwords. Without it the app still
+`deposit.key` encrypts the stored mail passwords. Without it the app still
 works, but the mail passwords must be entered again (Ayarlar → E-posta sunucusu).
 
 - **Back up:** copy it once to a USB stick kept in a drawer, or into a password manager (open it
   in Notepad, copy the single line). Never put it next to the backups or in email.
-- **Restore:** `stop.cmd`, put the file back as `C:\DepositTracker\deposit.key`, `start.cmd`.
+- **Restore:** `stop.cmd`, put the file back as `deposit.key` in the `DepositTracker` folder, `start.cmd`.
 - **Lost:** `stop.cmd`, delete the broken key if any, `start.cmd` (a new key is created), then enter
   the SMTP/IMAP passwords again.
 
@@ -172,8 +179,9 @@ works, but the mail passwords must be entered again (Ayarlar → E-posta sunucus
 
 1. Old PC: `backup.cmd`, then `stop.cmd`. In Task Scheduler, disable the task **DepositTracker**
    (so two copies never run).
-2. Copy the whole `C:\DepositTracker` folder (app, data, deposit.key, deposit.env) to the new PC,
-   same path.
+2. Copy the whole `DepositTracker` folder (app, data, deposit.key, deposit.env, the `.cmd` files)
+   to the new PC, anywhere. (Moving it on the same PC works the same way: `stop.cmd`, move it,
+   then step 3.)
 3. New PC: `setup.cmd` (answer No to "create admin"; accept the rest). It registers the task and
    firewall rule there and starts the app.
 4. Tell everyone the new address (shown by setup). Ask IT for a fixed IP for the new PC.
@@ -195,7 +203,7 @@ Ayarlar → E-posta sunucusu), the provider's status. Sistem durumu shows when i
 | Symptom | Check |
 | --- | --- |
 | Page does not open from other PCs | Open `http://localhost:<port>` on the app PC. Works there: firewall (run `setup.cmd` again) or wrong IP (Sistem durumu shows it). Not there: `start.cmd` |
-| `start.cmd`: "did not answer" | It prints the task's last result and the end of `C:\DepositTracker\run-error.log`, `data\logs\console-error.log` and `console.log`; the app's own logs are in `data\logs\app.*.log` |
+| `start.cmd`: "did not answer" | It prints the task's last result and the end of `run-error.log`, `data\logs\console-error.log` and `console.log`; the app's own logs are in `data\logs\app.*.log` |
 | App does not start after a Windows password change | `setup.cmd` again, give the new password |
 | "Another instance is already running" | `stop.cmd`, then `start.cmd` |
 | Backups red on Sistem durumu | PC off at backup time (fine; caught up at next start), or the second location unreachable (share offline, USB disk unplugged, no write permission) |

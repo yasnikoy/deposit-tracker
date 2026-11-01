@@ -1,8 +1,9 @@
 # Started by the DepositTracker scheduled task (at Windows startup, and again by the task's
 # restart setting when the app stops with an error). Installs a staged update first, then runs
 # the server and waits for it. ARCHITECTURE -> Updates:
-#   - an update staged by the app (update\pending.json + its verified zip) is unpacked next to
-#     `app`, swapped in, and the previous folder kept as `app-previous`;
+#   - an update staged by the app (update\pending.json + its verified zip) is unpacked, its
+#     `DepositTracker\app` swapped in for `app` (the previous folder kept as `app-previous`) and
+#     the launchers next to it (setup.cmd, start.cmd, ...) refreshed;
 #   - if the new version does not answer /api/health in time, it is stopped, `app-previous`
 #     comes back, and a database migrated by it is restored from the automatic pre-migration
 #     backup (the changed file is kept aside, never deleted);
@@ -51,19 +52,25 @@ function Install-PendingUpdate {
     $info = Get-Content -Path $Pending -Raw | ConvertFrom-Json
     $zip = Join-Path $UpdateDir $info.file
     $new = Join-Path $RootDir 'app-new'
+    $unpacked = Join-Path $RootDir 'update-unpacked'
     try {
         $current = Get-InstalledVersion $AppDir
         if ((Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLower() -ne $info.sha256) { throw 'paket bozuk (SHA-256 tutmuyor)' }
         if ([version]$info.version -le [version]$current) { throw "$($info.version) kurulu sürümden ($current) yeni değil" }
-        if (Test-Path $new) { Remove-Item -Recurse -Force $new }
-        New-Item -ItemType Directory -Path $new | Out-Null
+        foreach ($dir in $new, $unpacked) { if (Test-Path $dir) { Remove-Item -Recurse -Force $dir } }
+        New-Item -ItemType Directory -Path $unpacked | Out-Null
         $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
-        if (Test-Path $tar) { & $tar -xf $zip -C $new; if ($LASTEXITCODE -ne 0) { throw 'paket açılamadı' } }
-        else { Expand-Archive -Path $zip -DestinationPath $new }
-        if ((Get-InstalledVersion $new) -ne $info.version) { throw 'paketteki sürüm beklenen sürüm değil' }
+        if (Test-Path $tar) { & $tar -xf $zip -C $unpacked; if ($LASTEXITCODE -ne 0) { throw 'paket açılamadı' } }
+        else { Expand-Archive -Path $zip -DestinationPath $unpacked }
+        $package = Join-Path $unpacked 'DepositTracker'
+        if (-not (Test-Path (Join-Path $package 'app\VERSION'))) { throw 'paketin yapısı beklenen gibi değil' }
+        if ((Get-InstalledVersion (Join-Path $package 'app')) -ne $info.version) { throw 'paketteki sürüm beklenen sürüm değil' }
+        Move-Item -Path (Join-Path $package 'app') -Destination $new
         if (Test-Path $Previous) { Remove-Item -Recurse -Force $Previous }
         Rename-WithRetry $AppDir 'app-previous'
         Rename-WithRetry $new 'app'
+        # The launchers only call into app\scripts; refresh them with the package's copies.
+        Get-ChildItem -Path $package -File | Copy-Item -Destination $RootDir -Force
         Write-UpdateLog "kuruldu: $current -> $($info.version)"
         return @{ From = $current; To = $info.version; At = (Get-Date).ToUniversalTime() }
     } catch {
@@ -72,6 +79,7 @@ function Install-PendingUpdate {
         return $null
     } finally {
         Remove-Item -Force -Path $Pending, $zip -ErrorAction SilentlyContinue
+        if (Test-Path $unpacked) { Remove-Item -Recurse -Force $unpacked -ErrorAction SilentlyContinue }
     }
 }
 

@@ -2,7 +2,8 @@
 // Next.js standalone build with Windows native modules, the command-line tools bundled with
 // esbuild, and the .cmd/.ps1 scripts. Usage: pnpm build:portable [--skip-build]
 //
-// The zip's contents are the `app` folder: unzip it to C:\DepositTracker\app. Downloads are
+// The zip holds one `DepositTracker` folder, to be unpacked anywhere (Desktop, Documents): the
+// launchers and BENIOKU.txt at its top, the program in `app`; setup.cmd adds `data`. Downloads are
 // verified (Node.js against nodejs.org's SHASUMS256.txt, npm packages against the registry's
 // integrity hash) and cached outside the repository.
 import { execFileSync } from "node:child_process";
@@ -20,6 +21,8 @@ const CACHE = path.join(os.homedir(), ".cache", "deposit-tracker-build");
 const OUT_ROOT = path.join(ROOT, "dist");
 const NAME = `deposit-tracker-${VERSION}-win-x64`;
 const STAGE = path.join(OUT_ROOT, NAME);
+const PKG = path.join(STAGE, "DepositTracker"); // the folder the user unpacks
+const APP = path.join(PKG, "app"); // the program folder, replaced by updates
 const ZIP = path.join(OUT_ROOT, `${NAME}.zip`);
 
 const log = (message) => console.log(`build:portable: ${message}`);
@@ -82,12 +85,12 @@ async function main() {
 
   fs.rmSync(STAGE, { recursive: true, force: true });
   fs.rmSync(ZIP, { force: true });
-  const server = path.join(STAGE, "server");
+  const server = path.join(APP, "server");
 
   // The standalone build without symlinks: extracting them on Windows needs admin rights or
   // Developer Mode. fs.cpSync's `dereference` only follows the top-level path, so `cp -L`.
   log("copying the standalone build");
-  fs.mkdirSync(STAGE, { recursive: true });
+  fs.mkdirSync(APP, { recursive: true });
   execFileSync("cp", ["-RL", standalone, server]);
   // A dereferenced copy no longer finds its dependencies through the symlink's real path
   // (Next's hashed aliases in .next/node_modules, pnpm's top-level links). Moving pnpm's
@@ -147,20 +150,21 @@ async function main() {
 
   // Portable Node.js: node.exe and its license.
   const nodeDir = await nodeExe();
-  fs.mkdirSync(path.join(STAGE, "node"), { recursive: true });
-  for (const f of ["node.exe", "LICENSE"]) fs.copyFileSync(path.join(nodeDir, f), path.join(STAGE, "node", f));
+  fs.mkdirSync(path.join(APP, "node"), { recursive: true });
+  for (const f of ["node.exe", "LICENSE"]) fs.copyFileSync(path.join(nodeDir, f), path.join(APP, "node", f));
 
   // Scripts: .cmd in CRLF and plain ASCII; .ps1 as UTF-8 with BOM so Windows PowerShell reads Turkish.
+  // The launchers and BENIOKU.txt sit at the top of the folder, the PowerShell scripts in app.
   const win = path.join(ROOT, "packaging", "windows");
   for (const f of fs.readdirSync(win)) {
     const src = path.join(win, f);
     if (fs.statSync(src).isDirectory()) continue;
-    writeText(path.join(STAGE, f), fs.readFileSync(src, "utf8"), { crlf: true, bom: f.endsWith(".txt") });
+    writeText(path.join(PKG, f), fs.readFileSync(src, "utf8"), { crlf: true, bom: f.endsWith(".txt") });
   }
   for (const f of fs.readdirSync(path.join(win, "scripts"))) {
-    writeText(path.join(STAGE, "scripts", f), fs.readFileSync(path.join(win, "scripts", f), "utf8"), { crlf: true, bom: f.endsWith(".ps1") });
+    writeText(path.join(APP, "scripts", f), fs.readFileSync(path.join(win, "scripts", f), "utf8"), { crlf: true, bom: f.endsWith(".ps1") });
   }
-  writeText(path.join(STAGE, "VERSION"), `${VERSION}\n`);
+  writeText(path.join(APP, "VERSION"), `${VERSION}\n`);
 
   // Rule 15 once more, on the final folder: no data, keys or databases.
   const offenders = execFileSync("find", [STAGE, "(", "-iname", "*.sqlite*", "-o", "-iname", "*.key", "-o", "-iname", "app.lock", "-o", "-path", "*/data/*", ")"]).toString().trim();
