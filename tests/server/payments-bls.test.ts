@@ -1,16 +1,19 @@
 import fs from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { agencyDetailsMissing } from "@/domain/agency";
 import { agencyInputSchema } from "@/lib/schemas/agencies";
+import { createPaymentSchema } from "@/lib/schemas/payments";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { listAllBls } from "@/server/bl-overview";
 import { createBls, updateBl, voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/schema";
+import { agencies, auditLog, billsOfLading, documents, ledgerEntries } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { documentPath, storeUpload } from "@/server/files";
 import { ledgerDeposit } from "@/server/ledger";
+import { listNotifications } from "@/server/notifications";
 import {
   correctPayment,
   createPayment,
@@ -143,6 +146,52 @@ describe("deposit payments", () => {
 
     updateSettings(db, admin, { changes: [{ key: "rules.duplicateWarning", value: false }] });
     expect(pay().status).toBe("created");
+  });
+});
+
+describe("payment for an agency not in the system", () => {
+  const byName = (name: string) => db.select().from(agencies).where(eq(agencies.name, name)).get();
+
+  it("adds the agency by name, audits it under the accountant role and notifies operations", async () => {
+    const ops2 = await makeUser(db, "ops2", ["OPERATIONS"]);
+    const result = pay({ agencyId: null, newAgencyName: "  Yeni Hat Lojistik " });
+    if (result.status !== "created") throw new Error("expected created");
+    const agency = byName("Yeni Hat Lojistik")!;
+    expect(agency).toMatchObject({ active: true, toRecipients: [], blNumberPatterns: [], requestChannel: "EMAIL" });
+    expect(agencyDetailsMissing(agency)).toBe(true);
+    expect(result.agencyId).toBe(agency.id);
+    expect(listOwnPayments(db, acc).find((p) => p.id === result.id)).toMatchObject({ agencyId: agency.id });
+
+    const audit = db.select().from(auditLog).where(and(eq(auditLog.action, "agency.create"), eq(auditLog.entityId, String(agency.id)))).get();
+    expect(audit).toMatchObject({ actorUserId: acc.id, roleUsed: "ACCOUNTANT" });
+    for (const user of [ops, ops2]) {
+      expect(listNotifications(db, user)).toMatchObject([
+        { kind: "NEW_AGENCY", entityType: "agency", entityId: agency.id, detail: { agency: "Yeni Hat Lojistik" } },
+      ]);
+    }
+    expect(listNotifications(db, acc)).toEqual([]);
+  });
+
+  it("uses an existing agency of the same name instead of adding another", () => {
+    const result = pay({ agencyId: null, newAgencyName: "msc" });
+    expect(result.status === "created" && result.agencyId).toBe(agencyId);
+    expect(db.select().from(agencies).all()).toHaveLength(1);
+    expect(listNotifications(db, ops)).toEqual([]);
+  });
+
+  it("adds no agency when the payment is rejected", () => {
+    expect(() => pay({ agencyId: null, newAgencyName: "Yeni Hat", paidAt: "2026-10-23" })).toThrow(
+      expect.objectContaining({ messageKey: "payments.errors.futureDate" }),
+    );
+    expect(byName("Yeni Hat")).toBeUndefined();
+  });
+
+  it("needs exactly one of an agency or a new agency name", () => {
+    const base = { amountMinor: 100, currency: "USD", paidAt: "2026-10-20", kind: "BANK", blNoHint: "" };
+    expect(createPaymentSchema.safeParse({ ...base, agencyId: agencyId }).success).toBe(true);
+    expect(createPaymentSchema.safeParse({ ...base, agencyId: null, newAgencyName: "Yeni" }).success).toBe(true);
+    expect(createPaymentSchema.safeParse({ ...base, agencyId: null, newAgencyName: "  " }).success).toBe(false);
+    expect(createPaymentSchema.safeParse({ ...base, agencyId: agencyId, newAgencyName: "Yeni" }).success).toBe(false);
   });
 });
 

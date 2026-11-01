@@ -440,6 +440,10 @@
         "inAppWriteOff": {
           "label": "Bildirim: silme onayı",
           "help": "Yeni silme önerisi yöneticilere, onay veya ret öneriyi yapana bildirilir."
+        },
+        "inAppNewAgency": {
+          "label": "Bildirim: yeni acente",
+          "help": "Muhasebe ödeme girerken sistemde olmayan bir acenteyi adıyla eklediğinde, kartını tamamlamaları için tüm operasyon kullanıcıları bildirim alır."
         }
       },
       "reports": {
@@ -514,6 +518,9 @@
     "status": "Durum",
     "active": "Aktif",
     "inactive": "Pasif",
+    "incomplete": "Bilgi eksik",
+    "incompleteHint": "Alıcı adresi girilmemiş; iade talebi gönderilemez. Acente kartını tamamlayın.",
+    "addNew": "Yeni acente ekle: “{name}”",
     "channel": "Talep kanalı",
     "channels": {
       "EMAIL": "E-posta",
@@ -682,9 +689,12 @@
     "voided": "Ödeme iptal edildi.",
     "showVoided": "İptal edilenleri göster",
     "continueToBl": "B/L oluşturmaya devam et",
+    "newAgencyHelp": "Bu acente sistemde yok; ödemeyle birlikte yalnızca adıyla eklenir. Operasyon bilgilerini tamamlar.",
+    "newAgencyAdded": "Yeni acente eklendi: {name}. Operasyona bildirildi.",
     "parserUnknown": "Dekont okunamadı (tanınmayan biçim); alanları elle doldurun.",
     "errors": {
-      "agency": "Acente seçin.",
+      "agency": "Acente seçin veya yeni acente adı yazın.",
+      "agencyNameLength": "Acente adı en fazla 100 karakter olabilir.",
       "amount": "Geçerli bir tutar girin (ör. 3.000,50).",
       "currency": "Aktif bir para birimi seçin.",
       "date": "Geçerli bir tarih girin.",
@@ -1524,7 +1534,8 @@
       "UNPROCESSED_REPLY": "{agency} yanıtı uyarı süresini geçti ve henüz işlenmedi: {subject}",
       "WRITE_OFF_PROPOSED": "{actor}, B/L {blNo} için {amount} silme önerdi: {reason}",
       "WRITE_OFF_APPROVED": "{actor}, B/L {blNo} için {amount} silme önerinizi onayladı.",
-      "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}"
+      "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}",
+      "NEW_AGENCY": "{actor}, ödeme girerken yeni acente ekledi: {agency}. Acente bilgileri eksik; kartı tamamlayın."
     },
     "unknownAgency": "Acentesi bilinmeyen"
   },

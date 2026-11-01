@@ -7,7 +7,7 @@ import { dataTableColumns } from "@/components/data-table/features";
 import { DetailDialog, detailNavigation } from "@/components/detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { REQUEST_CHANNELS } from "@/domain/agency";
+import { agencyDetailsMissing, REQUEST_CHANNELS } from "@/domain/agency";
 import { t } from "@/i18n";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
 import type { TableLayout } from "@/lib/schemas/table-layout";
@@ -19,6 +19,9 @@ import { OverridesForm } from "./overrides-form";
 
 const splitList = (text: string) => text.split(/[,;\s]+/).map((part) => part.trim()).filter(Boolean);
 
+const AGENCY_STATUSES = ["active", "incomplete", "inactive"] as const;
+type AgencyStatus = (typeof AGENCY_STATUSES)[number];
+
 export type AgencyPermissions = { create: boolean; update: boolean; updateOverrides: boolean; updateFormTemplate: boolean };
 
 export function AgenciesScreen({
@@ -26,13 +29,16 @@ export function AgenciesScreen({
   globals,
   layout,
   permissions,
+  initialAgencyId = null,
 }: {
   agencies: AgencyListItem[];
   globals: AgencyOverrides;
   layout: TableLayout | null;
   permissions: AgencyPermissions;
+  /** Opens this agency's card first (a link from a notification). */
+  initialAgencyId?: number | null;
 }) {
-  const [selected, setSelected] = useState<number | "new" | null>(null);
+  const [selected, setSelected] = useState<number | "new" | null>(initialAgencyId);
   // The table's order when the row was opened, for previous/next.
   const [order, setOrder] = useState<string[]>([]);
   const close = useCallback(() => setSelected(null), []);
@@ -42,20 +48,22 @@ export function AgenciesScreen({
     const col = dataTableColumns<AgencyListItem>();
     return col.columns([
       col.accessor("name", { meta: { label: "agencies.name", filter: "text" }, sortFn: "turkishText" }),
-      col.accessor((a) => (a.active ? "active" : "inactive"), {
+      col.accessor((a): AgencyStatus => (!a.active ? "inactive" : agencyDetailsMissing(a) ? "incomplete" : "active"), {
         id: "status",
         meta: {
           label: "agencies.status",
-          toText: (value) => t(value === "active" ? "agencies.active" : "agencies.inactive"),
-          filter: {
-            options: [
-              { value: "active", label: "agencies.active" },
-              { value: "inactive", label: "agencies.inactive" },
-            ],
-          },
+          toText: (value) => t(`agencies.${value as AgencyStatus}`),
+          filter: { options: AGENCY_STATUSES.map((value) => ({ value, label: `agencies.${value}` as const })) },
         },
-        cell: ({ getValue }) =>
-          getValue() === "active" ? t("agencies.active") : <Badge variant="outline">{t("agencies.inactive")}</Badge>,
+        cell: ({ getValue }) => {
+          const status = getValue();
+          if (status === "active") return t("agencies.active");
+          return (
+            <Badge variant={status === "incomplete" ? "destructive" : "outline"} title={status === "incomplete" ? t("agencies.incompleteHint") : undefined}>
+              {t(`agencies.${status}`)}
+            </Badge>
+          );
+        },
       }),
       col.accessor("requestChannel", {
         meta: {

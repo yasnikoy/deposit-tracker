@@ -61,6 +61,7 @@
     "notifications.inAppCorrection": true,
     "notifications.inAppUnprocessedReply": true,
     "notifications.inAppWriteOff": true,
+    "notifications.inAppNewAgency": true,
     "reports.internalDomains": [],
     "reports.defaultRecipients": [],
     "reconciliation.alternativeSuggestions": 3,

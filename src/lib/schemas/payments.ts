@@ -27,15 +27,37 @@ const blNoHint = z
   .transform((value) => normalizeBlNumber(value) || null)
   .refine((value) => value === null || isValidBlNumber(value), msg("bls.errors.blNo"));
 
-export const createPaymentSchema = z.object({
-  ...paymentFields,
-  kind: z.enum(PAYMENT_KINDS),
-  blNoHint,
-  // Optional: the receipt or invoice can be attached later (rule 12).
-  evidenceDocumentId: id.nullable().default(null),
-  queueItemId: id.nullable().default(null),
-  confirmDuplicate: z.boolean().default(false),
-});
+const hasNewName = (input: { newAgencyName?: unknown }) => typeof input.newAgencyName === "string" && input.newAgencyName.trim() !== "";
+const hasAgency = (input: { agencyId?: unknown; newAgencyName?: unknown }) =>
+  (typeof input.agencyId === "number" && input.agencyId > 0) || hasNewName(input);
+
+/**
+ * A payment names either an existing agency or, when the agency is not in the system yet,
+ * a new agency name; operations completes that agency's card later.
+ */
+export const createPaymentSchema = z
+  .object({
+    ...paymentFields,
+    agencyId: id.nullable(),
+    newAgencyName: z
+      .string()
+      .trim()
+      .max(100, msg("payments.errors.agencyNameLength"))
+      .transform((value) => value || null)
+      .nullish(),
+    kind: z.enum(PAYMENT_KINDS),
+    blNoHint,
+    // Optional: the receipt or invoice can be attached later (rule 12).
+    evidenceDocumentId: id.nullable().default(null),
+    queueItemId: id.nullable().default(null),
+    confirmDuplicate: z.boolean().default(false),
+  })
+  .refine((input) => hasAgency(input) && !(input.agencyId !== null && hasNewName(input)), {
+    path: ["agencyId"],
+    message: msg("payments.errors.agency"),
+    // Also when other fields are invalid, so the form shows every error at once.
+    when: ({ value }) => typeof value === "object" && value !== null,
+  });
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 

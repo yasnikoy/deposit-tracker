@@ -11,6 +11,7 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { agencies, documents } from "./db/schema";
 import { DomainError } from "./errors";
+import { notify, usersWithRole } from "./notifications";
 
 export type Agency = typeof agencies.$inferSelect;
 export type AgencyWithOverrides = Omit<Agency, (typeof agencyOverrideFields)[keyof typeof agencyOverrideFields]> & {
@@ -72,6 +73,39 @@ export function createAgency(db: Db, actor: AuthUser, input: AgencyInput, now: D
     );
     return row.id;
   });
+}
+
+/**
+ * The agency a payment names by text. An agency of that name (case-insensitive) is used as
+ * it is; otherwise one is added with only its name, and operations is notified to complete
+ * the card. Runs inside the payment's transaction, so a rejected payment adds no agency.
+ */
+export function agencyForNewName(tx: DbOrTx, actor: AuthUser, rawName: string, now: Date): number {
+  const name = rawName.trim();
+  if (name === "" || name.length > 100) throw new DomainError("payments.errors.agency");
+  const existing = tx.select({ id: agencies.id }).from(agencies).where(eq(sql`lower(${agencies.name})`, name.toLowerCase())).get();
+  if (existing) return existing.id;
+  const roleUsed = authorize(actor, "agency.createFromPayment");
+  const at = now.toISOString();
+  const row = tx.insert(agencies).values({ name, createdAt: at, updatedAt: at }).returning().get();
+  writeAudit(
+    tx,
+    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(row) },
+    now,
+  );
+  notify(
+    tx,
+    {
+      userIds: usersWithRole(tx, "OPERATIONS"),
+      actorId: actor.id,
+      kind: "NEW_AGENCY",
+      entityType: "agency",
+      entityId: row.id,
+      detail: { actor: actor.displayName, agency: row.name },
+    },
+    now,
+  );
+  return row.id;
 }
 
 /** Saves the agency card; returns the audit id, which undo takes back. */

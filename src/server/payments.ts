@@ -6,6 +6,7 @@ import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND, type PaymentKind } from "@/domain/records";
 import type { Role } from "@/domain/roles";
 import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/payments";
+import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -38,7 +39,7 @@ export type PaymentPrefill = {
 export type DuplicateCandidate = { id: number; agencyName: string; amountMinor: number; currency: string; paidAt: string };
 
 export type CreatePaymentResult =
-  | { status: "created"; id: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
+  | { status: "created"; id: number; agencyId: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
   | { status: "duplicate"; duplicates: DuplicateCandidate[] };
 
 /** Turns a receipt extraction into form prefill: agency by sender alias, B/L candidates by agency patterns. */
@@ -115,9 +116,10 @@ export function createPayment(
 ): CreatePaymentResult {
   const roleUsed = authorize(actor, "payment.create");
   return db.transaction((tx): CreatePaymentResult => {
-    validateReferences(tx, input, now);
+    const agencyId = input.agencyId ?? agencyForNewName(tx, actor, input.newAgencyName ?? "", now);
+    validateReferences(tx, { ...input, agencyId }, now);
     if (!input.confirmDuplicate && getSetting("rules.duplicateWarning", {}, tx)) {
-      const duplicates = findDuplicates(tx, input);
+      const duplicates = findDuplicates(tx, { ...input, agencyId });
       if (duplicates.length > 0) return { status: "duplicate", duplicates };
     }
 
@@ -137,7 +139,7 @@ export function createPayment(
     const row = tx
       .insert(depositPayments)
       .values({
-        agencyId: input.agencyId,
+        agencyId,
         amountMinor: input.amountMinor,
         currency: input.currency,
         paidAt: input.paidAt,
@@ -177,7 +179,7 @@ export function createPayment(
       now,
     );
     const additionalTo = input.blNoHint ? addToExistingBl(tx, actor, roleUsed, row, input.blNoHint, now) : null;
-    return { status: "created", id: row.id, additionalTo };
+    return { status: "created", id: row.id, agencyId, additionalTo };
   });
 }
 

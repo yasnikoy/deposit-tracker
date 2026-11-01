@@ -62,7 +62,7 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 
 | Role | Can do | Cannot do |
 | --- | --- | --- |
-| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
+| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. When a payment's agency is not in the system yet, add it by name from the payment form (name only; operations completes the card). Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
 | Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions, send the report email to internal addresses. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
@@ -149,7 +149,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `documents` | Uploaded and generated files, stored under the data folder as `files/YYYY/MM/<uuid>.<ext>` | owner type/id (null until attached), kind (FORM, FORM\_TEMPLATE, GENERATED\_FORM, RECEIPT, INVOICE, DEDUCTION\_STATEMENT, STANDING, OTHER), original name, stored path, MIME type, size, SHA-256, uploaded\_by (null for files imported from the mailbox), withdrawn\_at/withdrawn\_by (an upload taken back by undo) |
 | `receipt_queue` | Review queue for bulk receipt upload | document\_id, extracted fields, created\_by, resolution (SAVED, DISCARDED), payment\_id |
 | `notes` | Team notes on a B/L | bl\_id, author\_id, body, mentioned user ids, created\_at, undone\_at/undone\_by (undo) |
-| `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_PROPOSED, WRITE\_OFF\_DECIDED), entity type and id, detail (what the text needs, kept as it was), created\_at, read\_at. An overdue reply notifies each user once |
+| `notifications` | In-app notifications | user\_id, kind (MENTION, CORRECTION, UNPROCESSED\_REPLY, WRITE\_OFF\_PROPOSED, WRITE\_OFF\_DECIDED, NEW\_AGENCY), entity type and id, detail (what the text needs, kept as it was), created\_at, read\_at. An overdue reply notifies each user once |
 | `user_preferences` | Per-user UI state (not audited) | user\_id, key (e.g. table id), value (json: columns, order, sort, filters, density; the customer filter) |
 | `settings` / `settings_history` | Typed global settings and their change log | key, value (json), type, validation, old/new value, changed\_by |
 | `holidays` | Business-day calendar | date (unique), name, kind (FULL, HALF) |
@@ -179,7 +179,7 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | Calendar | Weekend days; holiday list (date, name, full/half day); whether half days (arife) count as business days; bulk holiday entry per year |
 | Durations (business days) | Days after payment until first refund request is due; days in advance a B/L shows as "upcoming"; days between follow-ups after "not yet returned"; days after an unexplained deduction until the statement request is due; days between statement-request follow-ups; days before an unprocessed agency reply raises a warning; aging report bucket edges |
 | Reports | Internal email domains (report recipients must belong to one); default report recipients; report email template |
-| Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval) (step 7); daily unprocessed-reply email on/off, time and recipients (step 5); weekly summary email on/off, its weekday, time and recipients |
+| Notifications | In-app notifications always on; which events notify (unprocessed reply, correction, mention, write-off approval, new agency from a payment) (step 7); daily unprocessed-reply email on/off, time and recipients (step 5); weekly summary email on/off, its weekday, time and recipients |
 | Email server | SMTP/IMAP host, port, encryption, user, encrypted app password; sent-folder name; inbox folder the poller reads; IMAP poll interval; sender display name; default CC/BCC; signature; max attachment size; send-test button |
 | Templates (Turkish) | Refund request, follow-up, deduction statement request, daily unprocessed-reply email, weekly summary; batched template sections; placeholders; live preview |
 | Lists | Deduction types, reply types, active currencies, our bank accounts (used only to fill `{bank_name}` / `{iban}` in agency forms), status display labels and colours |
@@ -188,7 +188,7 @@ Every duration, threshold, template and list is editable in a Turkish settings p
 | Users | Users and their roles (one or more); failed-login lockout attempts; minimum password length |
 | Backups | Daily backup time; number of daily and weekly copies kept; second backup location |
 
-Agency-level configuration (not global settings): B/L number patterns, form template, recipients, sending mode, request channel, portal URL, active flag. Editable by operations on the agency card; the form template and setting overrides by admin. Agencies are deactivated, never deleted.
+Agency-level configuration (not global settings): B/L number patterns, form template, recipients, sending mode, request channel, portal URL, active flag. Editable by operations on the agency card; the form template and setting overrides by admin. Agencies are deactivated, never deleted. An accountant may add an agency by name only, while entering its first payment; an agency without a To recipient shows as *Bilgi eksik* (details missing) on the Agencies screen until operations completes it.
 
 **B/L number patterns:** up to 20 regular expressions per agency, matched case-insensitively; candidates are upper-cased and listed in order of appearance. A pattern is rejected when it is invalid, longer than 200 characters, matches empty text, or nests quantifiers (e.g. `(A+)+`), which could hang the server. The agency card has a test field.
 
@@ -469,6 +469,12 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Nov 1, 2026 — new agency from a payment, v0.8.9**
+
+- A payment no longer needs an agency that already exists. The accountant types the name in the payment form's agency field and picks *Yeni acente ekle* (add new agency). It is offered only when no agency has that exact name (case-insensitive). The agency is added with its name only, in the payment's transaction: a rejected payment adds no agency. An agency of that name that already exists is used instead. Audited as `agency.create` under the accountant role (new permission `agency.createFromPayment`).
+- Every active operations user gets a *new agency* notification (kind `NEW_AGENCY`, setting `notifications.inAppNewAgency`, on by default) that opens the agency card. The Agencies screen shows *Bilgi eksik* (details missing) for an active agency without a To recipient. This is derived, never stored, so it clears once recipients are entered.
+- Refunds still need an existing agency: the agency was added with the deposit payment.
+
 **Nov 1, 2026 — install anywhere, v0.8.8**
 
 - The zip now holds one `DepositTracker` folder (launchers and `BENIOKU.txt` at its top, the program in `app`) that can be unpacked anywhere, e.g. the Desktop or Documents; setup adds `data`, `deposit.env` and `deposit.key` next to `app`. `C:\DepositTracker` is no longer suggested. Setup warns about folders synced by OneDrive (a synced database in use can be corrupted) and asks before installing there.
@@ -556,6 +562,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
   - *Correction*: a payment correction that changed a B/L notifies the operations users who worked on that B/L (created it, recorded or sent its requests, recorded its replies, wrote notes). If there are none, all active operations users.
   - *Unprocessed reply*: once the warning has passed, each active operations user, once per reply. The check runs with every mailbox poll.
   - *Write-off*: a proposal notifies every active admin; the decision notifies the proposer.
+  - *New agency*: an agency added by name from a payment notifies every active operations user; the notification opens its card.
   - The actor is never notified of their own action. Each kind can be switched off under *Bildirimler*.
 - Weekly summary email (off by default): weekday, time and recipients are settings, and the `WEEKLY_SUMMARY` template is editable. It contains open balance per currency, B/Ls waiting longer than the last aging bucket edge (the same rule as the report email), and unprocessed and overdue reply counts. It runs as a recurring job like the daily email: a missed week runs at the next start, and changing the weekday or time moves the pending job. Scheduled jobs read B/Ls without a signed-in user and without draft locks (`allBlsForJob`).
 

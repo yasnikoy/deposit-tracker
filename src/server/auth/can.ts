@@ -31,6 +31,8 @@ const rules = {
   "lists.view": ALL_ROLES,
   "agency.view": ALL_ROLES,
   "agency.create": only("OPERATIONS"),
+  // An agency not in the system yet is added by name while entering its payment; operations completes the card.
+  "agency.createFromPayment": only("ACCOUNTANT"),
   "agency.update": only("OPERATIONS"),
   // Setting overrides are settings, so only admins change them.
   "agency.updateOverrides": only("ADMIN"),

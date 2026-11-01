@@ -1,6 +1,14 @@
 export const REQUEST_CHANNELS = ["EMAIL", "PORTAL"] as const;
 export type RequestChannel = (typeof REQUEST_CHANNELS)[number];
 
+/**
+ * An agency card is incomplete while it has no request recipient: refund requests cannot
+ * reach the agency yet. Typical for an agency an accountant added by name with its payment.
+ */
+export function agencyDetailsMissing(agency: { toRecipients: readonly string[] }): boolean {
+  return agency.toRecipients.length === 0;
+}
+
 /** Folds case and Turkish letters and drops punctuation, for comparing bank sender names. */
 function foldName(value: string): string {
   return value

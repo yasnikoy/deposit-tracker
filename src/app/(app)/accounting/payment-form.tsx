@@ -27,6 +27,7 @@ export type ReferenceData = {
 type FormValues = {
   kind: PaymentKind;
   agencyId: number | null;
+  newAgencyName: string | null;
   amountText: string;
   currency: string;
   paidAt: string;
@@ -67,6 +68,7 @@ export function PaymentForm({
 
   const toInput = (values: FormValues, confirmDuplicate = false) => ({
     agencyId: values.agencyId,
+    newAgencyName: values.newAgencyName,
     amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
     currency: values.currency,
     paidAt: values.paidAt,
@@ -83,7 +85,7 @@ export function PaymentForm({
     const errors: FieldErrors<FormValues & { evidence: string }> = {};
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0]);
-      const field = (FIELD_OF[key] ?? key) as keyof FormValues | "evidence";
+      const field = (FIELD_OF[key] ?? (key === "newAgencyName" ? "agencyId" : key)) as keyof FormValues | "evidence";
       if (!errors[field]) errors[field] = { type: "validation", message: isTranslationKey(issue.message) ? issue.message : "errors.validation" };
     }
     return { values: {}, errors: errors as FieldErrors<FormValues> };
@@ -94,6 +96,7 @@ export function PaymentForm({
     defaultValues: {
       kind: "BANK",
       agencyId: prefill?.agencyIds.length === 1 ? prefill.agencyIds[0] : null,
+      newAgencyName: null,
       amountText: prefill?.amountMinor ? formatAmount(prefill.amountMinor) : "",
       currency: initialCurrency,
       paidAt: prefill?.paidAt ?? refs.today,
@@ -101,7 +104,10 @@ export function PaymentForm({
     },
   });
   const errors = form.formState.errors as FieldErrors<FormValues & { evidence: string }>;
-  const [kind, currency, amountText, agencyId] = useWatch({ control: form.control, name: ["kind", "currency", "amountText", "agencyId"] });
+  const [kind, currency, amountText, agencyId, newAgencyName] = useWatch({
+    control: form.control,
+    name: ["kind", "currency", "amountText", "agencyId", "newAgencyName"],
+  });
   const amount = parseAmountInput(amountText);
 
   const submit = async (values: FormValues, confirmDuplicate: boolean) => {
@@ -117,7 +123,8 @@ export function PaymentForm({
     setDuplicates(null);
     const { additionalTo } = result.data;
     toast.success(additionalTo ? t("payments.additionalSaved", { bl: additionalTo.blNo }) : t("payments.saved"));
-    onSaved({ id: result.data.id, agencyId: values.agencyId!, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates, additionalTo });
+    if (values.newAgencyName) toast.info(t("payments.newAgencyAdded", { name: values.newAgencyName }));
+    onSaved({ id: result.data.id, agencyId: result.data.agencyId, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates, additionalTo });
   };
   const onSubmit = form.handleSubmit((values) => submit(values, false));
 
@@ -176,7 +183,10 @@ export function PaymentForm({
               const p = result.response.prefill;
               setUnreadNotice(result.response.parser !== "garanti");
               if (p) {
-                if (p.agencyIds.length === 1) form.setValue("agencyId", p.agencyIds[0]);
+                if (p.agencyIds.length === 1) {
+                  form.setValue("agencyId", p.agencyIds[0]);
+                  form.setValue("newAgencyName", null);
+                }
                 if (p.amountMinor) form.setValue("amountText", formatAmount(p.amountMinor));
                 if (p.currency) form.setValue("currency", p.currency);
                 if (p.paidAt) form.setValue("paidAt", p.paidAt);
@@ -196,9 +206,12 @@ export function PaymentForm({
           agencies={refs.agencies}
           value={agencyId}
           onChange={(id) => form.setValue("agencyId", id, { shouldValidate: form.formState.isSubmitted })}
+          newName={newAgencyName}
+          onNewName={(name) => form.setValue("newAgencyName", name, { shouldValidate: form.formState.isSubmitted })}
           placeholder={t("payments.agencySearch")}
           invalid={!!errors.agencyId}
         />
+        {newAgencyName && <p className="text-muted-foreground text-xs">{t("payments.newAgencyHelp")}</p>}
         {message(errors.agencyId?.message)}
       </div>
 

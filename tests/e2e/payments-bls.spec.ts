@@ -207,3 +207,20 @@ test("the accountant corrects and voids own records; receipts open from the list
   await page.getByLabel(tr.payments.showVoided).check();
   await expect(table.getByRole("row").filter({ hasText: tr.payments.statuses.voided })).toHaveCount(1);
 });
+
+test("a payment for an agency not in the system adds it by name, marked as missing details", async ({ page }) => {
+  const name = "Yeni Hat Lojistik";
+  await login(page, DUAL.username, DUAL.final);
+  await page.goto("/accounting");
+  await page.getByRole("combobox", { name: tr.payments.agency }).fill(name);
+  await page.getByRole("option", { name: tr.agencies.addNew.replace("{name}", name) }).click();
+  await expect(page.getByText(tr.payments.newAgencyHelp)).toBeVisible();
+  await page.getByLabel(tr.payments.amount).fill("750");
+  await page.getByRole("button", { name: tr.payments.save }).click();
+  await expect(page.getByText(tr.payments.newAgencyAdded.replace("{name}", name))).toBeVisible();
+  await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
+
+  await page.goto("/agencies");
+  const row = page.getByRole("row", { name: new RegExp(name) });
+  await expect(row.getByText(tr.agencies.incomplete)).toBeVisible();
+});
