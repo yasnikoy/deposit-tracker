@@ -1,6 +1,6 @@
-# Started by the DepositTracker scheduled task (at Windows startup, and again by the task's
-# restart setting when the app stops with an error). Installs a staged update first, then runs
-# the server and waits for it. ARCHITECTURE -> Updates:
+# Started by the DepositTracker scheduled task (at the user's Windows sign-in, or by start.cmd).
+# Installs a staged update first, then runs the server and waits for it; when the server stops
+# with an error it is started again after a minute. ARCHITECTURE -> Updates:
 #   - an update staged by the app (update\pending.json + its verified zip) is unpacked, its
 #     `DepositTracker\app` swapped in for `app` (the previous folder kept as `app-previous`) and
 #     the launchers next to it (setup.cmd, start.cmd, ...) refreshed;
@@ -139,6 +139,6 @@ while ($true) {
         $installed = Install-PendingUpdate
         continue
     }
-    # Any other end is unexpected: a non-zero exit lets Task Scheduler start the app again.
-    exit ([Math]::Max($server.ExitCode, 1))
+    # Any other end is unexpected: start again after a minute (stop.cmd ends this loop too).
+    Start-Sleep -Seconds 60
 }

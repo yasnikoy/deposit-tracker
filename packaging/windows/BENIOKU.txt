@@ -5,13 +5,16 @@ Deposit Tracker - Windows kurulumu
    DepositTracker klasörü çıkar; uygulama bu klasörden çalışır.
    (Masaüstü veya Belgeler OneDrive ile eşitleniyorsa kurulum uyarır; o zaman klasörü
    OneDrive dışındaki bir yere koyun.)
-2. DepositTracker klasöründeki setup.cmd dosyasına çift tıklayın ve Windows'un yönetici
-   onayını verin. Port, e-posta modu, ilk yönetici hesabı, otomatik başlatma ve Windows
-   hesabınızın şifresi sorulur. (Şifre yalnızca Windows Görev Zamanlayıcı'ya verilir;
-   hesabın şifresi yoksa boş bırakın. Otomatik başlatmada uygulama Windows açılınca kimse
-   oturum açmadan başlar; seçmezseniz start.cmd ile başlatılır.)
+2. DepositTracker klasöründeki setup.cmd dosyasına çift tıklayın. Yönetici izni gerekmez.
+   Port, e-posta modu, ilk yönetici hesabı ve otomatik başlatma sorulur. Otomatik başlatmada
+   uygulama, kurulumu yapan kullanıcı Windows'ta oturum açınca başlar ve o kullanıcı oturumu
+   açık olduğu sürece çalışır.
 3. Kurulumun sonunda gösterilen adresi tarayıcıda açın, örneğin http://192.168.1.20:3000
    Ofisteki diğer kişiler de aynı adresi kullanır.
+4. Kurulum güvenlik duvarının kapalı olduğunu söylerse: BT (yönetici hesabı olan biri)
+   firewall.cmd dosyasını bir kez çalıştırır. Yönetici izni gereken tek adım budur.
+5. İsterseniz her bilgisayarda Edge'de adresi açıp ... > Uygulamalar > "Bu siteyi uygulama
+   olarak yükle" deyin: uygulama kendi penceresinde, görev çubuğunda simgesiyle açılır.
 
 DepositTracker klasörü
   app          program (güncellemeler yalnızca bunu ve komut dosyalarını değiştirir)
@@ -25,7 +28,8 @@ Komutlar (DepositTracker klasöründe)
   backup.cmd        hemen yedek alır
   create-admin.cmd  yeni yönetici hesabı (kimse yönetici olarak giremiyorsa)
   setup.cmd         ayarları değiştirmek için yeniden çalıştırılabilir
+  firewall.cmd      portu ofis ağına açar (BT, bir kez; yönetici izni ister)
 
-Klasörü taşımak için: stop.cmd, klasörü taşıyın, yeni yerinde setup.cmd.
+Klasörü taşımak için: stop.cmd, klasörü taşıyın, yeni yerinde setup.cmd, sonra BT firewall.cmd.
 Sorun olursa: start.cmd hatanın nedenini gösterir; ayrıntılar data\logs klasöründe.
 Ayrıntılı kılavuz: docs/RUNBOOK.md (GitHub deposunda).

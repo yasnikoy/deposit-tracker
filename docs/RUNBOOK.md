@@ -43,25 +43,35 @@ hours; ideally IT has given the PC a fixed IP (DHCP reservation).
    Desktop or Documents. It holds one folder, `DepositTracker`, with `setup.cmd` at its top.
    If Desktop/Documents are synced by OneDrive, setup warns: then put the folder elsewhere in
    your user folder.
-2. Double-click `setup.cmd` and approve the administrator prompt. It asks:
+2. Double-click `setup.cmd`. No administrator rights are needed. It asks:
+   - **Data here?** — Enter (Yes) to keep data, key and settings in this folder.
    - **Port** — Enter for 3000 (it checks that the port is free).
    - **Send emails for real?** — No for a test installation (dry-run: emails are stored, never sent).
      Yes only on the office PC once mail is configured.
    - **Create an admin account** — username, display name, password (at least 8 characters by
      default; Ayarlar → Kullanıcı güvenliği sets the minimum).
-   - **Start automatically with Windows?** — Yes on the office PC (the app starts at boot, before
-     anyone logs in). No: the app runs only after `start.cmd`, until the next restart.
-   - **Windows account and password** for the task — Enter to accept your own account.
-     The password goes to Windows Task Scheduler only. An account without a password: leave it
-     empty; the task is then registered without a stored password and cannot reach network
-     shares, so the second backup location must be a local folder or an external disk.
-     Change it later? Run `setup.cmd` again.
-3. Setup opens the port in Windows Firewall (domain and private networks only), registers the
-   task, starts the app and prints the addresses. Open one in Chrome or Edge and log in.
+   - **Start automatically when you sign in to Windows?** — Yes on the office PC. The app runs
+     under the Windows user who ran setup, while that user is signed in (on an auto-login PC: from
+     boot). No: the app runs only after `start.cmd`, until that user signs out or the PC restarts.
+   Change any answer later by running `setup.cmd` again.
+3. Setup registers the task, starts the app, prints the addresses and checks Windows Firewall.
+   If it reports that the port is closed to the office network: **IT runs `firewall.cmd` once**
+   (right-click is not needed; it asks for an administrator account). This is the only step that
+   needs administrator rights; repeat it only after changing the port or moving the folder. Until
+   then the app works on the host PC itself (`http://localhost:3000`).
 4. In the app (Yönetim menu): Ayarlar → E-posta sunucusu (section 2), Kullanıcılar (section 3), Acenteler
    (with B/L number patterns and form templates), Listeler (bank accounts), Tatiller, standing
    documents, and **Ayarlar → Yedekleme → İkinci yedek konumu** (section 7).
 5. Copy `deposit.key` (in the `DepositTracker` folder) to a safe place (section 9).
+6. On each PC that uses the app (the host too): open the address in Edge, then ⋯ → Uygulamalar →
+   **Bu siteyi uygulama olarak yükle** (Apps → Install this site as an app). The app then has its
+   own window, taskbar icon and Start menu entry. (Chrome: ⋮ → Kaydet ve paylaş → Kısayol oluştur →
+   "Pencere olarak aç".)
+
+**Installed before v0.9.0?** The app keeps running as before after the update. To move to the
+setup without administrator rights, run the new `setup.cmd` once (answer No to "create admin"):
+Windows asks for administrator approval one last time to remove the old task. Then IT runs
+`firewall.cmd`, because the new rule also names the program.
 
 `setup.cmd` can be run again at any time to change the port, the email mode, automatic start or the account; it
 keeps the data.
@@ -93,7 +103,7 @@ the prefilled form from each B/L.
 
 ## 5. Start, stop, check
 
-In the `DepositTracker` folder (`start`/`stop`/`setup` ask for administrator approval):
+In the `DepositTracker` folder (only `firewall.cmd` needs an administrator):
 
 | Command | Does |
 | --- | --- |
@@ -101,7 +111,8 @@ In the `DepositTracker` folder (`start`/`stop`/`setup` ask for administrator app
 | `stop.cmd` | stops it; it stays stopped until `start.cmd` or, with automatic start, the next Windows start |
 | `backup.cmd` | takes a backup now (works while the app runs) |
 | `create-admin.cmd` | creates an admin from the command line |
-| `setup.cmd` | changes port, email mode, automatic start, account |
+| `setup.cmd` | changes port, email mode, automatic start |
+| `firewall.cmd` | opens the port to the office network (administrator, once; again after a port or folder change) |
 
 Health: Yönetim → **Sistem durumu** shows the version, the address to share, backups (red when
 older than yesterday or the second location is unreachable), mail servers and failed jobs. From
@@ -182,8 +193,8 @@ works, but the mail passwords must be entered again (Ayarlar → E-posta sunucus
 2. Copy the whole `DepositTracker` folder (app, data, deposit.key, deposit.env, the `.cmd` files)
    to the new PC, anywhere. (Moving it on the same PC works the same way: `stop.cmd`, move it,
    then step 3.)
-3. New PC: `setup.cmd` (answer No to "create admin"; accept the rest). It registers the task and
-   firewall rule there and starts the app.
+3. New PC: `setup.cmd` (answer No to "create admin"; accept the rest). It registers the task there
+   and starts the app; IT runs `firewall.cmd` there (also after moving the folder on the same PC).
 4. Tell everyone the new address (shown by setup). Ask IT for a fixed IP for the new PC.
 5. After a week without problems, delete the folder and the task on the old PC.
 
@@ -202,7 +213,7 @@ Ayarlar → E-posta sunucusu), the provider's status. Sistem durumu shows when i
 
 | Symptom | Check |
 | --- | --- |
-| Page does not open from other PCs | Open `http://localhost:<port>` on the app PC. Works there: firewall (run `setup.cmd` again) or wrong IP (Sistem durumu shows it). Not there: `start.cmd` |
+| Page does not open from other PCs | Open `http://localhost:<port>` on the app PC. Works there: firewall (IT runs `firewall.cmd`; `start.cmd` says whether the rule is missing) or wrong IP (Sistem durumu shows it). Not there: `start.cmd` |
 | `start.cmd`: "did not answer" | It prints the task's last result and the end of `run-error.log`, `data\logs\console-error.log` and `console.log`; the app's own logs are in `data\logs\app.*.log` |
 | App does not start after a Windows password change | `setup.cmd` again, give the new password |
 | "Another instance is already running" | `stop.cmd`, then `start.cmd` |

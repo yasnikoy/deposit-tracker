@@ -7,6 +7,8 @@
 #   <root>\deposit.env  settings written by setup.cmd (port, email mode)
 # The folders are never stored: they follow <root>, so the folder can be moved (then setup.cmd
 # again, for the task).
+# Nothing here needs administrator rights except firewall.cmd, which IT runs once
+# (ARCHITECTURE -> Operations and deployment).
 
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -17,6 +19,8 @@ $RootDir = Split-Path -Parent $AppDir
 $EnvFile = Join-Path $RootDir 'deposit.env'
 $NodeExe = Join-Path $AppDir 'node\node.exe'
 $ServerDir = Join-Path $AppDir 'server'
+$RunScript = Join-Path $PSScriptRoot 'run.ps1'
+$FirewallRuleName = 'Deposit Tracker'
 
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -24,6 +28,7 @@ function Test-Admin {
 }
 
 # Re-runs the calling script as administrator (Windows asks for approval) and ends this copy.
+# Only firewall.cmd uses it.
 function Invoke-Elevated([string]$ScriptPath, [string]$Arguments = '') {
     if (Test-Admin) { return }
     Start-Process -FilePath 'powershell.exe' -Verb RunAs -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$ScriptPath`" $Arguments"
@@ -78,6 +83,49 @@ function Wait-Health([int]$Port, [int]$Seconds = 90) {
 function Get-AppNodeProcesses {
     Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.ExecutablePath -and $_.ExecutablePath -ieq $NodeExe }
+}
+
+# The run.ps1 loops of this installation (they restart the server after an error).
+function Get-AppRunnerProcesses {
+    Get-CimInstance Win32_Process -Filter "Name = 'powershell.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -and $_.CommandLine.IndexOf($RunScript, [StringComparison]::OrdinalIgnoreCase) -ge 0 }
+}
+
+# Stops the task, its run.ps1 loop and the server; $true when nothing is left running.
+function Stop-App {
+    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+    foreach ($p in @(Get-AppRunnerProcesses) + @(Get-AppNodeProcesses)) {
+        Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Seconds 1
+    return -not (Get-AppNodeProcesses)
+}
+
+# Whether Windows Firewall lets the office network reach the app: $true, $false, or $null when
+# the rules cannot be read. The rule names node.exe so Windows never asks about it on first use.
+function Test-FirewallRule([int]$Port) {
+    try {
+        $rules = @(Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction Stop | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' })
+        foreach ($rule in $rules) {
+            $ports = @(($rule | Get-NetFirewallPortFilter).LocalPort)
+            $program = ($rule | Get-NetFirewallApplicationFilter).Program
+            if ($ports -contains [string]$Port -and $program -ieq $NodeExe) { return $true }
+        }
+        return $false
+    } catch {
+        # "No rule with that name" is an answer; anything else (e.g. no access) is not.
+        if ($_.CategoryInfo.Category -eq 'ObjectNotFound') { return $false }
+        return $null
+    }
+}
+
+# Shown when the firewall rule is missing: the one step that needs an administrator.
+function Write-FirewallHelp([int]$Port) {
+    Write-Host "Diğer bilgisayarların uygulamaya ulaşması için Windows Güvenlik Duvarı'nda port $Port açılmalı." -ForegroundColor Yellow
+    Write-Host 'Bu, yönetici izni gereken tek adımdır ve bir kez yapılır:' -ForegroundColor Yellow
+    Write-Host "  BT (yönetici hesabı olan biri) DepositTracker klasöründeki firewall.cmd dosyasını çalıştırır." -ForegroundColor Yellow
+    Write-Host '  Port veya klasör değişirse bir kez daha çalıştırılır.' -ForegroundColor Yellow
+    Write-Host "Bu bilgisayarda uygulama yine çalışır: http://localhost:$Port" -ForegroundColor Yellow
 }
 
 # Shown when the app does not answer after a start: the task's last result and the end of the

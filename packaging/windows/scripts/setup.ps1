@@ -1,12 +1,9 @@
-# First setup on the office PC (setup.cmd). Asks a few questions, then: writes deposit.env,
-# creates the first admin, opens the port in Windows Firewall (domain and private networks
-# only), registers the task under the given Windows account (with its password, or without one
-# through S4U when it has none), with or without a Windows-startup trigger, and starts the app.
+# First setup on the office PC (setup.cmd), without administrator rights. Asks a few questions,
+# then: writes deposit.env, creates the first admin, registers the task under the signed-in
+# Windows user (no stored password), with or without a sign-in trigger, starts the app and
+# checks the firewall rule; when it is missing, says to have IT run firewall.cmd once.
 # Safe to run again: existing answers are offered as defaults.
-param([string]$LaunchUser = '')
-
 . (Join-Path $PSScriptRoot 'common.ps1')
-Invoke-Elevated $PSCommandPath "-LaunchUser `"$LaunchUser`""
 
 function Ask([string]$Question, [string]$Default) {
     $answer = Read-Host "$Question [$Default]"
@@ -63,11 +60,8 @@ try {
     [IO.File]::WriteAllLines($EnvFile, $settings, (New-Object Text.UTF8Encoding($false)))
     Write-Host "Ayarlar kaydedildi: $EnvFile"
 
-    # The task must not hold the database while the admin is created.
-    if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-        Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-        Get-AppNodeProcesses | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-    }
+    # The app must not hold the database while the admin is created.
+    if (-not (Stop-App)) { throw 'Çalışan uygulama durdurulamadı; bilgisayarı yeniden başlatıp setup.cmd dosyasını tekrar çalıştırın.' }
 
     Write-Title 'Yönetici hesabı'
     if (Ask-YesNo 'Yeni bir yönetici hesabı oluşturulsun mu? (ilk kurulumda Evet)' (-not (Test-Path (Join-Path $dataDir 'deposit.sqlite')))) {
@@ -77,47 +71,38 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Yönetici hesabı oluşturulamadı.' }
     }
 
-    Write-Title 'Güvenlik duvarı'
-    $ruleName = 'Deposit Tracker'
-    Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-    New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort ([int]$port) -Profile Domain, Private | Out-Null
-    Write-Host "Port $port ofis ağına açıldı (etki alanı ve özel ağ; genel ağlar kapalı)."
-
-    # The app always runs through the task (start.cmd starts it, it restarts after errors and
-    # installs updates); automatic start only decides whether it has a Windows-startup trigger.
+    # The app always runs through the task (start.cmd starts it, run.ps1 restarts it after errors
+    # and installs updates); automatic start only decides whether it has a sign-in trigger. The
+    # task runs as the signed-in user, which needs no administrator rights and no stored password,
+    # so the app runs while this user is signed in. conhost --headless keeps it without a window.
     Write-Title 'Otomatik başlatma'
+    $account = "$env:USERDOMAIN\$env:USERNAME"
     $existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    $autoStart = Ask-YesNo 'Uygulama Windows açılınca, kimse oturum açmadan otomatik başlasın mı? (Hayır: start.cmd ile başlatılır)' (-not $existing -or @($existing.Triggers).Count -gt 0)
-    Write-Host 'Uygulama bir Windows hesabıyla çalışır. Şifre yalnızca Windows Görev Zamanlayıcı''ya verilir, uygulama saklamaz.'
-    Write-Host 'Hesabın şifresi yoksa boş bırakın: görev şifresiz kaydedilir; o zaman ağdaki paylaşılan klasörlere'
-    Write-Host '(örneğin ağdaki bir ikinci yedek konumuna) erişemez, harici diske veya bu bilgisayardaki bir klasöre erişir.'
-    $account = Ask 'Windows hesabı' ($(if ($LaunchUser) { $LaunchUser } else { "$env:USERDOMAIN\$env:USERNAME" }))
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$(Join-Path $PSScriptRoot 'run.ps1')`"" -WorkingDirectory $RootDir
-    $triggers = if ($autoStart) { @(New-ScheduledTaskTrigger -AtStartup) } else { @() }
-    $taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
-        -RestartCount 999 -RestartInterval (New-TimeSpan -Minutes 1) -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
-    while ($true) {
-        $secure = Read-Host "$account şifresi (şifre yoksa boş bırakın)" -AsSecureString
-        $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure))
-        try {
-            $task = @{ TaskName = $TaskName; Action = $action; Settings = $taskSettings; Force = $true }
-            if ($triggers.Count -gt 0) { $task.Trigger = $triggers }
-            if ($plain) {
-                Register-ScheduledTask @task -User $account -Password $plain -RunLevel Limited | Out-Null
-            } else {
-                # No stored password (S4U): Windows refuses blank passwords for tasks, this needs none.
-                Register-ScheduledTask @task -Principal (New-ScheduledTaskPrincipal -UserId $account -LogonType S4U -RunLevel Limited) | Out-Null
-            }
-            break
-        } catch {
-            Write-Host "Görev kaydedilemedi: $($_.Exception.Message)" -ForegroundColor Yellow
-            if (-not (Ask-YesNo 'Tekrar denensin mi?' $true)) { throw 'Otomatik başlatma ayarlanamadı.' }
-        } finally {
-            $plain = $null
+    $autoStart = Ask-YesNo "Uygulama $account Windows'ta oturum açınca otomatik başlasın mı? (Hayır: start.cmd ile başlatılır)" (-not $existing -or @($existing.Triggers).Count -gt 0)
+    if ($existing) {
+        # A task from an older setup was registered with administrator approval; a normal user
+        # may not replace it, so removing it then asks for that approval once more.
+        try { Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Stop }
+        catch {
+            Write-Host 'Önceki kurulumun görevi yönetici izniyle kaydedilmiş; kaldırmak için Windows bir kez yönetici onayı isteyecek.' -ForegroundColor Yellow
+            Start-Process -FilePath 'schtasks.exe' -ArgumentList "/Delete /TN $TaskName /F" -Verb RunAs -Wait -WindowStyle Hidden
+            if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) { throw "Önceki görev kaldırılamadı. BT'den Görev Zamanlayıcı'daki '$TaskName' görevini silmesini isteyin, sonra setup.cmd dosyasını tekrar çalıştırın." }
         }
     }
-    if ($autoStart) { Write-Host "Görev '$TaskName' kaydedildi; uygulama Windows açılınca başlar." }
-    else { Write-Host "Görev '$TaskName' kaydedildi; uygulama Windows açılınca başlamaz, start.cmd ile başlatın." }
+    $conhost = Join-Path $env:SystemRoot 'System32\conhost.exe'
+    $action = New-ScheduledTaskAction -Execute $conhost -Argument "--headless powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$RunScript`"" -WorkingDirectory $RootDir
+    $task = @{
+        TaskName  = $TaskName
+        Action    = $action
+        Principal = New-ScheduledTaskPrincipal -UserId $account -LogonType Interactive -RunLevel Limited
+        Settings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
+            -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
+        Force     = $true
+    }
+    if ($autoStart) { $task.Trigger = New-ScheduledTaskTrigger -AtLogOn -User $account }
+    Register-ScheduledTask @task | Out-Null
+    if ($autoStart) { Write-Host "Görev '$TaskName' kaydedildi; uygulama $account oturum açınca başlar." }
+    else { Write-Host "Görev '$TaskName' kaydedildi; uygulama kendiliğinden başlamaz, start.cmd ile başlatın." }
 
     Write-Title 'Başlatılıyor'
     Start-ScheduledTask -TaskName $TaskName
@@ -131,6 +116,12 @@ try {
     Write-Host ''
     Write-Host 'Bu bilgisayarda : ' -NoNewline; Write-Host "http://localhost:$port" -ForegroundColor Green
     foreach ($ip in Get-LanAddresses) { Write-Host 'Ofis ağında    : ' -NoNewline; Write-Host "http://$($ip):$port" -ForegroundColor Green }
+
+    Write-Title 'Güvenlik duvarı'
+    $firewall = Test-FirewallRule ([int]$port)
+    if ($firewall -eq $true) { Write-Host "Port $port ofis ağına açık." }
+    elseif ($firewall -eq $false) { Write-FirewallHelp ([int]$port) }
+    else { Write-Host 'Güvenlik duvarı kuralları okunamadı. Diğer bilgisayarlardan açılmıyorsa BT firewall.cmd dosyasını çalıştırsın.' -ForegroundColor Yellow }
     Write-Host ''
     Write-Host 'İlk girişten sonra: Ayarlar -> E-posta, Kullanıcılar, Acenteler; Ayarlar -> Yedekleme -> İkinci yedek konumu.'
     Wait-Close
