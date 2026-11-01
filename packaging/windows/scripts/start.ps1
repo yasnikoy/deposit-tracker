@@ -19,8 +19,6 @@ try {
         Write-Host "Deposit Tracker $version çalışıyor: http://localhost:$port" -ForegroundColor Green
         foreach ($ip in Get-LanAddresses) { Write-Host "Ofis ağında: http://$($ip):$port" -ForegroundColor Green }
         if ((Test-FirewallRule $port) -eq $false) { Write-FirewallHelp $port }
-        $public = Get-PublicConnections
-        if ($public.Count -gt 0) { Write-PublicNetworkHelp $public }
     }
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

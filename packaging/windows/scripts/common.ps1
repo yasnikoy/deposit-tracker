@@ -102,14 +102,17 @@ function Stop-App {
 }
 
 # Whether Windows Firewall lets the office network reach the app: $true, $false, or $null when
-# the rules cannot be read. The rule names node.exe so Windows never asks about it on first use.
+# the rules cannot be read. The rule names node.exe so Windows never asks about it on first use,
+# and covers every network type (office connections are often classified as public) but only
+# the PC's own local subnet. A rule from before v0.9.1 (domain and private only) counts as missing.
 function Test-FirewallRule([int]$Port) {
     try {
         $rules = @(Get-NetFirewallRule -DisplayName $FirewallRuleName -ErrorAction Stop | Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' })
         foreach ($rule in $rules) {
             $ports = @(($rule | Get-NetFirewallPortFilter).LocalPort)
             $program = ($rule | Get-NetFirewallApplicationFilter).Program
-            if ($ports -contains [string]$Port -and $program -ieq $NodeExe) { return $true }
+            $remote = @(($rule | Get-NetFirewallAddressFilter).RemoteAddress)
+            if ($ports -contains [string]$Port -and $program -ieq $NodeExe -and $rule.Profile -eq 'Any' -and $remote -contains 'LocalSubnet') { return $true }
         }
         return $false
     } catch {
@@ -117,21 +120,6 @@ function Test-FirewallRule([int]$Port) {
         if ($_.CategoryInfo.Category -eq 'ObjectNotFound') { return $false }
         return $null
     }
-}
-
-# Connected networks Windows treats as public. The firewall rule never covers public networks,
-# so on one of them other PCs cannot connect and Windows asks again about node.exe at each start.
-function Get-PublicConnections {
-    @(Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $_.NetworkCategory -eq 'Public' })
-}
-
-function Write-PublicNetworkHelp($Connections) {
-    foreach ($c in $Connections) {
-        Write-Host "Uyarı: '$($c.InterfaceAlias)' bağlantısı Windows'ta 'Ortak ağ' (Public) olarak tanımlı." -ForegroundColor Yellow
-    }
-    Write-Host 'Güvenlik duvarı kuralı ortak ağlarda geçerli değildir: diğer bilgisayarlar bağlanamaz ve Windows her' -ForegroundColor Yellow
-    Write-Host 'başlatmada ağ erişimi sorar (o pencerede İptal deyin). Ofis ağıysa BT bağlantıyı "Özel ağ" yapsın:' -ForegroundColor Yellow
-    Write-Host 'firewall.cmd bunu da sorar; veya Ayarlar -> Ağ ve İnternet -> Ethernet -> Ağ profili türü -> Özel.' -ForegroundColor Yellow
 }
 
 # Shown when the firewall rule is missing: the one step that needs an administrator.
