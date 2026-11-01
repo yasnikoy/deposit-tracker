@@ -52,6 +52,13 @@ const buildColumns = (canEdit: boolean) => col.columns([
     ),
   }),
   col.accessor("agencyName", { meta: { label: "bls.agency", filter: "text" }, sortFn: "turkishText" }),
+  col.accessor((b) => b.customerName ?? "", { id: "customer", meta: { label: "bls.customer", filter: "text" }, sortFn: "turkishText" }),
+  col.accessor((b) => b.fileNo ?? "", {
+    id: "fileNo",
+    meta: { label: "bls.fileNo", filter: "text" },
+    sortFn: "turkishText",
+    cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
+  }),
   col.accessor("status", {
     meta: { label: "bls.status", filter: { options: STATUS_OPTIONS }, toText: (v) => t(`bls.statuses.${v as BlOverview["status"]}`) },
     sortFn: "turkishText",

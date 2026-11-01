@@ -385,7 +385,7 @@ async function main() {
         };
         const fileOf = (r: WorkbookRow) => {
           const m = FILE_NUMBER.exec(r.description) ?? FILE_NUMBER.exec(r.dosya);
-          return m ? `T${m[1]}` : null;
+          return m ? m[1] : null;
         };
         const receiptByBl = () => receipts.find((r) => !r.used && dayDiff(r.date!, entry.date) <= 5 && squash(withoutPartSuffix(r.description ?? "")).includes(key)) ?? null;
         let row = rowWhere(entry.blText ? namesBl : (r) => /ESKİ LİSTE/i.test(r.description));
@@ -478,7 +478,7 @@ async function main() {
         const agency = ensureAgency(db, ops, row.agency);
         const customerId = row.customer ? ensureCustomer(db, acc, row.customer, row.customerCode) : null;
         const fileMatch = FILE_NUMBER.exec(row.description) ?? FILE_NUMBER.exec(row.dosya);
-        const fileNo = fileMatch ? `T${fileMatch[1]}` : null;
+        const fileNo = fileMatch ? fileMatch[1] : null;
         const partial = row.refunded > 0;
         let blNo = blNumberOf(row.description, agency.patterns);
         const receipt = matchReceipt(receipts, { amountMinor: minor(row.deposit), paidAt: row.paidAt, blNo, fileNo });

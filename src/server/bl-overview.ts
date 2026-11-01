@@ -18,6 +18,7 @@ import {
   auditLog,
   billsOfLading,
   containers,
+  customers,
   deductionTypes,
   depositPayments,
   documents,
@@ -49,6 +50,11 @@ export type BlOverview = BlBalance & {
   blNo: string;
   agencyId: number;
   agencyName: string;
+  /** The importer we paid the deposit for, when known. */
+  customerId: number | null;
+  customerName: string | null;
+  /** Our internal file number (26-12345), when known. */
+  fileNo: string | null;
   /** Shown status: DUE is derived on read, never stored. */
   status: BlStatus;
   paidAt: string;
@@ -69,7 +75,7 @@ export type BlOverview = BlBalance & {
   voidReason: string | null;
 };
 
-type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string };
+type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string; customerName: string | null };
 
 /** `viewer` null: a scheduled job, which sees no draft locks. */
 function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Date): BlOverview[] {
@@ -106,6 +112,9 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
       blNo: row.blNo,
       agencyId: row.agencyId,
       agencyName: row.agencyName,
+      customerId: row.customerId,
+      customerName: row.customerName,
+      fileNo: row.fileNo,
       status,
       paidAt: row.paidAt,
       currency: row.currency,
@@ -125,9 +134,10 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
 
 function blRows(db: DbOrTx) {
   return db
-    .select({ bl: billsOfLading, agencyName: agencies.name })
+    .select({ bl: billsOfLading, agencyName: agencies.name, customerName: customers.name })
     .from(billsOfLading)
-    .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId));
+    .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
+    .leftJoin(customers, eq(customers.id, billsOfLading.customerId));
 }
 
 /** Every B/L, voided ones included (the screen filters them), newest payment first. */
@@ -136,7 +146,7 @@ export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()):
   const rows = blRows(db)
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
-    .map(({ bl, agencyName }) => ({ ...bl, agencyName }));
+    .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
   return toOverviews(db, actor, rows, now);
 }
 
@@ -145,7 +155,7 @@ export function allBlsForJob(db: DbOrTx, now: Date): BlOverview[] {
   const rows = blRows(db)
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
-    .map(({ bl, agencyName }) => ({ ...bl, agencyName }));
+    .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
   return toOverviews(db, null, rows, now);
 }
 
@@ -292,7 +302,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   authorize(actor, "bl.view");
   const found = blRows(db).where(eq(billsOfLading.id, id)).get();
   if (!found) throw new DomainError("errors.notFound");
-  const [bl] = toOverviews(db, actor, [{ ...found.bl, agencyName: found.agencyName }], now);
+  const [bl] = toOverviews(db, actor, [{ ...found.bl, agencyName: found.agencyName, customerName: found.customerName }], now);
 
   const payment = found.bl.depositPaymentId
     ? (db

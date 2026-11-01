@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isValidBlNumber, normalizeBlNumber } from "@/domain/bl-number";
 import { checkContainerNumber } from "@/domain/containers";
 import type { TranslationKey } from "@/i18n";
+import { isValidFileNo, normalizeFileNo } from "@/domain/file-number";
 
 const msg = (key: TranslationKey) => key;
 const MAX_ROWS = 200;
@@ -26,11 +27,12 @@ export const containerListSchema = z
   });
 
 /** Our internal file number, e.g. "T26-90815". */
+/** Our file number, 26-12345 (a leading "T" from transfer descriptions is dropped); empty means none. */
 export const fileNoSchema = z
   .string()
-  .trim()
   .max(30, msg("bls.errors.fileNo"))
-  .transform((value) => value.toUpperCase() || null);
+  .transform((value) => normalizeFileNo(value) || null)
+  .refine((value) => value === null || isValidFileNo(value), msg("bls.errors.fileNo"));
 
 export const blRowSchema = z.object({
   paymentId: z.number().int().positive(),

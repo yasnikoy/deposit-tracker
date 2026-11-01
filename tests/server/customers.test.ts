@@ -67,7 +67,7 @@ describe("customer and file number on a new B/L", () => {
   it("come from the payment's receipt when not given", () => {
     const paymentId = payment("MEDUTST10007 - ORNEK ENERJİ A.Ş.DEPO T26-90815", "T26-90815");
     const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007", containers: [] }], NOW);
-    expect(blOf(created[0].blId)).toMatchObject({ customerId: ornek, fileNo: "T26-90815" });
+    expect(blOf(created[0].blId)).toMatchObject({ customerId: ornek, fileNo: "26-90815" });
   });
 
   it("as given take precedence; null leaves them empty", () => {
@@ -83,7 +83,7 @@ describe("customer and file number on a new B/L", () => {
       ],
       NOW,
     );
-    expect(blOf(created[0].blId)).toMatchObject({ customerId: beta, fileNo: "T26-99999" });
+    expect(blOf(created[0].blId)).toMatchObject({ customerId: beta, fileNo: "26-99999" });
     expect(blOf(created[1].blId)).toMatchObject({ customerId: null, fileNo: null });
   });
 

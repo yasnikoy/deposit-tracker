@@ -326,7 +326,7 @@ Bank statements carry no B/L numbers for incoming refunds, and refunds usually a
 
 **Additional deposits.** A B/L may be paid in several transfers (e.g. 500 + 4,500, or an "ek depozito" later). A payment entered with the number of an active, still open B/L of the same agency and currency joins that B/L instead of waiting for its own: its PAYMENT entry adds to the deposit, the B/L shows one combined deposit with each payment and receipt, the timeline records the addition, and requests attach every receipt. The first payment keeps setting the B/L's agency, currency and payment date (the request clock); while a B/L has several payments only their amounts and dates can be corrected. An additional deposit can be voided on its own while the B/L has no confirmed allocation; the first payment still goes only with its B/L.
 
-**Customer and file number.** Each B/L carries the importer we paid the deposit for (a registered customer) and our internal file number, both optional. When the B/L is created from a payment, the file number is taken from the receipt's description (T26-xxxxx) and the customer from a customer alias found in it (only when exactly one matches); both can be set or cleared explicitly. Accounting and operations maintain the customer list (name, accounting code, aliases) on a screen of its own and can change a B/L's customer and file number on the B/L detail and inline in tables (audited). All B/Ls shows both as columns with filters and search, and a report gives the open balance per customer and currency. Refunds carry a customer too (see Incoming refunds).
+**Customer and file number.** Each B/L carries the importer we paid the deposit for (a registered customer) and our internal file number, both optional. The file number is the two-digit year, a hyphen and five digits (`26-12345`). Transfer descriptions write it as `T26-12345`; the `T` belongs to another system and is dropped wherever a file number is read or entered. When the B/L is created from a payment, the file number is taken from the receipt's description and the customer from a customer alias found in it (only when exactly one matches); both can be set or cleared explicitly. Customers are maintained by an admin under Listeler (Lists). For now both show only as columns, with filters and search, in the All B/Ls table, its most detailed table. Showing and editing them on the B/L detail, and a per-customer report, are not planned yet. Refunds carry a customer too (see Incoming refunds).
 
 **Customer filter.** Each user can choose, in their own settings, the customers they follow (several allowed). It is a convenience, not access control: it narrows every list, the dashboard, reports, exports, global search, and that user's notifications and daily/weekly emails to those customers, while a banner names the filter and turns it off in one click. B/Ls and refunds without a customer always stay visible. Opening a record directly (link, timeline, allocation) is never blocked, and permissions are unchanged. Stored per user in `user_preferences`, not audited.
 
@@ -469,6 +469,11 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - [ ] Write tests for the business-day engine, allocation algorithm and receipt parser first
 
 ## Change log
+
+**Nov 1, 2026 — customer and file number in All B/Ls, file number without "T", v0.9.4**
+
+- The All B/Ls table shows the customer and the file number as columns with filters and search (only there, for now).
+- File numbers are `26-12345`. The receipt reader drops the `T` of `T26-12345` and reads exactly five digits. Entered values are normalised the same way: `T` dropped, `2612345` gets its hyphen, anything else is rejected. B/Ls created from payments read before this change are normalised too. Migration 0019 strips the `T` from stored file numbers; other values stay as they are.
 
 **Nov 1, 2026 — customer list, v0.9.3**
 

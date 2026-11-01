@@ -39,15 +39,15 @@ describe("Garanti receipt parser", () => {
       counterpartyName: "MSC GEMİ ACENTELİĞİ ANONİM ŞİR",
       description: "MEDUABC12345 - ÖRNEK ENERJİ A.Ş.DEPO T26-90815",
       bankReference: "2026-10-19-13.49.14.035026",
-      fileNumber: "T26-90815",
+      fileNumber: "26-90815",
     });
   });
 
   it("joins a description over several lines and reads file numbers written without T or in lower case", () => {
     const parsed = parseGarantiLines(lines({ description: ["WAN HAI 903 030G100435", "ÖRNEK ENERJİ DEPO t26-90459"] }));
     expect(parsed.description).toBe("WAN HAI 903 030G100435 ÖRNEK ENERJİ DEPO t26-90459");
-    expect(parsed.fileNumber).toBe("T26-90459");
-    expect(parseGarantiLines(lines({ description: ["RTM1000098 ÖRNEK DEPO 26-90648"] })).fileNumber).toBe("T26-90648");
+    expect(parsed.fileNumber).toBe("26-90459");
+    expect(parseGarantiLines(lines({ description: ["RTM1000098 ÖRNEK DEPO 26-90648"] })).fileNumber).toBe("26-90648");
     expect(parseGarantiLines(lines({ description: ["MEDUABC12345 ÖRNEK DEPO"] })).fileNumber).toBeUndefined();
   });
 

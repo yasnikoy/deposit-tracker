@@ -724,6 +724,8 @@
     "additionalSaved": "Ödeme, B/L {bl} için ek depozito olarak eklendi."
   },
   "bls": {
+    "customer": "Müşteri",
+    "fileNo": "Dosya no",
     "createTitle": "B/L oluştur",
     "awaitingEmpty": "B/L bekleyen ödeme yok.",
     "blNo": "B/L no",
@@ -768,7 +770,7 @@
       "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
       "voided": "Bu B/L iptal edilmiş.",
       "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez.",
-      "fileNo": "Dosya numarası en fazla 30 karakter olabilir."
+      "fileNo": "Dosya numarası 26-12345 biçiminde olmalı (yıl, tire, 5 rakam)."
     },
     "allTitle": "B/L'ler",
     "currency": "Para birimi",

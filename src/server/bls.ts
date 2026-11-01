@@ -12,6 +12,7 @@ import type { ReceiptExtraction } from "./receipts/parser";
 import { DomainError } from "./errors";
 import { nameBlDocuments, type DocumentRename } from "./files";
 import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
+import { isValidFileNo, normalizeFileNo } from "@/domain/file-number";
 
 export type BlRowError = {
   index: number;
@@ -34,6 +35,11 @@ export const blNoTaken = (tx: DbOrTx, blNo: string, exceptId?: number) =>
     .all()
     .some((row) => row.id !== exceptId);
 
+const fileNoOf = (read: string | undefined) => {
+  const value = read ? normalizeFileNo(read) : "";
+  return isValidFileNo(value) ? value : null;
+};
+
 /** Customer and file number of a new B/L: as given, else read from its payment's receipt. */
 function customerAndFile(tx: DbOrTx, row: BlRowInput, payment: typeof depositPayments.$inferSelect) {
   const extraction = (payment.extractedFields ?? {}) as ReceiptExtraction;
@@ -44,7 +50,8 @@ function customerAndFile(tx: DbOrTx, row: BlRowInput, payment: typeof depositPay
   const suggested = row.customerId === undefined && extraction.description ? suggestCustomer(tx, extraction.description) : null;
   return {
     customerId: row.customerId ?? suggested,
-    fileNo: row.fileNo === undefined ? (extraction.fileNumber ?? null) : row.fileNo,
+    // Payments read before v0.9.4 kept the "T" of the description.
+    fileNo: row.fileNo === undefined ? fileNoOf(extraction.fileNumber) : row.fileNo && normalizeFileNo(row.fileNo),
   };
 }
 

@@ -1,4 +1,5 @@
 import type { ReceiptExtraction } from "./parser";
+import { findFileNo } from "@/domain/file-number";
 
 /**
  * Garanti BBVA transfer receipts ("Dekont"), read from their text lines top to bottom. Pure:
@@ -15,7 +16,6 @@ const field = (lines: string[], label: string): string | undefined => {
 const amountMinor = (text: string) => Number(text.replace(/\./g, "").replace(",", ""));
 
 /** Our internal file number as staff write it: "T26-90815", "t26-90815" or "26-90815" → "T26-90815". */
-const FILE_NUMBER = /(?<![\p{L}\p{N}])T?(\d{2}-\d{4,6})(?![\p{N}])/iu;
 
 export function parseGarantiLines(lines: string[]): ReceiptExtraction {
   const text = lines.map((l) => l.trim()).filter(Boolean);
@@ -45,8 +45,8 @@ export function parseGarantiLines(lines: string[]): ReceiptExtraction {
   const to = text.findIndex((l) => l.startsWith("ALACAKLI ŞUBE"));
   if (from >= 0 && to > from + 1) {
     result.description = text.slice(from + 1, to).join(" ").replace(/\s+/g, " ");
-    const file = FILE_NUMBER.exec(result.description);
-    if (file) result.fileNumber = `T${file[1]}`;
+    const file = findFileNo(result.description);
+    if (file) result.fileNumber = file;
   }
   return result;
 }

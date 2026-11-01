@@ -16,7 +16,7 @@ export type ReceiptExtraction = {
   description?: string;
   /** The bank's own reference of the transaction, the same on every copy of the receipt. */
   bankReference?: string;
-  /** Our internal file number (e.g. T26-90815) when the description carries one. */
+  /** Our internal file number (e.g. 26-90815, written T26-90815 in descriptions) when the description carries one. */
   fileNumber?: string;
 };
 
