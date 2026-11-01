@@ -9,6 +9,12 @@
 #   - exit code 75 from the server means "update staged": install it and start again at once.
 . (Join-Path $PSScriptRoot 'common.ps1')
 
+# The task has no window: an error before the server starts would otherwise leave no trace.
+trap {
+    Add-Content -Path (Join-Path $RootDir 'run-error.log') -Value "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) [$([Security.Principal.WindowsIdentity]::GetCurrent().Name)] $($_ | Out-String)" -Encoding UTF8
+    exit 1
+}
+
 Import-DepositEnv
 $env:APP_ROOT = $RootDir
 $port = [int]$env:PORT
@@ -97,8 +103,12 @@ function Start-Server {
         $file = Join-Path $logs $name
         if (Test-Path $file) { Move-Item -Force $file (Join-Path $logs ($name -replace '\.log$', '-previous.log')) }
     }
-    return Start-Process -FilePath $NodeExe -ArgumentList 'server.js' -WorkingDirectory $ServerDir -NoNewWindow -PassThru `
+    $process = Start-Process -FilePath $NodeExe -ArgumentList 'server.js' -WorkingDirectory $ServerDir -NoNewWindow -PassThru `
         -RedirectStandardOutput (Join-Path $logs 'console.log') -RedirectStandardError (Join-Path $logs 'console-error.log')
+    # Windows PowerShell only reports ExitCode (75 = update staged) if the handle was taken
+    # while the process ran.
+    $null = $process.Handle
+    return $process
 }
 
 $installed = Install-PendingUpdate

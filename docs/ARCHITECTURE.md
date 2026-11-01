@@ -469,6 +469,12 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 ## Change log
 
+**Nov 1, 2026 — start diagnostics, v0.8.7**
+
+- On the first Windows install the app did not answer after setup or `start.cmd`, and `start.cmd` then failed with "Cannot bind argument to parameter 'Path' because it is null" (it read the settings without checking they exist). `start.cmd` now loads them like the other scripts and stops with a clear message when `deposit.env` is missing.
+- When the app does not answer, `setup.cmd` and `start.cmd` show the task's last result and the last lines of `run-error.log` (new: errors in `run.ps1` before the server starts), `console-error.log` and `console.log`.
+- `run.ps1` takes the server process handle at start, so Windows PowerShell reports its exit code and exit code 75 (update staged) is seen.
+
 **Nov 1, 2026 — setup without a Windows password, optional automatic start, v0.8.6**
 
 - `setup.cmd` failed on a PC whose account has no password (auto-login): Windows refuses a blank password for a task. An empty answer now registers the task without a stored password (S4U); it cannot reach network shares, which setup and the runbook point out for the second backup location.

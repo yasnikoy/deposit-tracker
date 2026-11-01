@@ -195,7 +195,7 @@ Ayarlar → E-posta sunucusu), the provider's status. Sistem durumu shows when i
 | Symptom | Check |
 | --- | --- |
 | Page does not open from other PCs | Open `http://localhost:<port>` on the app PC. Works there: firewall (run `setup.cmd` again) or wrong IP (Sistem durumu shows it). Not there: `start.cmd` |
-| `start.cmd`: "did not answer" | `data\logs\console-error.log` and `console.log`; the app's own logs in `data\logs\app.*.log` |
+| `start.cmd`: "did not answer" | It prints the task's last result and the end of `C:\DepositTracker\run-error.log`, `data\logs\console-error.log` and `console.log`; the app's own logs are in `data\logs\app.*.log` |
 | App does not start after a Windows password change | `setup.cmd` again, give the new password |
 | "Another instance is already running" | `stop.cmd`, then `start.cmd` |
 | Backups red on Sistem durumu | PC off at backup time (fine; caught up at next start), or the second location unreachable (share offline, USB disk unplugged, no write permission) |

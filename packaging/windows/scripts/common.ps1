@@ -74,6 +74,23 @@ function Get-AppNodeProcesses {
         Where-Object { $_.ExecutablePath -and $_.ExecutablePath -ieq $NodeExe }
 }
 
+# Shown when the app does not answer after a start: the task's last result and the end of the
+# console logs, so the cause is on screen instead of in a folder.
+function Write-StartFailure([string]$DataDir) {
+    $info = Get-ScheduledTaskInfo -TaskName $TaskName -ErrorAction SilentlyContinue
+    if ($info) { Write-Host ('Görevin son çalışması: {0}, sonuç kodu 0x{1:X8}' -f $info.LastRunTime, $info.LastTaskResult) }
+    foreach ($file in (Join-Path $RootDir 'run-error.log'), (Join-Path $DataDir 'logs\console-error.log'), (Join-Path $DataDir 'logs\console.log')) {
+        if (-not (Test-Path $file)) {
+            if ($file -like '*\logs\*') { Write-Host "$file yok (sunucu hiç başlamadı)." }
+            continue
+        }
+        $tail = @(Get-Content -Path $file -Tail 20 -Encoding UTF8)
+        if ($tail.Count -eq 0) { continue }
+        Write-Host "--- $file (son satırlar)"
+        $tail | ForEach-Object { Write-Host $_ }
+    }
+}
+
 function Write-Title([string]$Text) {
     Write-Host ''
     Write-Host "== $Text ==" -ForegroundColor Cyan

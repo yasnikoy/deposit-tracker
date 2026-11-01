@@ -120,7 +120,8 @@ try {
     Start-ScheduledTask -TaskName $TaskName
     $version = Wait-Health ([int]$port)
     if (-not $version) {
-        Write-Host "Uygulama 90 saniyede yanıt vermedi. Ayrıntı: $(Join-Path $dataDir 'logs\console.log')" -ForegroundColor Red
+        Write-Host 'Uygulama 90 saniyede yanıt vermedi.' -ForegroundColor Red
+        Write-StartFailure $dataDir
         Wait-Close; exit 1
     }
     Write-Host "Deposit Tracker $version çalışıyor." -ForegroundColor Green
