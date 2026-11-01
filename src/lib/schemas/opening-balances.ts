@@ -11,8 +11,9 @@ const msg = (key: TranslationKey) => key;
 const MAX_PAST_ATTEMPTS = 50;
 
 /**
- * An open Excel record moved into the app (admin, rule 7 exception): the deposit as paid, with
- * its original receipt (rule 12), and the refund requests already made outside the app.
+ * An open Excel record moved into the app (admin, rule 7 exception): the deposit as paid, its
+ * original receipt when at hand (it may be attached later, like a payment's), and the refund
+ * requests already made outside the app.
  */
 export const openingBalanceSchema = z
   .object({
@@ -21,14 +22,15 @@ export const openingBalanceSchema = z
     blNo: blNumberSchema,
     containers: containerListSchema,
     customerId: z.number().int().positive().nullable().default(null),
+    // A customer not registered yet, by name (registered with the record).
+    newCustomerName: z
+      .string()
+      .trim()
+      .max(200)
+      .transform((value) => value || null)
+      .nullish(),
     fileNo: fileNoSchema.nullable().default(null),
-    documentId: z
-      .number()
-      .int()
-      .positive()
-      .or(z.null())
-      .refine((v) => v !== null, msg("openingBalances.errors.receipt"))
-      .transform((v) => v as number),
+    documentId: z.number().int().positive().nullable().default(null),
     pastAttempts: z.number(msg("openingBalances.errors.pastAttempts")).int(msg("openingBalances.errors.pastAttempts")).min(0).max(MAX_PAST_ATTEMPTS),
     lastRequestOn: z
       .string()
@@ -42,9 +44,15 @@ export const openingBalanceSchema = z
       .transform((value) => value || null),
   })
   .superRefine((input, ctx) => {
+    if (input.customerId !== null && input.newCustomerName) {
+      ctx.addIssue({ code: "custom", path: ["customerId"], message: msg("errors.validation") });
+    }
     if ((input.pastAttempts > 0) !== (input.lastRequestOn !== null)) {
       ctx.addIssue({ code: "custom", path: ["lastRequestOn"], message: msg("openingBalances.errors.lastRequest") });
     }
   });
 
 export type OpeningBalanceInput = z.infer<typeof openingBalanceSchema>;
+
+/** The receipt (or invoice) a migrated B/L was saved without. */
+export const attachOpeningBalanceEvidenceSchema = z.object({ blId: z.number().int().positive(), documentId: z.number().int().positive() });

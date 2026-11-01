@@ -261,8 +261,8 @@ export type BlDetail = {
   bl: BlOverview;
   /** The source payment; its receipt or invoice may still be missing (rule 12). */
   payment: { id: number; kind: PaymentKind; amountMinor: number; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
-  /** A migrated B/L (no payment record): its original receipt or invoice. */
-  openingBalance: { documentId: number; originalName: string } | null;
+  /** A migrated B/L (no payment record): its original receipt or invoice, null until attached. */
+  openingBalance: { documentId: number | null; originalName: string | null } | null;
   /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
   additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null }[];
   ledger: BlLedgerLine[];
@@ -314,7 +314,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     : null;
 
   const openingEvidence = found.bl.depositPaymentId === null ? depositEvidence(db, found.bl) : null;
-  const openingBalance = openingEvidence ? { documentId: openingEvidence.id, originalName: openingEvidence.originalName } : null;
+  const openingBalance = found.bl.depositPaymentId === null ? { documentId: openingEvidence?.id ?? null, originalName: openingEvidence?.originalName ?? null } : null;
 
   const ledgerRows = db
     .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name, deductionTypeCode: deductionTypes.code })

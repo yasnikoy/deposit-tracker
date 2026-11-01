@@ -3,6 +3,7 @@ import { and, asc, eq, ne } from "drizzle-orm";
 import { matchByAliases } from "@/domain/agency";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
+import type { Role } from "@/domain/roles";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { customers } from "./db/schema";
@@ -14,26 +15,44 @@ export type CustomerInput = { name: string; code: string | null; aliases: string
 /** Registers an importer we pay deposits for; the name and code are unique. */
 export function createCustomer(db: Db, actor: AuthUser, input: CustomerInput, now: Date = new Date()): number {
   const roleUsed = authorize(actor, "customer.manage");
-  return db.transaction((tx) => {
-    const name = input.name.trim();
-    if (name === "") throw new DomainError("common.required");
-    // Compared in Turkish case: SQLite's lower() folds ASCII letters only.
-    const fold = (value: string) => value.toLocaleLowerCase("tr-TR");
-    if (tx.select({ name: customers.name }).from(customers).all().some((c) => fold(c.name) === fold(name))) {
-      throw new DomainError("customers.errors.nameTaken");
-    }
-    if (input.code && tx.select({ id: customers.id }).from(customers).where(eq(customers.code, input.code)).get()) {
-      throw new DomainError("customers.errors.codeTaken");
-    }
-    const at = now.toISOString();
-    const row = tx
-      .insert(customers)
-      .values({ name, code: input.code || null, aliases: input.aliases.map((a) => a.trim()).filter(Boolean), createdAt: at, updatedAt: at })
-      .returning()
-      .get();
-    writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "customer.create", entityType: "customer", entityId: row.id, after: { name: row.name, code: row.code, aliases: row.aliases } }, now);
-    return row.id;
-  });
+  return db.transaction((tx) => insertCustomer(tx, actor, roleUsed, input, now));
+}
+
+// Compared in Turkish case: SQLite's lower() folds ASCII letters only.
+const fold = (value: string) => value.toLocaleLowerCase("tr-TR");
+
+function insertCustomer(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, input: CustomerInput, now: Date): number {
+  const name = input.name.trim();
+  if (name === "") throw new DomainError("common.required");
+  if (tx.select({ name: customers.name }).from(customers).all().some((c) => fold(c.name) === fold(name))) {
+    throw new DomainError("customers.errors.nameTaken");
+  }
+  if (input.code && tx.select({ id: customers.id }).from(customers).where(eq(customers.code, input.code)).get()) {
+    throw new DomainError("customers.errors.codeTaken");
+  }
+  const at = now.toISOString();
+  const row = tx
+    .insert(customers)
+    .values({ name, code: input.code || null, aliases: input.aliases.map((a) => a.trim()).filter(Boolean), createdAt: at, updatedAt: at })
+    .returning()
+    .get();
+  writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "customer.create", entityType: "customer", entityId: row.id, after: { name: row.name, code: row.code, aliases: row.aliases } }, now);
+  return row.id;
+}
+
+/**
+ * The customer a record names by text, inside that record's transaction (the caller has
+ * authorized the record): an active customer of that name is used as it is, otherwise one is
+ * registered with only its name.
+ */
+export function customerForNewName(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, rawName: string, now: Date): number {
+  const name = rawName.trim();
+  const existing = tx.select().from(customers).all().find((c) => fold(c.name) === fold(name));
+  if (existing) {
+    if (!existing.active) throw new DomainError("customers.errors.unknown");
+    return existing.id;
+  }
+  return insertCustomer(tx, actor, roleUsed, { name, code: null, aliases: [] }, now);
 }
 
 export function listCustomers(db: DbOrTx, actor: AuthUser): Customer[] {

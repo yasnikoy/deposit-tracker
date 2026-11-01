@@ -224,3 +224,42 @@ test("a payment for an agency not in the system adds it by name, marked as missi
   const row = page.getByRole("row", { name: new RegExp(name) });
   await expect(row.getByText(tr.agencies.incomplete)).toBeVisible();
 });
+
+test("admin moves Excel records in one after another: queued receipts, carried-over agency and customer, receipt later", async ({ page }) => {
+  const ob = tr.openingBalances;
+  await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
+  await page.goto("/admin/opening-balance");
+  await page.getByLabel(ob.dropReceipts).setInputFiles([pdf("eski-1.pdf"), pdf("eski-2.pdf")]);
+  await expect(page.getByRole("link", { name: "eski-1.pdf" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "eski-2.pdf", exact: true })).toBeVisible();
+
+  await pickAgency(page);
+  await page.getByRole("combobox", { name: ob.customer }).fill("Örnek İthalat");
+  await page.getByRole("option", { name: tr.customers.addNew.replace("{name}", "Örnek İthalat") }).click();
+  await expect(page.getByText(ob.newCustomerHelp)).toBeVisible();
+  await expect(page.getByLabel(ob.pastAttempts)).toHaveValue("0");
+  await page.getByLabel(ob.amount).fill("1.000");
+  await page.getByLabel(tr.payments.paidAt).fill("2026-09-01");
+  await page.getByLabel(tr.bls.blNo).fill("245678999");
+  await page.getByRole("button", { name: ob.saveAndNext }).click();
+  await expect(page.getByText(ob.saved).last()).toBeVisible();
+
+  // The next receipt is on the form; agency and customer carried over, the rest is empty.
+  await expect(page.getByRole("link", { name: "eski-2.pdf" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: tr.payments.agency })).toHaveValue(AGENCY);
+  await expect(page.getByRole("combobox", { name: ob.customer })).toHaveValue("Örnek İthalat");
+  await expect(page.getByLabel(ob.amount)).toHaveValue("");
+  await page.getByRole("button", { name: ob.withoutReceipt }).click();
+  await page.getByLabel(ob.amount).fill("2.000");
+  await page.getByLabel(tr.payments.paidAt).fill("2026-09-02");
+  await page.getByLabel(tr.bls.blNo).fill("245678998");
+  await page.getByRole("button", { name: ob.save }).click();
+  await expect(page.getByText(ob.saved).last()).toBeVisible();
+
+  // Saved without its receipt: the B/L detail offers to attach it.
+  await page.getByRole("link", { name: "245678998" }).click();
+  await expect(page.getByText(tr.payments.evidenceMissing.BANK).first()).toBeVisible();
+  await page.getByLabel(tr.payments.attachEvidence.BANK).setInputFiles(pdf("sonradan.pdf"));
+  await expect(page.getByText(tr.payments.evidenceAttached)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Dekont 245678998.pdf" }).first()).toBeVisible();
+});

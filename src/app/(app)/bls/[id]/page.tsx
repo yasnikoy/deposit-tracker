@@ -35,6 +35,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         linkEmail: can(user, "email.link").allowed,
         reverseAllocation: can(user, "allocation.reverse").allowed,
         attachEvidence: !!detail.payment && can(user, "payment.attachEvidence", detail.payment).allowed,
+        attachOpeningEvidence: !!detail.openingBalance && can(user, "openingBalance.attachEvidence").allowed,
         recordDeduction: can(user, "deduction.record").allowed,
         disputeDeduction: can(user, "deduction.dispute").allowed,
         proposeWriteOff: can(user, "writeOff.propose").allowed,

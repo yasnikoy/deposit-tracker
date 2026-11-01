@@ -4,6 +4,7 @@ import { t } from "@/i18n";
 import { listAgencies } from "@/server/agencies";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
+import { listCustomers } from "@/server/customers";
 import { getDb } from "@/server/db/client";
 import { listCurrencies } from "@/server/lists";
 import { OpeningBalanceForm } from "./opening-balance-form";
@@ -22,6 +23,7 @@ export default async function OpeningBalancePage() {
           currencies: listCurrencies(db, user),
           today: istanbulToday(),
         }}
+        customers={listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
       />
     </>
   );

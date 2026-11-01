@@ -1373,7 +1373,7 @@
   },
   "openingBalances": {
     "title": "Açılış bakiyesi",
-    "hint": "Excel'de takip edilen açık depozitoları, bir sonraki talepleri geldiğinde buradan tek tek aktarın. B/L ödeme kaydı olmadan, açılış bakiyesiyle oluşur; orijinal depozito dekontu (mahsupta fatura) zorunludur. Daha önce yapılan talep sayısı ve son talep tarihiyle takip buradan devam eder.",
+    "hint": "Excel'de takip edilen açık depozitoları buradan art arda aktarın. B/L ödeme kaydı olmadan, açılış bakiyesiyle oluşur. Birden fazla dekontu birlikte bırakabilirsiniz: sırayla forma gelir, okunan alanlar doldurulur. Ödeme türü, acente, müşteri ve para birimi bir sonraki kayda taşınır. Dekont yoksa sonra B/L detayından eklenebilir. Talep zamanı diğer B/L'lerdeki gibi hesaplanır.",
     "receipt": {
       "BANK": "Orijinal depozito dekontu",
       "OFFSET": "Mahsup faturası"
@@ -1381,15 +1381,24 @@
     "amount": "Depozito tutarı",
     "pastAttempts": "Şimdiye kadarki talep sayısı",
     "lastRequestOn": "Son talep tarihi",
-    "attemptsHelp": "Uygulama dışında yapılan iade talepleri. Bir sonraki talep, son talepten takip aralığı kadar sonra gelir ve bir sonraki numarayı alır. Hiç talep yapılmadıysa 0 girin; ilk talep hemen gelir.",
+    "attemptsHelp": "Uygulama dışında yapılan iade talepleri. Hiç talep yapılmadıysa 0 bırakın: ilk talep, ödeme tarihinden ilk talep süresi kadar sonra gelir (süre dolmuşsa hemen). Talep yapıldıysa bir sonraki talep, son talepten takip aralığı kadar sonra gelir ve bir sonraki numarayı alır.",
     "note": "Not (isteğe bağlı)",
     "notePlaceholder": "ör. Excel satır 14",
     "save": "Açılış bakiyesini kaydet",
+    "saveAndNext": "Kaydet ve sıradakine geç",
+    "dropReceipts": "Dekontları buraya bırakın (birden fazla seçilebilir); sırayla forma gelir",
+    "queue": "Sırada bekleyen {count} dekont (forma almak için tıklayın):",
+    "removeFromQueue": "{name} sıradan çıkar",
+    "withoutReceipt": "Dekontsuz kaydet",
+    "customer": "Müşteri",
+    "customerSearch": "Müşteri adı veya kodu…",
+    "newCustomerHelp": "Bu müşteri kayıtlı değil; kayıtla birlikte yalnızca adıyla eklenir.",
+    "candidates": "Dekonttaki diğer B/L numaraları:",
+    "fileNo": "Dosya no",
     "saved": "B/L açılış bakiyesiyle oluşturuldu.",
     "createdNow": "Bu oturumda oluşturulanlar",
     "source": "Açılış bakiyesi (Excel'den)",
     "errors": {
-      "receipt": "Orijinal dekontu (mahsupta faturayı) yükleyin.",
       "pastAttempts": "0 ile 50 arasında bir sayı girin.",
       "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır."
     }
@@ -1540,6 +1549,7 @@
     "unknownAgency": "Acentesi bilinmeyen"
   },
   "customers": {
+    "addNew": "Yeni müşteri ekle: “{name}”",
     "errors": {
       "unknown": "Müşteri bulunamadı veya pasif.",
       "nameTaken": "Bu adla bir müşteri zaten kayıtlı.",

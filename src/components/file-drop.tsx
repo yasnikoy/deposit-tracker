@@ -16,6 +16,8 @@ export type UploadResponse =
         currency: string | null;
         paidAt: string | null;
         blCandidates: string[];
+        customerId: number | null;
+        fileNo: string | null;
       };
       parser?: string;
     }

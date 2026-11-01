@@ -53,6 +53,7 @@ export type BlDetailPermissions = {
   reverseAllocation: boolean;
   /** Attach the receipt or invoice the source payment was saved without. */
   attachEvidence: boolean;
+  attachOpeningEvidence: boolean;
   recordDeduction: boolean;
   disputeDeduction: boolean;
   proposeWriteOff: boolean;
@@ -169,9 +170,18 @@ export function BlDetailScreen({
               ) : detail.openingBalance ? (
                 <span className="flex flex-wrap items-center gap-2">
                   {t("openingBalances.source")} · {formatMoney(bl.depositMinor, bl.currency)} ·{" "}
-                  <a href={`/api/files/${detail.openingBalance.documentId}`} target="_blank" rel="noreferrer" className="underline">
-                    {detail.openingBalance.originalName}
-                  </a>
+                  {detail.openingBalance.documentId !== null ? (
+                    <a href={`/api/files/${detail.openingBalance.documentId}`} target="_blank" rel="noreferrer" className="underline">
+                      {detail.openingBalance.originalName}
+                    </a>
+                  ) : (
+                    <span className="text-amber-700 dark:text-amber-400">{t("payments.evidenceMissing.BANK")}</span>
+                  )}
+                  {detail.openingBalance.documentId === null && can.attachOpeningEvidence && !bl.voidedAt && (
+                    <span className="w-full">
+                      <EvidenceDrop blId={bl.id} kind="BANK" compact />
+                    </span>
+                  )}
                 </span>
               ) : (
                 t("common.none")

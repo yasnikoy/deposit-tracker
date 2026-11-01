@@ -58,6 +58,8 @@ const rules = {
   "allocation.reverse": only("ADMIN"),
   // Migrated Excel records: the one money record an admin enters (rules 7 and 11).
   "openingBalance.create": only("ADMIN"),
+  // The receipt a migrated B/L was saved without; operations attaches missing deposit receipts too.
+  "openingBalance.attachEvidence": only("ADMIN", "OPERATIONS"),
   // Operations records and disputes deductions; write-offs need an admin approval (rule 16).
   "deduction.record": only("OPERATIONS"),
   "deduction.dispute": only("OPERATIONS"),

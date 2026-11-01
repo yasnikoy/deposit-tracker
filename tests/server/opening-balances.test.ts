@@ -8,7 +8,11 @@ import { prepareRequestEmails } from "@/server/email/compose";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
-import { createOpeningBalance } from "@/server/opening-balances";
+import { eq } from "drizzle-orm";
+import { auditLog, billsOfLading, customers } from "@/server/db/schema";
+import { createCustomer } from "@/server/customers";
+import { attachOpeningBalanceEvidence, createOpeningBalance } from "@/server/opening-balances";
+import { prefillFromExtraction } from "@/server/payments";
 import { createRefund } from "@/server/refunds";
 import { listDueRequests } from "@/server/requests";
 import { createTestDb, makeUser } from "../support/db";
@@ -87,14 +91,57 @@ describe("opening balances", () => {
     expect(allocationProposal(db, ops, refund.id).candidates).toEqual([expect.objectContaining({ blId, firstRequestOn: "2026-10-12", expectedMinor: 250000 })]);
   });
 
-  it("need the original receipt of the right kind, a free B/L number and consistent request dates", () => {
+  it("need a receipt of the right kind when one is given, a free B/L number and consistent request dates", () => {
     expect(openingBalanceSchema.safeParse({ ...input(), lastRequestOn: null }).success).toBe(false);
-    expect(openingBalanceSchema.safeParse({ ...input(), documentId: null }).success).toBe(false);
     expect(() => createOpeningBalance(db, admin, input({ documentId: receipt(admin, "INVOICE") }), NOW)).toThrow(expect.objectContaining({ messageKey: "files.errors.evidence" }));
     expect(() => createOpeningBalance(db, admin, input({ documentId: receipt(ops) }), NOW)).toThrow(expect.objectContaining({ messageKey: "files.errors.evidence" }));
     expect(() => createOpeningBalance(db, admin, input({ lastRequestOn: "2026-06-30" }), NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforePayment" }));
     expect(() => createOpeningBalance(db, admin, input({ lastRequestOn: "2026-10-23" }), NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.futureDate" }));
     makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU9000001", paidAt: "2026-10-01", amountMinor: 1000 }, NOW);
     expect(() => createOpeningBalance(db, admin, input(), NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.blNoTaken" }));
+  });
+
+  it("wait for the first-request delay after a recent payment, like any B/L", () => {
+    // Paid Tue 20 Oct; the first request is due 10 business days later (seed), not at once.
+    const blId = createOpeningBalance(db, admin, input({ paidAt: "2026-10-20", pastAttempts: 0, lastRequestOn: null }), NOW);
+    expect(getBlDetail(db, ops, blId, NOW).bl.status).toBe("PAID");
+    const due = listDueRequests(db, ops, NOW);
+    expect(due.DUE.flatMap((g) => g.rows).some((r) => r.blId === blId)).toBe(false);
+  });
+
+  it("can be saved without the receipt, which is attached later once (admin or operations)", () => {
+    const blId = createOpeningBalance(db, admin, input({ documentId: null }), NOW);
+    expect(getBlDetail(db, ops, blId, NOW).openingBalance).toEqual({ documentId: null, originalName: null });
+    uploadBlForm(db, ops, { blId, documentId: storeUpload(db, ops, { originalName: "form.pdf", content: PDF, kind: "FORM" }, NOW).id }, NOW);
+    expect(prepareRequestEmails(db, ops, { blIds: [blId] }, NOW)[0].missingEvidence).toEqual(["MEDU9000001"]);
+
+    expect(() => attachOpeningBalanceEvidence(db, acc, { blId, documentId: receipt(acc) }, NOW)).toThrow(ForbiddenError);
+    attachOpeningBalanceEvidence(db, ops, { blId, documentId: receipt(ops) }, NOW);
+    expect(getBlDetail(db, ops, blId, NOW).openingBalance).toMatchObject({ originalName: "Dekont MEDU9000001.pdf" });
+    expect(db.select().from(auditLog).all().some((a) => a.action === "openingBalance.attachEvidence" && a.roleUsed === "OPERATIONS")).toBe(true);
+    expect(() => attachOpeningBalanceEvidence(db, admin, { blId, documentId: receipt() }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "payments.errors.evidenceExists" }),
+    );
+  });
+
+  it("name a customer: an existing one by name, or a new one registered with the record", () => {
+    const first = createOpeningBalance(db, admin, input({ documentId: null, newCustomerName: " Örnek İthalat " }), NOW);
+    const registered = db.select().from(customers).all();
+    expect(registered).toMatchObject([{ name: "Örnek İthalat", aliases: [], active: true }]);
+    const customerOf = (id: number) => db.select().from(billsOfLading).where(eq(billsOfLading.id, id)).get()!.customerId;
+    expect(customerOf(first)).toBe(registered[0].id);
+    expect(db.select().from(auditLog).all().find((a) => a.action === "customer.create")).toMatchObject({ roleUsed: "ADMIN" });
+
+    // The next record carries the same name over: no second customer.
+    const second = createOpeningBalance(db, admin, input({ blNo: "MEDU9000002", documentId: null, newCustomerName: "örnek ithalat" }), NOW);
+    expect(db.select().from(customers).all()).toHaveLength(1);
+    expect(customerOf(second)).toBe(registered[0].id);
+    expect(openingBalanceSchema.safeParse({ ...input(), customerId: registered[0].id, newCustomerName: "Başka" }).success).toBe(false);
+  });
+
+  it("are prefilled from the receipt with customer and file number", () => {
+    const beta = createCustomer(db, ops, { name: "Beta Gıda", code: null, aliases: ["BETA"] }, NOW);
+    const prefill = prefillFromExtraction(db, { parser: "garanti", description: "BETA T26-00123 MEDU9000003 DEPOZITO", fileNumber: "T26-00123", amountMinor: 100, currency: "USD", date: "2026-10-20" });
+    expect(prefill).toMatchObject({ customerId: beta, fileNo: "T26-00123", amountMinor: 100, paidAt: "2026-10-20" });
   });
 });

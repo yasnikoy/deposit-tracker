@@ -8,6 +8,7 @@ import type { Role } from "@/domain/roles";
 import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/payments";
 import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
+import { suggestCustomer } from "./customers";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
@@ -34,6 +35,10 @@ export type PaymentPrefill = {
   currency: string | null;
   paidAt: string | null;
   blCandidates: string[];
+  /** The registered customer the description names (only when exactly one matches). */
+  customerId: number | null;
+  /** Our file number (T26-xxxxx) from the description. */
+  fileNo: string | null;
 };
 
 export type DuplicateCandidate = { id: number; agencyName: string; amountMinor: number; currency: string; paidAt: string };
@@ -42,7 +47,10 @@ export type CreatePaymentResult =
   | { status: "created"; id: number; agencyId: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
   | { status: "duplicate"; duplicates: DuplicateCandidate[] };
 
-/** Turns a receipt extraction into form prefill: agency by sender alias, B/L candidates by agency patterns. */
+/**
+ * Turns a receipt extraction into form prefill: agency by sender alias, B/L candidates by
+ * agency patterns, customer by customer aliases or name, and our file number.
+ */
 export function prefillFromExtraction(db: DbOrTx, extraction: ReceiptExtraction): PaymentPrefill {
   const activeAgencies = db
     .select({ id: agencies.id, bankSenderAliases: agencies.bankSenderAliases, blNumberPatterns: agencies.blNumberPatterns })
@@ -57,6 +65,8 @@ export function prefillFromExtraction(db: DbOrTx, extraction: ReceiptExtraction)
     currency: extraction.currency ?? null,
     paidAt: extraction.date ?? null,
     blCandidates: extraction.description ? extractBlNumbers(extraction.description, patterns) : [],
+    customerId: extraction.description ? suggestCustomer(db, extraction.description) : null,
+    fileNo: extraction.fileNumber ?? null,
   };
 }
 
