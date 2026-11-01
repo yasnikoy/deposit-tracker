@@ -62,7 +62,7 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 
 | Role | Can do | Cannot do |
 | --- | --- | --- |
-| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Optionally note a B/L number on a payment as a hint. When a payment's agency is not in the system yet, add it by name from the payment form (name only; operations completes the card). Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
+| Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Confirm the accounting entry of B/Ls settled with deductions or an offset (Muhasebe kaydı). Optionally note a B/L number on a payment as a hint. When a payment's agency is not in the system yet, add it by name from the payment form (name only; operations completes the card). Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
 | Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls and containers, void a B/L created with wrong data while it has no confirmed allocation, write notes with @mentions, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions, send the report email to internal addresses. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
@@ -72,7 +72,7 @@ Role permissions are enforced on the server, not only hidden in the UI. Every st
 
 ## B/L lifecycle
 
-A B/L moves from payment through repeated requests to collection; it is closed only by confirmed refund allocations and classified deductions, never by hand.
+A B/L moves from payment through repeated requests to collection. Its money is settled only by confirmed refund allocations and classified deductions, never by hand. When that settlement involved a deduction (any type, write-offs included) or an offset refund, the B/L waits in `ACCOUNTING_PENDING` until an accountant confirms the entry in our accounting software; only then is it `COLLECTED`. A full bank refund without deductions closes at once.
 
 **Allowed transitions** (any transition not listed is rejected by the domain layer):
 
@@ -89,12 +89,14 @@ A B/L moves from payment through repeated requests to collection; it is closed o
 | `DEDUCTION_OPEN` | `DISPUTED` | A deduction is marked disputed |
 | `DISPUTED` | `COLLECTED` | Difference paid (allocated) or dispute cleared with a note, and the balance closes |
 | any open status | `COLLECTED` | Admin approves a `WRITE_OFF` deduction that closes the balance |
-| `COLLECTED` / `DEDUCTION_OPEN` / `DISPUTED` | status before the allocation | Admin reverses a confirmed allocation; status is recomputed from the remaining history |
-| `AWAITING_RETURN` / `COLLECTED` | status before the action | The user undoes, within the undo window, the *not yet returned* reply or the settling statement deduction that caused the move, while the B/L is still where it left it |
+| `COLLECTED` / `ACCOUNTING_PENDING` / `DEDUCTION_OPEN` / `DISPUTED` | status before the allocation | Admin reverses a confirmed allocation; status is recomputed from the remaining history |
+| any move above to `COLLECTED` | `ACCOUNTING_PENDING` instead | The settlement involved a deduction (any type, write-offs included) or an offset refund |
+| `ACCOUNTING_PENDING` | `COLLECTED` | An accountant confirms the accounting entry (*Muhasebe kaydı yapıldı*; one or several B/Ls, audited) |
+| `AWAITING_RETURN` / `ACCOUNTING_PENDING` / `COLLECTED` | status before the action | The user undoes, within the undo window, the *not yet returned* reply, the settling statement deduction or the accounting entry that caused the move, while the B/L is still where it left it |
 
 No status change: a failed send, an *approved, payment to follow* reply, a *deduction statement received* reply, deductions recorded from a statement before payment, voiding (a flag, not a status). The stored `status` column never holds `DUE`.
 
-The seven statuses are `PAID`, `DUE`, `REQUESTED`, `AWAITING_RETURN`, `DEDUCTION_OPEN`, `DISPUTED` and `COLLECTED`. `DUE` is derived from the payment date and the duration settings, not set by a user. For portal agencies, recording the portal request moves the B/L to `REQUESTED`. Each "not yet returned" reply schedules the next request after the follow-up interval; there is no escalation. When the follow-up date arrives, the B/L stays in Awaiting return but appears in the due list as a follow-up; sending it moves the B/L back to Requested. A failed send leaves the status unchanged. An agency approval reply is recorded as a reply type and does not change the status. A shortfall in an allocated refund opens a deduction, which either gets a type (then `COLLECTED`) or is disputed and stays open until the difference is paid or accepted. Deductions recorded from a statement before payment do not open `DEDUCTION_OPEN`; they lower the expected amount instead.
+The eight statuses are `PAID`, `DUE`, `REQUESTED`, `AWAITING_RETURN`, `DEDUCTION_OPEN`, `DISPUTED`, `ACCOUNTING_PENDING` and `COLLECTED`. `ACCOUNTING_PENDING` counts as settled: nothing is outstanding, no requests or replies are expected, refunds are not allocated to it and no additional deposit joins it. `DUE` is derived from the payment date and the duration settings, not set by a user. For portal agencies, recording the portal request moves the B/L to `REQUESTED`. Each "not yet returned" reply schedules the next request after the follow-up interval; there is no escalation. When the follow-up date arrives, the B/L stays in Awaiting return but appears in the due list as a follow-up; sending it moves the B/L back to Requested. A failed send leaves the status unchanged. An agency approval reply is recorded as a reply type and does not change the status. A shortfall in an allocated refund opens a deduction, which either gets a type (then `COLLECTED`) or is disputed and stays open until the difference is paid or accepted. Deductions recorded from a statement before payment do not open `DEDUCTION_OPEN`; they lower the expected amount instead.
 
 A write-off is a deduction of the system type `WRITE_OFF`, approved by an admin; it closes the B/L through the normal rule (allocations + classified deductions = deposit). Voiding is not a status: a voided B/L keeps its last status, is flagged as voided and is excluded from all working lists, balances and reports.
 
@@ -474,7 +476,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
-- Nothing yet.
+- New B/L status `ACCOUNTING_PENDING` (*Muhasebe kaydı bekliyor*), at the user's decision. A B/L whose settlement involved a deduction (demurrage, cleaning, statement deductions, classified shortfalls, write-offs) or an offset refund waits there instead of closing. An accountant confirms the entry in our accounting software, which closes it as `COLLECTED`: on the Muhasebe kaydı tab of the Accounting screen (one or several, with a confirmation listing them) or on the B/L detail. The action is `bl.recordAccounting` (accountant role only), audited as `bl.accountingRecorded` and undoable within the undo window. A full bank refund without deductions closes at once, as before. B/Ls collected earlier stay collected. The dashboard counts the waiting B/Ls for accountants. Migration 0021 widens the status check; its generated index expression was corrected by hand (drizzle-kit quoted `upper("bl_no")` as a column name).
 
 **Nov 1, 2026 — customers throughout, one Settings area, faster opening balances, v0.10.0**
 
