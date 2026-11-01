@@ -440,3 +440,37 @@ test("inline editing: containers on All B/Ls (undone from the toast), an agency'
   await page.keyboard.press("r");
   await expect(page.getByRole("dialog").getByRole("heading", { name: tr.blReplies.record })).toBeVisible();
 });
+
+test("B/L detail: emails open in place, with the message; the customer is changed there", async ({ page }) => {
+  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"), { readonly: true });
+  const { id } = db.prepare("SELECT id FROM bills_of_lading WHERE bl_no = ?").get(BL_NO) as { id: number };
+  db.close();
+  await login(page, OPS.username, OPS.final);
+  await page.goto(`/bls/${id}`);
+  const url = page.url();
+
+  // The agency's reply: the message and its recorded reply type, without leaving the B/L.
+  await page.getByRole("button", { name: `RE: Depozito İade Talebi – B/L ${BL_NO}` }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Konteynerler henüz boş dönmedi.")).toBeVisible();
+  expect(page.url()).toBe(url);
+  await dialog.getByRole("button", { name: tr.common.close, exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+
+  // Our own request, as sent.
+  await page.getByRole("button", { name: `Depozito İade Talebi – B/L ${BL_NO}`, exact: true }).click();
+  await expect(page.getByRole("dialog").getByText(tr.replies.sentAt)).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: tr.common.close, exact: true }).click();
+
+  await expect(page.getByText("Hapag Müşteri")).toBeVisible();
+  await page.getByRole("button", { name: tr.bls.customerEdit }).click();
+  await page.getByRole("button", { name: tr.bls.customerClear }).click();
+  await expect(page.getByText(tr.bls.customerSaved)).toBeVisible();
+  await expect(page.getByText(tr.bls.customerNone)).toBeVisible();
+  await page.getByRole("button", { name: tr.bls.customerEdit }).click();
+  await page.getByRole("combobox", { name: tr.bls.customer }).fill("hapag");
+  await page.getByRole("option", { name: "Hapag Müşteri" }).click();
+  await page.getByRole("button", { name: tr.common.save, exact: true }).click();
+  await expect(page.getByText(tr.bls.customerSaved).last()).toBeVisible();
+  await expect(page.getByText("Hapag Müşteri")).toBeVisible();
+});

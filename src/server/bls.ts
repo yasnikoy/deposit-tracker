@@ -229,6 +229,28 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
   });
 }
 
+/**
+ * Sets or clears the customer of a B/L (customer filter, refund matching), audited. A
+ * deactivated customer can stay on a B/L but is not newly assigned.
+ */
+export function setBlCustomer(db: Db, actor: AuthUser, input: { blId: number; customerId: number | null }, now: Date = new Date()): void {
+  const roleUsed = authorize(actor, "bl.setCustomer");
+  db.transaction((tx) => {
+    const bl = requireBl(tx, input.blId);
+    if (bl.voidedAt) throw new DomainError("bls.errors.voided");
+    if (input.customerId === bl.customerId) throw new DomainError("settings.noChanges");
+    if (input.customerId !== null && !tx.select().from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
+      throw new DomainError("customers.errors.unknown");
+    }
+    tx.update(billsOfLading).set({ customerId: input.customerId, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+    writeAudit(
+      tx,
+      { actorUserId: actor.id, roleUsed, action: "bl.setCustomer", entityType: "bill_of_lading", entityId: bl.id, before: { customerId: bl.customerId }, after: { customerId: input.customerId } },
+      now,
+    );
+  });
+}
+
 /** Voids a B/L created with wrong data; its payment returns to "awaiting B/L" (rule 15). */
 export function voidBl(db: Db, actor: AuthUser, input: { id: number; reason: string }, now: Date = new Date()): void {
   const roleUsed = authorize(actor, "bl.void");

@@ -28,6 +28,9 @@ export const containerListSchema = z
 
 /** Our internal file number, e.g. "T26-90815". */
 /** Our file number, 26-12345 (a leading "T" from transfer descriptions is dropped); empty means none. */
+/** The customer of a B/L, or null to clear it. */
+export const setBlCustomerSchema = z.object({ blId: z.number().int().positive(), customerId: z.number().int().positive().nullable() });
+
 export const fileNoSchema = z
   .string()
   .max(30, msg("bls.errors.fileNo"))

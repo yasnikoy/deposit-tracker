@@ -195,6 +195,9 @@ describe("importing agency replies", () => {
     expect(detail.email.bodyText).toContain("Konteynerler henüz dönmedi.");
     expect(detail.attachments.map((x) => x.originalName)).toEqual(["durum.pdf"]);
     expect(detail.links.map((l) => l.linkedBy)).toEqual(["THREAD", "THREAD"]);
+    // Our sent request opens the same way from the B/L detail, as sent and with nothing to record.
+    const sentEmail = db.select().from(emails).where(eq(emails.messageId, messageId)).get()!;
+    expect(getReplyDetail(db, ops, sentEmail.id)).toMatchObject({ email: { direction: "OUT", subject: sentEmail.subject, sentAt: sentEmail.sentAt }, links: [] });
     // The raw message is kept as .eml, imported by the system (no uploader).
     const raw = db.select().from(documents).where(eq(documents.id, detail.email.rawDocumentId!)).get()!;
     expect(raw).toMatchObject({ mimeType: "message/rfc822", uploadedBy: null });

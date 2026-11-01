@@ -84,6 +84,8 @@ const rules = {
   // Accountants follow the Operations work lists read-only.
   "bl.viewAwaiting": only("OPERATIONS", "ACCOUNTANT"),
   "bl.update": only("OPERATIONS"),
+  // Which customer a B/L belongs to; not a money field. Admins keep the customer list.
+  "bl.setCustomer": only("OPERATIONS", "ACCOUNTANT", "ADMIN"),
   "bl.void": only("OPERATIONS", "ADMIN"),
   "bl.generateForm": only("OPERATIONS"),
   "bl.uploadForm": only("OPERATIONS"),

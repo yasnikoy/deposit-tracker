@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
-import { createBls } from "@/server/bls";
+import { createBls, setBlCustomer } from "@/server/bls";
 import { createCustomer, listCustomers, suggestCustomer, updateCustomer } from "@/server/customers";
 import type { Db } from "@/server/db/client";
 import { auditLog, billsOfLading } from "@/server/db/schema";
@@ -124,3 +124,23 @@ describe("customer cards", () => {
   });
 });
 
+
+describe("customer on the B/L detail", () => {
+  it("is set or cleared by accounting, operations or an admin, audited; only active customers are newly assigned", () => {
+    const { created } = createBls(db, ops, [{ paymentId: payment("MEDUTST10099 DEPO"), blNo: "MEDUTST10099", containers: [], customerId: null }], NOW);
+    const blId = created[0].blId;
+    setBlCustomer(db, acc, { blId, customerId: ornek }, NOW);
+    expect(blOf(blId).customerId).toBe(ornek);
+    expect(() => setBlCustomer(db, ops, { blId, customerId: ornek }, NOW)).toThrow(/noChanges/);
+    const beta = createCustomer(db, admin, { name: "Beta", code: null, aliases: [] }, NOW);
+    updateCustomer(db, admin, { id: beta, customer: { name: "Beta", code: null, aliases: [], active: false } }, NOW);
+    expect(() => setBlCustomer(db, ops, { blId, customerId: beta }, NOW)).toThrow(/customers.errors.unknown/);
+    setBlCustomer(db, admin, { blId, customerId: null }, NOW);
+    expect(blOf(blId).customerId).toBeNull();
+    const audits = db.select().from(auditLog).where(eq(auditLog.action, "bl.setCustomer")).all();
+    expect(audits.map((a) => [a.roleUsed, a.before, a.after])).toEqual([
+      ["ACCOUNTANT", { customerId: null }, { customerId: ornek }],
+      ["ADMIN", { customerId: ornek }, { customerId: null }],
+    ]);
+  });
+});

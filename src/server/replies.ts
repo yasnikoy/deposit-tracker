@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, or } from "drizzle-orm";
 import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { businessDaysBetween, istanbulToday, type IsoDate } from "@/domain/business-days";
 import type { EmailLinkSource } from "@/domain/records";
@@ -158,7 +158,9 @@ export function unprocessedSummary(db: DbOrTx, now: Date = new Date()): Unproces
 }
 
 export type ReplyDetail = {
-  email: Pick<EmailRow, "id" | "direction" | "fromAddress" | "to" | "cc" | "subject" | "bodyText" | "receivedAt" | "rawDocumentId"> & { agencyName: string | null };
+  email: Pick<EmailRow, "id" | "direction" | "fromAddress" | "to" | "cc" | "subject" | "bodyText" | "receivedAt" | "sentAt" | "dryRun" | "rawDocumentId"> & {
+    agencyName: string | null;
+  };
   attachments: { documentId: number; originalName: string; sizeBytes: number }[];
   links: {
     blId: number;
@@ -174,14 +176,18 @@ export type ReplyDetail = {
   suggestions: { blId: number; blNo: string; agencyName: string; status: string }[];
 };
 
-/** One incoming email with its attachments, linked B/Ls and open suggestions. */
+/**
+ * One email of a B/L's chain with its attachments: an incoming one with its linked B/Ls and
+ * open suggestions, or one we sent (as sent; nothing to record on it).
+ */
 export function getReplyDetail(db: DbOrTx, actor: AuthUser, emailId: number): ReplyDetail {
   authorize(actor, "reply.view");
   const found = db
     .select({ email: emails, agencyName: agencies.name })
     .from(emails)
     .leftJoin(agencies, eq(agencies.id, emails.agencyId))
-    .where(and(eq(emails.id, emailId), eq(emails.direction, "IN")))
+    // Every incoming email; of ours, the agency requests (internal report emails are not shown here).
+    .where(and(eq(emails.id, emailId), or(eq(emails.direction, "IN"), isNotNull(emails.agencyId))))
     .get();
   if (!found) throw new DomainError("errors.notFound");
   const { email, agencyName } = found;
@@ -238,6 +244,8 @@ export function getReplyDetail(db: DbOrTx, actor: AuthUser, emailId: number): Re
       subject: email.subject,
       bodyText: email.bodyText,
       receivedAt: email.receivedAt,
+      sentAt: email.sentAt,
+      dryRun: email.dryRun,
       rawDocumentId: email.rawDocumentId,
       agencyName,
     },

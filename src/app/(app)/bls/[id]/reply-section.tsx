@@ -1,9 +1,8 @@
 "use client";
 
 import { ArrowDownLeft, ArrowUpRight, Search } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useCallback, useState, type FormEvent } from "react";
 import { toastWithUndo } from "@/components/undo-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,26 +14,37 @@ import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import type { BlDetail } from "@/server/bl-overview";
 import type { MailboxSearchResult } from "@/server/replies";
 import { linkMailboxMessageAction, recordReplyWithoutEmailAction, searchMailboxAction } from "../../replies/actions";
+import { EmailDialog } from "../../replies/email-dialog";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
+import type { DeductionTypeOption } from "../deduction-dialog";
 
 /** The B/L's email thread and recorded replies, with the two ways to add one by hand. */
 export function ReplySection({
   blId,
   detail,
   replyTypes,
+  deductionTypes,
   today,
+  canView,
   canRecord,
   canLink,
+  canRecordDeduction,
 }: {
   blId: number;
   detail: Pick<BlDetail, "emails" | "replies">;
   replyTypes: ReplyTypeOption[];
+  deductionTypes: DeductionTypeOption[];
   today: string;
+  canView: boolean;
   canRecord: boolean;
   canLink: boolean;
+  canRecordDeduction: boolean;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"record" | "link" | null>(null);
+  // An email opened in place, so the user stays on the B/L.
+  const [openEmail, setOpenEmail] = useState<number | null>(null);
+  const closeEmail = useCallback(() => setOpenEmail(null), []);
   const done = () => {
     setDialog(null);
     router.refresh();
@@ -71,12 +81,12 @@ export function ReplySection({
                   ) : (
                     <ArrowDownLeft className="size-4 text-emerald-700" aria-label={t("blReplies.received")} />
                   )}
-                  {email.direction === "IN" ? (
-                    <Link href={`/replies?email=${email.id}`} className="underline">
+                  {canView ? (
+                    <button type="button" className="text-left underline" onClick={() => setOpenEmail(email.id)}>
                       {email.subject || t("replies.noSubject")}
-                    </Link>
+                    </button>
                   ) : (
-                    <span>{email.subject}</span>
+                    <span>{email.subject || t("replies.noSubject")}</span>
                   )}
                   {email.dryRun && <Badge variant="secondary">{t("timeline.notes.dryRun")}</Badge>}
                 </span>
@@ -120,6 +130,17 @@ export function ReplySection({
 
       {dialog === "record" && <RecordReplyDialog blId={blId} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
       {dialog === "link" && <MailboxLinkDialog blId={blId} onCancel={() => setDialog(null)} onDone={done} />}
+      {openEmail !== null && (
+        <EmailDialog
+          emailId={openEmail}
+          replyTypes={replyTypes}
+          deductionTypes={deductionTypes}
+          canRecord={canRecord}
+          canLink={canLink}
+          canRecordDeduction={canRecordDeduction}
+          onClose={closeEmail}
+        />
+      )}
     </div>
   );
 }

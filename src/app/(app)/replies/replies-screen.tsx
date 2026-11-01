@@ -290,7 +290,8 @@ function BulkReplyButtons({
   );
 }
 
-function ReplyDetailView({
+/** One email: headers, linked B/Ls with quick reply-type buttons (incoming), attachments and text. */
+export function ReplyDetailView({
   detail,
   replyTypes,
   canRecord,
@@ -330,8 +331,11 @@ function ReplyDetailView({
             <dd className="break-all">{email.cc.join("; ")}</dd>
           </>
         )}
-        <dt className="text-muted-foreground">{t("replies.receivedAt")}</dt>
-        <dd>{email.receivedAt ? formatTimestamp(email.receivedAt) : ""}</dd>
+        <dt className="text-muted-foreground">{t(email.direction === "OUT" ? "replies.sentAt" : "replies.receivedAt")}</dt>
+        <dd>
+          {email.direction === "OUT" ? (email.sentAt ? formatTimestamp(email.sentAt) : "") : email.receivedAt ? formatTimestamp(email.receivedAt) : ""}
+          {email.dryRun && <Badge variant="secondary" className="ml-2">{t("timeline.notes.dryRun")}</Badge>}
+        </dd>
         {email.agencyName && (
           <>
             <dt className="text-muted-foreground">{t("replies.agency")}</dt>

@@ -9,6 +9,7 @@ import { listDeductionTypes, listReplyTypes } from "@/server/lists";
 import { DomainError } from "@/server/errors";
 import { mentionableUsers } from "@/server/notes";
 import { BlDetailScreen } from "./bl-detail-screen";
+import { listCustomers } from "@/server/customers";
 
 export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
   const { user } = await requireSession();
@@ -32,6 +33,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         forms: can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed,
         overrides: can(user, "bl.updateOverrides").allowed,
         recordReply: can(user, "reply.record").allowed,
+        viewEmails: can(user, "reply.view").allowed,
         linkEmail: can(user, "email.link").allowed,
         reverseAllocation: can(user, "allocation.reverse").allowed,
         attachEvidence: !!detail.payment && can(user, "payment.attachEvidence", detail.payment).allowed,
@@ -40,8 +42,10 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         disputeDeduction: can(user, "deduction.dispute").allowed,
         proposeWriteOff: can(user, "writeOff.propose").allowed,
         addNote: can(user, "note.add").allowed,
+        setCustomer: can(user, "bl.setCustomer").allowed,
       }}
       mentionable={mentionableUsers(getDb())}
+      customers={listCustomers(getDb(), user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
       // Users enter real types; the system types come from allocation and write-off approval.
       deductionTypes={listDeductionTypes(getDb(), user)
         .filter((type) => type.active && type.code === null)

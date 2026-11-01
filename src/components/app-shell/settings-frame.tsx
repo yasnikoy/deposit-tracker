@@ -29,7 +29,10 @@ export function SettingsFrame({ items, children }: { items: NavItem[]; children:
                   key={item.href}
                   href={item.href}
                   aria-current={matches(item.href) ? "page" : undefined}
-                  className={cn("hover:bg-muted rounded-md px-2 py-1", matches(item.href) && "bg-muted font-medium")}
+                  className={cn(
+                    "rounded-r-md border-l-2 px-2 py-1",
+                    matches(item.href) ? "border-primary bg-muted font-medium" : "hover:bg-muted border-transparent",
+                  )}
                 >
                   {t(item.label)}
                 </Link>

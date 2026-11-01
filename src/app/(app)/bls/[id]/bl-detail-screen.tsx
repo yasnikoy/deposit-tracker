@@ -28,6 +28,8 @@ import { DeductionsSection } from "./deductions-section";
 import { ReplySection } from "./reply-section";
 import { NotesSection } from "./notes-section";
 import type { MentionableUser } from "../note-editor";
+import type { CustomerOption } from "@/components/customer-combobox";
+import { CustomerField } from "./customer-field";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -49,6 +51,8 @@ export type BlDetailPermissions = {
   forms: boolean;
   overrides: boolean;
   recordReply: boolean;
+  /** Open the B/L's emails in place (the message and its reply buttons). */
+  viewEmails: boolean;
   linkEmail: boolean;
   reverseAllocation: boolean;
   /** Attach the receipt or invoice the source payment was saved without. */
@@ -58,6 +62,7 @@ export type BlDetailPermissions = {
   disputeDeduction: boolean;
   proposeWriteOff: boolean;
   addNote: boolean;
+  setCustomer: boolean;
 };
 
 export function BlDetailScreen({
@@ -65,6 +70,7 @@ export function BlDetailScreen({
   can,
   replyTypes,
   deductionTypes,
+  customers,
   mentionable,
   today,
 }: {
@@ -72,6 +78,7 @@ export function BlDetailScreen({
   can: BlDetailPermissions;
   replyTypes: ReplyTypeOption[];
   deductionTypes: DeductionTypeOption[];
+  customers: CustomerOption[];
   mentionable: MentionableUser[];
   today: string;
 }) {
@@ -135,6 +142,10 @@ export function BlDetailScreen({
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Section title={t("bls.summary")}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+            <dt className="text-muted-foreground">{t("bls.customer")}</dt>
+            <dd>
+              <CustomerField blId={bl.id} customerId={bl.customerId} customerName={bl.customerName} customers={customers} editable={can.setCustomer && !bl.voidedAt} />
+            </dd>
             <dt className="text-muted-foreground">{t("bls.paidAt")}</dt>
             <dd>{formatBusinessDate(bl.paidAt)}</dd>
             <dt className="text-muted-foreground">{t("bls.daysWaiting")}</dt>
@@ -221,9 +232,12 @@ export function BlDetailScreen({
             blId={bl.id}
             detail={detail}
             replyTypes={replyTypes}
+            deductionTypes={deductionTypes}
             today={today}
+            canView={can.viewEmails}
             canRecord={can.recordReply && !bl.voidedAt}
             canLink={can.linkEmail && !bl.voidedAt}
+            canRecordDeduction={can.recordDeduction && !bl.voidedAt}
           />
         </Section>
 

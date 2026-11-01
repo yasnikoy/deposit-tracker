@@ -22,6 +22,7 @@ import { updateSettingsAction } from "./actions";
 import { EmailTestCard } from "./email-test-card";
 import { describeBuckets, SettingEditor } from "./setting-editor";
 import { StandingDocumentsCard } from "./standing-documents-card";
+import { SectionNav } from "@/components/section-nav";
 
 /** Settings that move B/Ls between the request lists; their changes show an impact preview. */
 const IMPACT_KEYS: SettingKey[] = [
@@ -39,19 +40,14 @@ const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationK
 export function SettingsScreen({ settings, standingDocuments }: { settings: SettingListItem[]; standingDocuments: StandingDocument[] }) {
   return (
     <div className="flex gap-6">
-      <nav className="sticky top-16 flex h-fit w-48 shrink-0 flex-col gap-1">
-        {SETTING_GROUPS.map((group) => (
-          <a key={group} href={`#${group}`} className="hover:bg-muted rounded-md px-2 py-1">
-            {t(`settings.groups.${group}`)}
-          </a>
-        ))}
-        <a href="#email-test" className="hover:bg-muted rounded-md px-2 py-1">
-          {t("emailSettings.testTitle")}
-        </a>
-        <a href="#standing" className="hover:bg-muted rounded-md px-2 py-1">
-          {t("standing.title")}
-        </a>
-      </nav>
+      <SectionNav
+        label={t("settings.contents")}
+        sections={[
+          ...SETTING_GROUPS.map((group) => ({ id: group, label: t(`settings.groups.${group}`) })),
+          { id: "email-test", label: t("emailSettings.testTitle") },
+          { id: "standing", label: t("standing.title") },
+        ]}
+      />
       <div className="flex max-w-4xl flex-1 flex-col gap-4">
         {SETTING_GROUPS.map((group) => {
           const items = settings.filter((s) => settingDefinitions[s.key].group === group);

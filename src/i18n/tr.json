@@ -223,6 +223,7 @@
     "7": "Pazar"
   },
   "settings": {
+    "contents": "Bu sayfada",
     "title": "Ayarlar",
     "groups": {
       "calendar": "Takvim",
@@ -743,6 +744,10 @@
     "additionalSaved": "Ödeme, B/L {bl} için ek depozito olarak eklendi."
   },
   "bls": {
+    "customerEdit": "Müşteriyi değiştir",
+    "customerSaved": "B/L müşterisi kaydedildi.",
+    "customerNone": "Müşteri girilmemiş",
+    "customerClear": "Müşteriyi kaldır",
     "customer": "Müşteri",
     "fileNo": "Dosya no",
     "createTitle": "B/L oluştur",
@@ -855,6 +860,7 @@
       "bl": {
         "create": "B/L oluşturuldu",
         "update": "B/L düzenlendi",
+        "setCustomer": "B/L müşterisi değişti",
         "void": "B/L iptal edildi",
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
         "overrides": "B/L ayar istisnaları değişti",
@@ -1134,6 +1140,7 @@
       "MATCHES": "Olası eşleşme yok.",
       "PROCESSED": "Henüz işlenmiş yanıt yok."
     },
+    "sentAt": "Gönderildi",
     "receivedAt": "Alındı",
     "agency": "Acente",
     "from": "Kimden",
