@@ -476,6 +476,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
+- Nothing yet.
+
+**Nov 1, 2026 — live email mode on Turkish Windows, v0.11.1**
+
 - On Turkish Windows, the scripts did not read `EMAIL_MODE` from `deposit.env`: their case-insensitive match lowercased the `I` to a dotless `ı`, so the line was skipped. The app stayed in dry-run even when setup was answered Yes, and setup itself offered No as the default on the next run. The scripts now read the keys case-sensitively. An existing `deposit.env` with `EMAIL_MODE=live` takes effect after the update; there is no need to run setup again.
 
 **Nov 1, 2026 — accounting entry before collection, v0.11.0**
