@@ -1056,7 +1056,7 @@
     "failedAt": "Gönderim denemesi",
     "failureReason": "Hata",
     "retry": "Yeniden hazırla",
-    "selectHint": "Gönderilecek B/L'leri seçin; portal ilk talepleri portal üzerinden kaydedilir.",
+    "selectHint": "Gönderilecek B/L'leri seçin; portal acentelerinde ilk talebi önce portalda oluşturun, belgeler e-postayla gider.",
     "types": {
       "REFUND": "İade talebi",
       "DEDUCTION_STATEMENT": "Döküm talebi"

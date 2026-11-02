@@ -212,6 +212,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
             <label key={k} className="flex items-center gap-2 text-sm">
               <input
                 type="radio"
+                name="opening-kind"
                 value={k}
                 checked={kind === k}
                 onChange={() => {

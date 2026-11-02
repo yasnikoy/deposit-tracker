@@ -156,6 +156,7 @@ export function RefundForm({ refs, onSaved }: { refs: ReferenceData; onSaved: ()
           <label key={k} className="flex items-center gap-1.5">
             <input
               type="radio"
+              name="refund-kind"
               checked={kind === k}
               onChange={() => {
                 setKind(k);

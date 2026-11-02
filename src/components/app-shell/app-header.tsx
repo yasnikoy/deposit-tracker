@@ -65,18 +65,19 @@ export function AppHeader({
   const settingsActive = settings.some((item) => matches(item.href));
 
   return (
-    <header className="bg-background sticky top-0 z-20 flex h-11 items-center gap-4 border-b px-4">
+    <header className="bg-background sticky top-0 z-20 flex min-h-11 flex-wrap items-center gap-x-4 gap-y-1 border-b px-4 py-1.5">
       <Link href="/" className="font-semibold whitespace-nowrap">
         {t("app.name")} <span className="text-muted-foreground text-xs font-normal">v{version}</span>
       </Link>
-      <nav className="flex items-center gap-1">
+      {/* Labels stay on one line; the search box gives way first, then the bar wraps instead of overflowing. */}
+      <nav className="flex flex-wrap items-center gap-0.5">
         {nav.filter((item) => !item.section).map((item) => (
           <Link
             key={item.href}
             href={item.href}
             aria-current={isActive(item.href) && !settingsActive ? "page" : undefined}
             className={cn(
-              "hover:bg-muted rounded-md px-2.5 py-1",
+              "hover:bg-muted rounded-md px-2 py-1 whitespace-nowrap",
               isActive(item.href) && !settingsActive && "bg-muted font-medium",
             )}
           >
@@ -88,14 +89,14 @@ export function AppHeader({
           <Link
             href="/settings"
             aria-current={settingsActive ? "page" : undefined}
-            className={cn("hover:bg-muted flex items-center gap-1 rounded-md px-2.5 py-1", settingsActive && "bg-muted font-medium")}
+            className={cn("hover:bg-muted flex items-center gap-1 rounded-md px-2 py-1 whitespace-nowrap", settingsActive && "bg-muted font-medium")}
           >
             <Settings className="size-3.5" />
             {t("nav.settings")}
           </Link>
         )}
       </nav>
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex min-w-72 flex-1 items-center justify-end gap-2">
         <GlobalSearch />
         <Link
           href="/notifications"
@@ -110,7 +111,7 @@ export function AppHeader({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm">
-              <CircleUser /> {user.displayName}
+              <CircleUser /> <span className="max-w-36 truncate">{user.displayName}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

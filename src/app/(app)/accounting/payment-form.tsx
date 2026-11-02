@@ -145,6 +145,7 @@ export function PaymentForm({
             <label key={k} className="flex items-center gap-1.5">
               <input
                 type="radio"
+                name="payment-kind"
                 value={k}
                 checked={kind === k}
                 onChange={() => {

@@ -101,6 +101,8 @@ export function FileDrop({
         ref={input}
         type="file"
         multiple={multiple}
+        // The drop zone itself is the one keyboard stop; it opens this picker.
+        tabIndex={-1}
         className="sr-only"
         aria-label={label}
         onChange={(event) => void handle([...(event.target.files ?? [])])}
