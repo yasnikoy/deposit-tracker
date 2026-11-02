@@ -245,7 +245,7 @@ function AgencyGroup({
                   {row.blNo}
                 </Link>
                 {row.evidenceMissing && (
-                  <Badge variant="outline" className="ml-2 border-amber-400 text-amber-800 dark:text-amber-300" title={t("requests.evidenceMissingHint")}>
+                  <Badge variant="warning" className="ml-2" title={t("requests.evidenceMissingHint")}>
                     {t("requests.evidenceMissing")}
                   </Badge>
                 )}

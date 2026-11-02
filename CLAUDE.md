@@ -11,6 +11,10 @@ deployment. If the code and the document disagree, stop and ask. When a
 decision changes, update the document (including its Change log) in the same
 change.
 
+**UI source of truth:** `docs/UI.md` (navigation map, page patterns, shared
+components, status colours, amount/date/empty-value rules, keyboard, wording).
+Read it before any UI change and follow its checklist (section 11).
+
 ## Language
 - Code, identifiers, DB names, comments, commits, docs: English.
 - UI: Turkish only. All UI strings live in `src/i18n/tr.json`; never inline
@@ -64,7 +68,7 @@ change.
   inline editing, keyboard shortcuts and per-user layout.
 - `seed/settings.json` initial setting values, lists and email templates.
 - `scripts/` `.cmd` scripts and the `build:portable` packaging.
-- `docs/ARCHITECTURE.md`, `docs/RUNBOOK.md`.
+- `docs/ARCHITECTURE.md`, `docs/UI.md`, `docs/RUNBOOK.md`.
 - `tests/` mirrors `src/`; sample receipts in `tests/fixtures/receipts/`.
 
 ## Hard rules
@@ -118,6 +122,11 @@ change.
     a key file outside the data folder; never in the DB, logs or backups.
 15. **Data folder is sacred.** Updates never touch it. Migrations run on start
     only after an automatic backup.
+16. **UI follows `docs/UI.md`.** New or changed screens reuse its page patterns
+    and shared components, its status-colour table, amount/currency rule and
+    terms. A new pattern, component kind, colour, status chip or term is a
+    decision: ask first, then update `docs/UI.md` (and the change log) in the
+    same change. If code and `docs/UI.md` disagree, stop and ask.
 
 ## Out of scope (do not add)
 - Removed after review: escalation, snooze, auto-confirm of allocations,

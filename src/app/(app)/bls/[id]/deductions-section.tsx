@@ -58,7 +58,7 @@ export function DeductionsSection({
                 <span className="text-muted-foreground text-xs">
                   {t(`bls.deductionSources.${line.deduction!.source}`)} · {formatBusinessDate(line.entryDate)}
                 </span>
-                {line.deduction!.code === "UNEXPLAINED" && !line.deduction!.disputed && <Badge variant="outline">{t("deductions.open")}</Badge>}
+                {line.deduction!.code === "UNEXPLAINED" && !line.deduction!.disputed && <Badge variant="warning">{t("deductions.open")}</Badge>}
                 {line.deduction!.disputed && <Badge variant="destructive">{t("deductions.disputed")}</Badge>}
                 {line.deduction!.documentId !== null && (
                   <a href={`/api/files/${line.deduction!.documentId}`} target="_blank" rel="noreferrer" className="text-sm underline">
@@ -95,7 +95,7 @@ export function DeductionsSection({
           {detail.writeOffs.map((w) => (
             <li key={w.id} className="flex flex-col gap-0.5 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <Badge variant={w.state === "PROPOSED" ? "secondary" : w.state === "APPROVED" ? "default" : "outline"}>{t(`writeOffs.states.${w.state}`)}</Badge>
+                <Badge variant={w.state === "PROPOSED" ? "warning" : "secondary"}>{t(`writeOffs.states.${w.state}`)}</Badge>
                 <span className="tabular font-medium">{formatMoney(w.amountMinor, w.currency)}</span>
                 <span className="text-muted-foreground text-xs">
                   {formatTimestamp(w.proposedAt)} · {w.proposedByName}

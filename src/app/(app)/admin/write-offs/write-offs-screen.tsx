@@ -89,7 +89,7 @@ export function WriteOffsScreen({ lists, canDecide }: { lists: { pending: WriteO
           <ul className="flex flex-col gap-2 text-sm">
             {lists.decided.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center gap-2">
-                <Badge variant={row.state === "APPROVED" ? "default" : "outline"}>{t(`writeOffs.states.${row.state}`)}</Badge>
+                <Badge variant={row.state === "PROPOSED" ? "warning" : "secondary"}>{t(`writeOffs.states.${row.state}`)}</Badge>
                 <Link href={`/bls/${row.blId}`} className="font-mono hover:underline">
                   {row.blNo}
                 </Link>
