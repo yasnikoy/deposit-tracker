@@ -18,7 +18,9 @@ import { isTranslationKey, t } from "@/i18n";
 import { formatAmount, formatMoney, parseAmountInput } from "@/lib/money";
 import { openingBalanceSchema } from "@/lib/schemas/opening-balances";
 import { cn } from "@/lib/utils";
+import { BlJoinNotice, ReceiptMismatchHint, useBlJoinPreview, useDepositConfirmations } from "../../accounting/deposit-checks";
 import type { ReferenceData } from "../../accounting/payment-form";
+import { blRowWarnings } from "../../bls/bl-warnings";
 import { createOpeningBalanceAction } from "./actions";
 
 type FormValues = {
@@ -59,23 +61,30 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   const [candidates, setCandidates] = useState<string[]>([]);
   const [created, setCreated] = useState<{ id: number; blNo: string }[]>([]);
 
-  const toInput = (values: FormValues) => ({
-    agencyId: values.agencyId,
-    newAgencyName: values.newAgencyName,
-    customerId: values.customerId,
-    newCustomerName: values.newCustomerName,
-    kind: values.kind,
-    amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
-    currency: values.currency,
-    paidAt: values.paidAt,
-    blNo: values.blNo,
-    fileNo: values.fileNo,
-    containers: parseContainerList(values.containersText),
-    documentId: receipt?.id ?? null,
-    pastAttempts: Number(values.pastAttempts),
-    lastRequestOn: values.lastRequestOn || null,
-    note: values.note,
-  });
+  const confirmations = useDepositConfirmations();
+  // While the typed B/L number belongs to an active B/L the deposit joins (`joining`, below), that
+  // B/L keeps its request history, customer, file number and containers, so the record sends none.
+  // Called only from events, after render has set `joining`.
+  const toInput = (values: FormValues, confirmDuplicate = false) => {
+    return {
+      agencyId: values.agencyId,
+      newAgencyName: values.newAgencyName,
+      customerId: joining ? null : values.customerId,
+      newCustomerName: joining ? null : values.newCustomerName,
+      kind: values.kind,
+      amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
+      currency: values.currency,
+      paidAt: values.paidAt,
+      blNo: values.blNo,
+      fileNo: joining ? "" : values.fileNo,
+      containers: joining ? [] : parseContainerList(values.containersText),
+      documentId: receipt?.id ?? null,
+      pastAttempts: joining ? 0 : Number(values.pastAttempts),
+      lastRequestOn: joining ? null : values.lastRequestOn || null,
+      note: values.note,
+      confirmDuplicate,
+    };
+  };
 
   const resolver: Resolver<FormValues> = async (values) => {
     const parsed = openingBalanceSchema.safeParse(toInput(values));
@@ -107,11 +116,15 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   };
   const form = useForm<FormValues>({ resolver, defaultValues: blank });
   const errors = form.formState.errors;
-  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts] = useWatch({
+  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts, blNo, containersText] = useWatch({
     control: form.control,
-    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts"],
+    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts", "blNo", "containersText"],
   });
   const amount = parseAmountInput(amountText);
+  const joinPreview = useBlJoinPreview(blNo, agencyId, currency);
+  const joining = joinPreview !== null && joinPreview.problem === null;
+  const patterns = refs.agencies.find((a) => a.id === agencyId)?.blNumberPatterns ?? [];
+  const blWarnings = blRowWarnings(blNo, joining ? "" : containersText, patterns);
   const isKnownAgency = (name: string) => refs.agencies.some((a) => a.name.toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
 
   /** Puts a receipt on the form: what it reads overrides, the rest stays as carried over. */
@@ -158,12 +171,14 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     load(item);
   };
 
-  const onSubmit = form.handleSubmit(async (values) => {
-    const result = await createOpeningBalanceAction(toInput(values));
+  const save = async (values: FormValues, confirmDuplicate: boolean): Promise<void> => {
+    const result = await createOpeningBalanceAction(toInput(values, confirmDuplicate));
     if (!result.ok) return void toast.error(t(result.error, result.params));
-    toast.success(t("openingBalances.saved"));
+    if (result.data.status === "duplicate") return confirmations.confirmDuplicates(result.data.duplicates, () => save(form.getValues(), true));
+    const saved = { id: result.data.blId, blNo: values.blNo.toUpperCase().replace(/\s+/g, "") };
+    toast.success(result.data.joined ? t("openingBalances.joined", { bl: saved.blNo }) : t("openingBalances.saved"));
     if (values.newAgencyName && !isKnownAgency(values.newAgencyName)) toast.info(t("payments.newAgencyAdded", { name: values.newAgencyName }));
-    setCreated((list) => [{ id: result.data, blNo: values.blNo.toUpperCase().replace(/\s+/g, "") }, ...list]);
+    setCreated((list) => [saved, ...list.filter((bl) => bl.id !== saved.id)]);
     // The next record: kind, agency, customer and currency carry over; a new agency or customer is now registered.
     form.reset({
       ...blank,
@@ -178,7 +193,8 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     const [next, ...rest] = queue;
     setQueue(rest);
     load(next ?? null);
-  });
+  };
+  const onSubmit = form.handleSubmit((values) => confirmations.checkReceiptMatch(values.blNo, candidates, () => save(values, false)));
 
   const message = (key?: string) =>
     key ? (
@@ -272,6 +288,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
             </Label>
             <CustomerCombobox
               id="opening-customer"
+              disabled={joining}
               customers={customers}
               value={customerId}
               onChange={(id) => form.setValue("customerId", id)}
@@ -312,47 +329,59 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-[14rem_10rem_1fr] gap-3">
+        {/* Tab order follows daily use: B/L number and request history first, then file number and containers. */}
+        <div className="grid grid-cols-[14rem_14rem_14rem] gap-3">
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="opening-bl-no">{t("bls.blNo")}</Label>
             <Input id="opening-bl-no" className="font-mono uppercase" {...form.register("blNo")} />
-            {candidates.length > 1 && (
-              <p className="text-xs">
-                {t("openingBalances.candidates")}{" "}
-                {candidates.map((c) => (
-                  <button key={c} type="button" className={cn("mr-1 font-mono underline")} onClick={() => form.setValue("blNo", c)}>
-                    {c}
-                  </button>
-                ))}
-              </p>
-            )}
             {message(errors.blNo?.message)}
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
-            <Input id="opening-file-no" className="font-mono uppercase" {...form.register("fileNo")} />
-            {message(errors.fileNo?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-containers">{t("bls.containers")}</Label>
-            <Input id="opening-containers" className="font-mono uppercase" placeholder="MSCU1234565, CSQU3054383" {...form.register("containersText")} />
-            {message(errors.containersText?.message)}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[14rem_14rem] gap-3">
-          <div className="flex flex-col gap-1.5">
             <Label htmlFor="opening-attempts">{t("openingBalances.pastAttempts")}</Label>
-            <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" {...form.register("pastAttempts")} />
+            <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" disabled={joining} {...form.register("pastAttempts")} />
             {message(errors.pastAttempts?.message)}
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="opening-last-request">{t("openingBalances.lastRequestOn")}</Label>
-            <Input id="opening-last-request" type="date" max={refs.today} disabled={pastAttempts === "0"} {...form.register("lastRequestOn")} />
+            <Input id="opening-last-request" type="date" max={refs.today} disabled={joining || pastAttempts === "0"} {...form.register("lastRequestOn")} />
             {message(errors.lastRequestOn?.message)}
           </div>
         </div>
-        <p className="text-muted-foreground -mt-2 text-xs">{t("openingBalances.attemptsHelp")}</p>
+        <div className="-mt-2 flex flex-col gap-1">
+          {candidates.length > 1 && (
+            <p className="text-xs">
+              {t("openingBalances.candidates")}{" "}
+              {candidates.map((c) => (
+                <button key={c} type="button" className={cn("mr-1 font-mono underline")} onClick={() => form.setValue("blNo", c)}>
+                  {c}
+                </button>
+              ))}
+            </p>
+          )}
+          <ReceiptMismatchHint blNo={blNo} candidates={candidates} />
+          {blWarnings.map((w) => (
+            <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
+              {w}
+            </p>
+          ))}
+          <BlJoinNotice preview={joinPreview} amountMinor={amount}>
+            <p>{t("blJoin.keepsHistory")}</p>
+          </BlJoinNotice>
+          {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
+        </div>
+
+        <div className="grid grid-cols-[14rem_1fr] gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
+            <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
+            {message(errors.fileNo?.message)}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="opening-containers">{t("bls.containers")}</Label>
+            <Input id="opening-containers" className="font-mono uppercase" placeholder="MSCU1234565, CSQU3054383" disabled={joining} {...form.register("containersText")} />
+            {message(errors.containersText?.message)}
+          </div>
+        </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="opening-note">{t("openingBalances.note")}</Label>
@@ -365,6 +394,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
           </Button>
         </div>
       </form>
+      {confirmations.dialog}
 
       {created.length > 0 && (
         <section className="flex flex-col gap-1">

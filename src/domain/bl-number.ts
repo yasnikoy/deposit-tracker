@@ -61,3 +61,12 @@ export function normalizeBlNumber(text: string): string {
 export function isValidBlNumber(value: string): boolean {
   return /^[A-Z0-9][A-Z0-9\-/]{2,39}$/.test(value);
 }
+
+/**
+ * A B/L number entered for a receipt that names other B/L numbers: worth a warning the user
+ * confirms, never a block (receipts carry typos or several numbers).
+ */
+export function blNotOnReceipt(blNo: string, receiptCandidates: readonly string[]): boolean {
+  const typed = normalizeBlNumber(blNo);
+  return typed !== "" && receiptCandidates.length > 0 && !receiptCandidates.some((c) => normalizeBlNumber(c) === typed);
+}

@@ -63,7 +63,8 @@ function findDuplicates(
     .from(refunds)
     .innerJoin(agencies, eq(agencies.id, refunds.agencyId))
     .where(and(...conditions))
-    .all();
+    .all()
+    .map((row) => ({ ...row, blNo: null }));
 }
 
 const snapshot = (row: Refund) => ({

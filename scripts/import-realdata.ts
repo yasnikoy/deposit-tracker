@@ -511,6 +511,7 @@ async function main() {
             pastAttempts: 0,
             lastRequestOn: null,
             note: `Excel #${row.no}: depozito ${row.deposit}, iade ${row.refunded}, kalan ${row.rest} ${row.currency}`,
+            confirmDuplicate: true,
           } as Parameters<typeof createOpeningBalance>[2]);
           report.openingBalances++;
         } else {

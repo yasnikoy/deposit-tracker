@@ -107,6 +107,26 @@ export function BlDetailScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
   const { bl, payment, ledger, documents, timeline } = detail;
+  const opening = detail.openingBalance;
+  const depositParts = (payment ? 1 : 0) + detail.additionalPayments.length + (opening?.entries.length ?? 0);
+  // Deposits moved from Excel: each amount with its date, their receipts, and a drop for a missing one.
+  const openingLine = opening && (
+    <span className="flex flex-wrap items-center gap-2">
+      {t("openingBalances.source")} ·{" "}
+      {opening.entries.map((e) => `${formatMoney(e.amountMinor, e.currency)} (${formatBusinessDate(e.entryDate)})`).join(" + ")}
+      {opening.documents.map((d) => (
+        <a key={d.id} href={`/api/files/${d.id}`} target="_blank" rel="noreferrer" className="underline">
+          {d.originalName}
+        </a>
+      ))}
+      {opening.missingEvidence > 0 && <span className="text-amber-700 dark:text-amber-400">{t("payments.evidenceMissing.BANK")}</span>}
+      {opening.missingEvidence > 0 && can.attachOpeningEvidence && !bl.voidedAt && (
+        <span className="w-full">
+          <EvidenceDrop blId={bl.id} kind="BANK" compact />
+        </span>
+      )}
+    </span>
+  );
   const done = () => {
     setDialog(null);
     router.refresh();
@@ -195,26 +215,16 @@ export function BlDetailScreen({
                     </span>
                   )}
                 </span>
-              ) : detail.openingBalance ? (
-                <span className="flex flex-wrap items-center gap-2">
-                  {t("openingBalances.source")} · {formatMoney(bl.depositMinor, bl.currency)} ·{" "}
-                  {detail.openingBalance.documentId !== null ? (
-                    <a href={`/api/files/${detail.openingBalance.documentId}`} target="_blank" rel="noreferrer" className="underline">
-                      {detail.openingBalance.originalName}
-                    </a>
-                  ) : (
-                    <span className="text-amber-700 dark:text-amber-400">{t("payments.evidenceMissing.BANK")}</span>
-                  )}
-                  {detail.openingBalance.documentId === null && can.attachOpeningEvidence && !bl.voidedAt && (
-                    <span className="w-full">
-                      <EvidenceDrop blId={bl.id} kind="BANK" compact />
-                    </span>
-                  )}
-                </span>
               ) : (
-                t("common.none")
+                (openingLine ?? t("common.none"))
               )}
             </dd>
+            {payment && openingLine && (
+              <>
+                <dt className="text-muted-foreground">{t("openingBalances.title")}</dt>
+                <dd>{openingLine}</dd>
+              </>
+            )}
             {detail.additionalPayments.length > 0 && (
               <>
                 <dt className="text-muted-foreground">{t("bls.additionalPayments")}</dt>
@@ -233,8 +243,13 @@ export function BlDetailScreen({
                       </li>
                     ))}
                   </ul>
-                  <span className="text-muted-foreground text-xs">{t("bls.depositTotal", { amount: formatMoney(bl.depositMinor, bl.currency) })}</span>
                 </dd>
+              </>
+            )}
+            {depositParts > 1 && (
+              <>
+                <dt />
+                <dd className="text-muted-foreground text-xs">{t("bls.depositTotal", { amount: formatMoney(bl.depositMinor, bl.currency) })}</dd>
               </>
             )}
           </dl>

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { matchAgencyBySenderName } from "@/domain/agency";
-import { extractBlNumbers } from "@/domain/bl-number";
+import { extractBlNumbers, normalizeBlNumber } from "@/domain/bl-number";
 import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND, type PaymentKind } from "@/domain/records";
 import type { Role } from "@/domain/roles";
@@ -9,7 +9,7 @@ import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/paym
 import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
 import { suggestCustomer } from "./customers";
-import { authorize } from "./auth/can";
+import { authorize, can } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
 import {
@@ -18,17 +18,19 @@ import {
   currencies,
   depositPayments,
   documents,
+  ledgerEntries,
   receiptQueue,
 } from "./db/schema";
-import { DomainError } from "./errors";
+import { DomainError, ForbiddenError } from "./errors";
 import { attachDocument, nameBlDocuments, readDocument, type StoredDocument } from "./files";
-import { activeLedgerEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
+import { activeLedgerEntries, activeOpeningEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
 import { notify, operationsOnBl } from "./notifications";
 import { parseReceipt, type ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
 import { isSettled, type StoredBlStatus } from "@/domain/bl-lifecycle";
 
 export type Payment = typeof depositPayments.$inferSelect;
+type Bl = typeof billsOfLading.$inferSelect;
 
 export type PaymentPrefill = {
   agencyIds: number[];
@@ -42,7 +44,8 @@ export type PaymentPrefill = {
   fileNo: string | null;
 };
 
-export type DuplicateCandidate = { id: number; agencyName: string; amountMinor: number; currency: string; paidAt: string };
+/** An earlier deposit with the same agency, amount, currency and date: a payment, or an opening balance (then `blNo` is set). */
+export type DuplicateCandidate = { id: number; blNo: string | null; agencyName: string; amountMinor: number; currency: string; paidAt: string };
 
 export type CreatePaymentResult =
   | { status: "created"; id: number; agencyId: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
@@ -71,10 +74,14 @@ export function prefillFromExtraction(db: DbOrTx, extraction: ReceiptExtraction)
   };
 }
 
-function findDuplicates(
+/**
+ * Deposits already recorded with the same agency, amount, currency and date (the duplicate
+ * warning): active payments and active opening-balance entries of active B/Ls.
+ */
+export function findDuplicates(
   tx: DbOrTx,
   input: { agencyId: number; amountMinor: number; currency: string; paidAt: string },
-  exceptId?: number,
+  exceptPaymentId?: number,
 ): DuplicateCandidate[] {
   const conditions = [
     eq(depositPayments.agencyId, input.agencyId),
@@ -83,8 +90,8 @@ function findDuplicates(
     eq(depositPayments.paidAt, input.paidAt),
     isNull(depositPayments.voidedAt),
   ];
-  if (exceptId !== undefined) conditions.push(ne(depositPayments.id, exceptId));
-  return tx
+  if (exceptPaymentId !== undefined) conditions.push(ne(depositPayments.id, exceptPaymentId));
+  const payments = tx
     .select({
       id: depositPayments.id,
       agencyName: agencies.name,
@@ -95,7 +102,13 @@ function findDuplicates(
     .from(depositPayments)
     .innerJoin(agencies, eq(agencies.id, depositPayments.agencyId))
     .where(and(...conditions))
-    .all();
+    .all()
+    .map((row) => ({ ...row, blNo: null }));
+  const openingBalances = activeOpeningEntries(
+    tx,
+    and(eq(billsOfLading.agencyId, input.agencyId), eq(ledgerEntries.amountMinor, input.amountMinor), eq(ledgerEntries.currency, input.currency), eq(ledgerEntries.entryDate, input.paidAt)),
+  ).map((row) => ({ id: row.entryId, blNo: row.blNo, agencyName: row.agencyName, amountMinor: row.amountMinor, currency: row.currency, paidAt: row.entryDate }));
+  return [...payments, ...openingBalances];
 }
 
 /** Checks references shared by money records (payments and refunds): agency, currency, date. */
@@ -189,40 +202,81 @@ export function createPayment(
       },
       now,
     );
-    const additionalTo = input.blNoHint ? addToExistingBl(tx, actor, roleUsed, row, input.blNoHint, now) : null;
+    const bl = input.blNoHint ? existingBlFor(tx, input.blNoHint, row) : null;
+    if (bl) tx.update(depositPayments).set({ additionalToBlId: bl.id, updatedAt: at }).where(eq(depositPayments.id, row.id)).run();
+    const additionalTo = bl
+      ? addDepositToBl(
+          tx,
+          actor,
+          roleUsed,
+          bl,
+          { type: row.kind === "BANK" ? "PAYMENT" : "OFFSET", amountMinor: row.amountMinor, currency: row.currency, entryDate: row.paidAt, depositPaymentId: row.id },
+          { action: "bl.additionalPayment", after: { paymentId: row.id } },
+          now,
+        )
+      : null;
     return { status: "created", id: row.id, agencyId, additionalTo };
   });
 }
 
-/**
- * A payment entered with the number of an active B/L is an additional deposit ("ek depozito")
- * on it: same agency and currency, the B/L still open. Its own ledger entry adds to the
- * deposit; the B/L's first payment keeps setting the request clock.
- */
-function addToExistingBl(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, payment: Payment, blNo: string, now: Date) {
+export type BlJoinProblem = "agency" | "currency" | "closed";
+
+/** The active B/L with this number, if any, and why a deposit could not join it. */
+function joinableBl(tx: DbOrTx, blNo: string, deposit: { agencyId: number | null; currency: string }) {
   const bl = tx
     .select()
     .from(billsOfLading)
-    .where(and(eq(sql`upper(${billsOfLading.blNo})`, blNo.trim().toUpperCase()), isNull(billsOfLading.voidedAt)))
+    .where(and(eq(sql`upper(${billsOfLading.blNo})`, normalizeBlNumber(blNo)), isNull(billsOfLading.voidedAt)))
     .get();
   if (!bl) return null;
-  if (bl.agencyId !== payment.agencyId || bl.currency !== payment.currency) throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
-  if (isSettled(bl.status as StoredBlStatus)) throw new DomainError("payments.errors.additionalClosed", { bl: bl.blNo });
+  const problem: BlJoinProblem | null =
+    bl.agencyId !== deposit.agencyId ? "agency" : bl.currency !== deposit.currency ? "currency" : isSettled(bl.status as StoredBlStatus) ? "closed" : null;
+  return { bl, problem };
+}
+
+/**
+ * The active B/L a deposit entered with this number joins as an additional deposit ("ek
+ * depozito"), or null when no active B/L has the number. Joining needs the same agency and
+ * currency and a B/L that is still open.
+ */
+export function existingBlFor(tx: DbOrTx, blNo: string, deposit: { agencyId: number; currency: string }): Bl | null {
+  const found = joinableBl(tx, blNo, deposit);
+  if (!found) return null;
+  if (found.problem === "closed") throw new DomainError("payments.errors.additionalClosed", { bl: found.bl.blNo });
+  if (found.problem) throw new DomainError("payments.errors.additionalMismatch", { bl: found.bl.blNo });
+  return found.bl;
+}
+
+export type BlJoinPreview = { blId: number; blNo: string; currency: string; depositMinor: number; problem: BlJoinProblem | null };
+
+/**
+ * What saving a deposit with this B/L number would do, shown before saving: join the active
+ * B/L (with its current deposit) or not, and why not. Payments and opening balances alike.
+ */
+export function previewBlJoin(db: DbOrTx, actor: AuthUser, input: { blNo: string; agencyId: number | null; currency: string }): BlJoinPreview | null {
+  if (!can(actor, "payment.create").allowed && !can(actor, "openingBalance.create").allowed) throw new ForbiddenError();
+  const found = joinableBl(db, input.blNo, input);
+  if (!found) return null;
+  const { bl, problem } = found;
+  return { blId: bl.id, blNo: bl.blNo, currency: bl.currency, depositMinor: bl.depositAmountMinor, problem };
+}
+
+/**
+ * Adds a deposit to an existing B/L (see `existingBlFor`): its own ledger entry adds to the
+ * deposit, the B/L's first deposit keeps setting the request clock, and the B/L's documents
+ * are renamed. A payment is linked to the B/L (`additionalToBlId`) before this runs.
+ */
+export function addDepositToBl(
+  tx: DbOrTx,
+  actor: AuthUser,
+  roleUsed: Role | null,
+  bl: Bl,
+  deposit: { type: "PAYMENT" | "OFFSET" | "OPENING_BALANCE"; amountMinor: number; currency: string; entryDate: string; depositPaymentId: number | null },
+  audit: { action: string; after: Record<string, unknown>; reason?: string | null },
+  now: Date,
+): { blId: number; blNo: string } {
   const at = now.toISOString();
-  tx.update(depositPayments).set({ additionalToBlId: bl.id, updatedAt: at }).where(eq(depositPayments.id, payment.id)).run();
-  addLedgerEntry(
-    tx,
-    {
-      blId: bl.id,
-      type: payment.kind === "BANK" ? "PAYMENT" : "OFFSET",
-      amountMinor: payment.amountMinor,
-      currency: payment.currency,
-      entryDate: payment.paidAt,
-      depositPaymentId: payment.id,
-      createdBy: actor.id,
-    },
-    now,
-  );
+  addLedgerEntry(tx, { blId: bl.id, ...deposit, createdBy: actor.id }, now);
   const after = syncDepositAmount(tx, bl.id, at);
   const renamed = nameBlDocuments(tx, after);
   writeAudit(
@@ -230,11 +284,12 @@ function addToExistingBl(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, pay
     {
       actorUserId: actor.id,
       roleUsed,
-      action: "bl.additionalPayment",
+      action: audit.action,
       entityType: "bill_of_lading",
       entityId: bl.id,
       before: { depositAmountMinor: bl.depositAmountMinor },
-      after: { paymentId: payment.id, amountMinor: payment.amountMinor, paidAt: payment.paidAt, depositAmountMinor: after.depositAmountMinor, ...(renamed.length ? { renamed } : {}) },
+      after: { ...audit.after, amountMinor: deposit.amountMinor, paidAt: deposit.entryDate, depositAmountMinor: after.depositAmountMinor, ...(renamed.length ? { renamed } : {}) },
+      reason: audit.reason ?? null,
     },
     now,
   );
@@ -538,22 +593,32 @@ type EvidenceDocument = { id: number; originalName: string; sizeBytes: number; k
 
 /**
  * The receipts (bank) or invoices (offset) of a B/L's deposit: those of its payments, first
- * payment first, plus for a migrated B/L (opening balance) the one attached to the B/L itself.
+ * payment first, plus those of its opening balances, attached to the B/L itself (first when
+ * the B/L was migrated, i.e. has no first payment).
  */
 export function depositEvidences(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): EvidenceDocument[] {
   const fields = { id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind };
-  const own =
-    bl.depositPaymentId === null
-      ? tx
-          .select(fields)
-          .from(documents)
-          .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, bl.id), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
-          .all()
-      : [];
+  const own = openingEvidences(tx, bl.id);
   const fromPayments = blPayments(tx, bl)
     .filter((p) => p.evidenceDocumentId !== null)
     .map((p) => tx.select(fields).from(documents).where(eq(documents.id, p.evidenceDocumentId!)).get()!);
-  return [...own, ...fromPayments];
+  return bl.depositPaymentId === null ? [...own, ...fromPayments] : [...fromPayments, ...own];
+}
+
+/** The receipts or invoices of a B/L's opening balances (owned by the B/L). */
+export function openingEvidences(tx: DbOrTx, blId: number): EvidenceDocument[] {
+  return tx
+    .select({ id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind })
+    .from(documents)
+    .where(and(eq(documents.ownerType, "bill_of_lading"), eq(documents.ownerId, blId), inArray(documents.kind, ["RECEIPT", "INVOICE"])))
+    .orderBy(documents.id)
+    .all();
+}
+
+/** How many of a B/L's opening balances still lack their receipt or invoice. */
+export function missingOpeningEvidence(tx: DbOrTx, blId: number): number {
+  const entries = activeOpeningEntries(tx, eq(billsOfLading.id, blId)).length;
+  return Math.max(0, entries - openingEvidences(tx, blId).length);
 }
 
 /** The B/L's first receipt or invoice, if any (a migrated B/L's own, or its first payment's). */
@@ -561,11 +626,9 @@ export function depositEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: 
   return depositEvidences(tx, bl)[0] ?? null;
 }
 
-/** A B/L with a payment that has no receipt or invoice yet; requests for it warn (rule 12). */
+/** A B/L with a deposit (payment or opening balance) that has no receipt or invoice yet; requests for it warn (rule 12). */
 export function lacksPaymentEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): boolean {
-  const payments = blPayments(tx, bl);
-  if (payments.length === 0) return depositEvidences(tx, bl).length === 0;
-  return payments.some((p) => p.evidenceDocumentId === null);
+  return blPayments(tx, bl).some((p) => p.evidenceDocumentId === null) || missingOpeningEvidence(tx, bl.id) > 0;
 }
 
 // ---- Lists ----

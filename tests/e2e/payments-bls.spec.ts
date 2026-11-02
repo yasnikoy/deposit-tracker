@@ -225,6 +225,20 @@ test("a payment for an agency not in the system adds it by name, marked as missi
   await expect(row.getByText(tr.agencies.incomplete)).toBeVisible();
 });
 
+test("a payment with the number of an existing B/L shows, before saving, that it adds to that B/L", async ({ page }) => {
+  await login(page, DUAL.username, DUAL.final);
+  await page.goto("/accounting");
+  await pickAgency(page);
+  await page.getByLabel(tr.payments.amount).fill("500");
+  await page.getByLabel(tr.payments.blNoHint).fill("245678901");
+  await expect(page.getByTestId("bl-join-notice")).toHaveText("Mevcut B/L'ye ek depozito: 245678901 · 3.000,50 USD → 3.500,50 USD");
+  await page.getByLabel(tr.payments.currency).selectOption("EUR");
+  await expect(page.getByTestId("bl-join-notice")).toHaveText(tr.payments.errors.additionalMismatch.replace("{bl}", "245678901"));
+  await page.getByLabel(tr.payments.currency).selectOption("USD");
+  await page.getByRole("button", { name: tr.payments.save }).click();
+  await expect(page.getByText(tr.payments.additionalSaved.replace("{bl}", "245678901"))).toBeVisible();
+});
+
 test("admin moves Excel records in one after another: queued receipts, carried-over agency and customer, receipt later", async ({ page }) => {
   const ob = tr.openingBalances;
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
@@ -255,6 +269,17 @@ test("admin moves Excel records in one after another: queued receipts, carried-o
   await page.getByLabel(tr.bls.blNo).fill("245678998");
   await page.getByRole("button", { name: ob.save }).click();
   await expect(page.getByText(ob.saved).last()).toBeVisible();
+
+  // A record with the number of a B/L entered before adds to it; that B/L keeps its own history.
+  await expect(page.getByLabel(ob.amount)).toHaveValue("");
+  await page.getByLabel(ob.amount).fill("500");
+  await page.getByLabel(tr.payments.paidAt).fill("2026-09-05");
+  await page.getByLabel(tr.bls.blNo).fill("245678999");
+  await expect(page.getByTestId("bl-join-notice")).toContainText("Mevcut B/L'ye ek depozito: 245678999 · 1.000,00 USD → 1.500,00 USD");
+  await expect(page.getByLabel(ob.pastAttempts)).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: ob.customer })).toBeDisabled();
+  await page.getByRole("button", { name: ob.save }).click();
+  await expect(page.getByText(ob.joined.replace("{bl}", "245678999"))).toBeVisible();
 
   // Saved without its receipt: the B/L detail offers to attach it.
   await page.getByRole("link", { name: "245678998" }).click();

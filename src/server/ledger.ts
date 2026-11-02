@@ -1,10 +1,10 @@
 import "server-only";
-import { and, eq, inArray, isNull, notExists, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { closingStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import type { DeductionSource, LedgerType } from "@/domain/records";
 import type { DbOrTx } from "./db/client";
-import { billsOfLading, ledgerEntries, refundAllocations, refunds } from "./db/schema";
+import { agencies, billsOfLading, ledgerEntries, refundAllocations, refunds } from "./db/schema";
 
 /** Ledger rows are append-only: a correction writes a compensating entry, never an update. */
 export type LedgerEntry = typeof ledgerEntries.$inferSelect;
@@ -98,6 +98,34 @@ export function activeLedgerEntries(tx: DbOrTx, blId: number, types?: LedgerType
   ];
   if (types) conditions.push(inArray(ledgerEntries.type, types));
   return tx.select().from(ledgerEntries).where(and(...conditions)).all();
+}
+
+/** Opening-balance entries in effect on active B/Ls, with B/L number and agency name. */
+export function activeOpeningEntries(tx: DbOrTx, condition?: SQL) {
+  return tx
+    .select({
+      entryId: ledgerEntries.id,
+      blId: billsOfLading.id,
+      blNo: billsOfLading.blNo,
+      agencyName: agencies.name,
+      amountMinor: ledgerEntries.amountMinor,
+      currency: ledgerEntries.currency,
+      entryDate: ledgerEntries.entryDate,
+    })
+    .from(ledgerEntries)
+    .innerJoin(billsOfLading, eq(billsOfLading.id, ledgerEntries.blId))
+    .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
+    .where(
+      and(
+        eq(ledgerEntries.type, "OPENING_BALANCE"),
+        isNull(ledgerEntries.compensatesEntryId),
+        notExists(tx.select({ id: compensation.id }).from(compensation).where(eq(compensation.compensatesEntryId, ledgerEntries.id))),
+        isNull(billsOfLading.voidedAt),
+        condition,
+      ),
+    )
+    .orderBy(ledgerEntries.entryDate, ledgerEntries.id)
+    .all();
 }
 
 /** Rules 13/15: money records with a confirmed allocation are frozen. */

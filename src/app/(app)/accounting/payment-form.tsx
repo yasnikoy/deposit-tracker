@@ -4,19 +4,18 @@ import { useState } from "react";
 import { useForm, useWatch, type FieldErrors, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { AgencyCombobox, type AgencyOption } from "@/components/agency-combobox";
-import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PAYMENT_KINDS, type PaymentKind } from "@/domain/records";
 import { isTranslationKey, t } from "@/i18n";
-import { formatBusinessDate } from "@/lib/format";
 import { formatAmount, formatMoney, parseAmountInput } from "@/lib/money";
 import { createPaymentSchema } from "@/lib/schemas/payments";
 import type { Currency } from "@/server/lists";
-import type { DuplicateCandidate, PaymentPrefill } from "@/server/payments";
+import type { PaymentPrefill } from "@/server/payments";
 import { createPaymentAction } from "./actions";
+import { BlJoinNotice, ReceiptMismatchHint, useBlJoinPreview, useDepositConfirmations } from "./deposit-checks";
 import type { CustomerOption } from "@/components/customer-combobox";
 
 export type ReferenceData = {
@@ -64,7 +63,7 @@ export function PaymentForm({
   const [evidence, setEvidence] = useState(fixedEvidence ?? null);
   const [candidates, setCandidates] = useState<string[]>(prefill?.blCandidates ?? []);
   const [unreadNotice, setUnreadNotice] = useState(false);
-  const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
+  const confirmations = useDepositConfirmations();
 
   const initialCurrency = prefill?.currency ?? activeCurrencies[0]?.code ?? "";
 
@@ -106,11 +105,12 @@ export function PaymentForm({
     },
   });
   const errors = form.formState.errors as FieldErrors<FormValues & { evidence: string }>;
-  const [kind, currency, amountText, agencyId, newAgencyName] = useWatch({
+  const [kind, currency, amountText, agencyId, newAgencyName, blNoHint] = useWatch({
     control: form.control,
-    name: ["kind", "currency", "amountText", "agencyId", "newAgencyName"],
+    name: ["kind", "currency", "amountText", "agencyId", "newAgencyName", "blNoHint"],
   });
   const amount = parseAmountInput(amountText);
+  const joinPreview = useBlJoinPreview(blNoHint, agencyId, currency);
 
   const submit = async (values: FormValues, confirmDuplicate: boolean) => {
     const result = await createPaymentAction(toInput(values, confirmDuplicate));
@@ -119,16 +119,15 @@ export function PaymentForm({
       return;
     }
     if (result.data.status === "duplicate") {
-      setDuplicates(result.data.duplicates);
+      confirmations.confirmDuplicates(result.data.duplicates, () => submit(form.getValues(), true));
       return;
     }
-    setDuplicates(null);
     const { additionalTo } = result.data;
     toast.success(additionalTo ? t("payments.additionalSaved", { bl: additionalTo.blNo }) : t("payments.saved"));
     if (values.newAgencyName) toast.info(t("payments.newAgencyAdded", { name: values.newAgencyName }));
     onSaved({ id: result.data.id, agencyId: result.data.agencyId, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates, additionalTo });
   };
-  const onSubmit = form.handleSubmit((values) => submit(values, false));
+  const onSubmit = form.handleSubmit((values) => confirmations.checkReceiptMatch(values.blNoHint, candidates, () => submit(values, false)));
 
   const message = (key?: string) =>
     key ? (
@@ -251,6 +250,8 @@ export function PaymentForm({
         <Input id="payment-hint" className="uppercase" {...form.register("blNoHint")} />
         <p className="text-muted-foreground text-xs">{t("payments.blNoHintHelp")}</p>
         {candidates.length > 0 && <p className="text-xs">{t("payments.blCandidates", { list: candidates.join(", ") })}</p>}
+        <ReceiptMismatchHint blNo={blNoHint} candidates={candidates} />
+        <BlJoinNotice preview={joinPreview} amountMinor={amount} />
         {message(errors.blNoHint?.message)}
       </div>
 
@@ -260,17 +261,7 @@ export function PaymentForm({
         </Button>
       </div>
 
-      {duplicates && (
-        <ConfirmDialog
-          open
-          onOpenChange={(open) => !open && setDuplicates(null)}
-          title={t("payments.duplicateTitle")}
-          description={t("payments.duplicateText")}
-          items={duplicates.map((d) => `#${d.id} · ${d.agencyName} · ${formatMoney(d.amountMinor, d.currency)} · ${formatBusinessDate(d.paidAt)}`)}
-          confirmLabel={t("payments.duplicateConfirm")}
-          onConfirm={() => submit(form.getValues(), true)}
-        />
-      )}
+      {confirmations.dialog}
     </form>
   );
 }

@@ -87,3 +87,10 @@ export const attachEvidenceSchema = z.object({ paymentId: id, documentId: id });
 export const voidSchema = z.object({ id, reason: requiredReasonSchema });
 
 export const discardQueueItemSchema = z.object({ id });
+
+/** The B/L number typed on a deposit (payment or opening balance), checked before saving. */
+export const previewBlJoinSchema = z.object({
+  blNo: z.string().trim().max(40),
+  agencyId: id.nullable(),
+  currency: z.string().max(3),
+});

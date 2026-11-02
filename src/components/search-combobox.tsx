@@ -29,6 +29,7 @@ export function SearchCombobox<T extends ComboboxItem>({
   hint,
   placeholder,
   invalid,
+  disabled,
 }: {
   id?: string;
   items: T[];
@@ -41,6 +42,7 @@ export function SearchCombobox<T extends ComboboxItem>({
   hint?: (item: T) => ReactNode;
   placeholder: string;
   invalid?: boolean;
+  disabled?: boolean;
 }) {
   const listId = useId();
   const selected = items.find((a) => a.id === value) ?? null;
@@ -96,6 +98,7 @@ export function SearchCombobox<T extends ComboboxItem>({
         aria-expanded={open}
         aria-controls={listId}
         aria-invalid={invalid}
+        disabled={disabled}
         autoComplete="off"
         value={query}
         placeholder={placeholder}

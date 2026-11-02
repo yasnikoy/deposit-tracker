@@ -40,7 +40,8 @@ import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
 import { blNotes, type BlNote } from "./notes";
-import { blPayments, depositEvidence } from "./payments";
+import { blPayments, missingOpeningEvidence, openingEvidences } from "./payments";
+import { activeOpeningEntries } from "./ledger";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
@@ -283,8 +284,15 @@ export type BlDetail = {
   bl: BlOverview;
   /** The source payment; its receipt or invoice may still be missing (rule 12). */
   payment: { id: number; kind: PaymentKind; amountMinor: number; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null; createdBy: number; createdByName: string } | null;
-  /** A migrated B/L (no payment record): its original receipt or invoice, null until attached. */
-  openingBalance: { documentId: number | null; originalName: string | null } | null;
+  /**
+   * Opening balances (deposits moved from Excel), oldest first, with their original receipts or
+   * invoices (attached to the B/L) and how many are still missing; null when the B/L has none.
+   */
+  openingBalance: {
+    entries: { amountMinor: number; currency: string; entryDate: string }[];
+    documents: { id: number; originalName: string }[];
+    missingEvidence: number;
+  } | null;
   /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
   additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null }[];
   ledger: BlLedgerLine[];
@@ -335,8 +343,15 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
         .get() ?? null)
     : null;
 
-  const openingEvidence = found.bl.depositPaymentId === null ? depositEvidence(db, found.bl) : null;
-  const openingBalance = found.bl.depositPaymentId === null ? { documentId: openingEvidence?.id ?? null, originalName: openingEvidence?.originalName ?? null } : null;
+  const openingEntries = activeOpeningEntries(db, eq(billsOfLading.id, id));
+  const openingBalance =
+    openingEntries.length > 0
+      ? {
+          entries: openingEntries.map(({ amountMinor, currency, entryDate }) => ({ amountMinor, currency, entryDate })),
+          documents: openingEvidences(db, id).map(({ id: documentId, originalName }) => ({ id: documentId, originalName })),
+          missingEvidence: missingOpeningEvidence(db, id),
+        }
+      : null;
 
   const ledgerRows = db
     .select({ entry: ledgerEntries, createdByName: users.displayName, deductionTypeName: deductionTypes.name, deductionTypeCode: deductionTypes.code })

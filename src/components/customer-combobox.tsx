@@ -19,6 +19,7 @@ export function CustomerCombobox(props: {
   onNewName?: (name: string | null) => void;
   placeholder: string;
   invalid?: boolean;
+  disabled?: boolean;
 }) {
   const { customers, ...rest } = props;
   return <SearchCombobox {...rest} items={customers} searchTexts={searchTextsOf} hint={codeHint} newLabel={newCustomerLabel} />;

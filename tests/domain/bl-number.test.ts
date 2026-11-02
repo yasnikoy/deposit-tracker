@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractBlNumbers, matchesBlNumberPattern, validateBlNumberPattern } from "@/domain/bl-number";
+import { blNotOnReceipt, extractBlNumbers, matchesBlNumberPattern, validateBlNumberPattern } from "@/domain/bl-number";
 
 const MSC = String.raw`MEDU\d{7}`;
 const MAERSK = String.raw`\b2\d{8}\b`;
@@ -50,5 +50,17 @@ describe("validateBlNumberPattern", () => {
     expect(validateBlNumberPattern("(A+)+B")).toBe("unsafe");
     expect(validateBlNumberPattern(String.raw`(\d*)*X`)).toBe("unsafe");
     expect(validateBlNumberPattern(String.raw`(\w+\s?)+$`)).toBe("unsafe");
+  });
+});
+
+describe("blNotOnReceipt", () => {
+  it("flags a B/L number the receipt does not name, when the receipt names any", () => {
+    expect(blNotOnReceipt("MEDU1111111", ["MEDU2222222"])).toBe(true);
+    expect(blNotOnReceipt("medu 2222222", ["MEDU1111111", "MEDU2222222"])).toBe(false);
+  });
+
+  it("stays quiet without a typed number or without numbers read from the receipt", () => {
+    expect(blNotOnReceipt("", ["MEDU2222222"])).toBe(false);
+    expect(blNotOnReceipt("MEDU1111111", [])).toBe(false);
   });
 });

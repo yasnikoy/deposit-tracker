@@ -44,6 +44,7 @@ export const openingBalanceSchema = z
       .max(500)
       .nullish()
       .transform((value) => value || null),
+    confirmDuplicate: z.boolean().default(false),
   })
   .superRefine((input, ctx) => {
     if (input.customerId !== null && input.newCustomerName) {

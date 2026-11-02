@@ -1,13 +1,23 @@
 "use server";
 
 import { z } from "zod";
-import { attachEvidenceSchema, correctPaymentSchema, createPaymentSchema, discardQueueItemSchema, voidSchema } from "@/lib/schemas/payments";
+import { attachEvidenceSchema, correctPaymentSchema, createPaymentSchema, discardQueueItemSchema, previewBlJoinSchema, voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { recordAccountingEntry } from "@/server/bls";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
-import { attachPaymentEvidence, correctPayment, createPayment, discardQueueItem, readUploadedReceipt, voidPayment, type CreatePaymentResult } from "@/server/payments";
+import {
+  attachPaymentEvidence,
+  correctPayment,
+  createPayment,
+  discardQueueItem,
+  previewBlJoin,
+  readUploadedReceipt,
+  voidPayment,
+  type BlJoinPreview,
+  type CreatePaymentResult,
+} from "@/server/payments";
 import { attachRefundEvidenceSchema, correctRefundSchema, createRefundSchema } from "@/lib/schemas/refunds";
 import { attachRefundEvidence, correctRefund, createRefund, voidRefund, type CreateRefundResult } from "@/server/refunds";
 
@@ -19,6 +29,12 @@ export async function createPaymentAction(input: unknown): Promise<ActionResult<
     const extraction = data.evidenceDocumentId !== null && data.queueItemId === null ? await readUploadedReceipt(db, user, data.evidenceDocumentId) : null;
     return createPayment(db, user, { ...data, extraction });
   });
+}
+
+/** Payment and opening-balance forms: whether the typed B/L number adds to an existing B/L. */
+export async function previewBlJoinAction(input: unknown): Promise<ActionResult<BlJoinPreview | null>> {
+  const { user } = await requireSession();
+  return runAction(previewBlJoinSchema, input, (data) => previewBlJoin(getDb(), user, data));
 }
 
 export async function correctPaymentAction(input: unknown): Promise<ActionResult<void>> {

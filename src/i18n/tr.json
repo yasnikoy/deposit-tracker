@@ -710,7 +710,8 @@
     "save": "Ödemeyi kaydet",
     "saved": "Ödeme kaydedildi.",
     "duplicateTitle": "Mükerrer kayıt olabilir",
-    "duplicateText": "Aynı acente, tutar ve tarihle kayıtlı ödeme var. Yine de kaydedilsin mi?",
+    "duplicateText": "Aynı acente, tutar ve tarihle kayıtlı depozito var. Yine de kaydedilsin mi?",
+    "duplicateOpening": "B/L {bl} açılış bakiyesi",
     "duplicateConfirm": "Yine de kaydet",
     "newTitle": "Yeni depozito ödemesi",
     "queueTitle": "İnceleme kuyruğu",
@@ -769,6 +770,15 @@
     },
     "evidenceAttached": "Belge eklendi.",
     "additionalSaved": "Ödeme, B/L {bl} için ek depozito olarak eklendi."
+  },
+  "blJoin": {
+    "adds": "Mevcut B/L'ye ek depozito: {bl} · {from} → {to}",
+    "addsNoAmount": "Mevcut B/L'ye ek depozito: {bl} · şu anki depozito {from}",
+    "keepsHistory": "Talep geçmişi, müşteri, dosya no ve konteynerler mevcut B/L'de kalır.",
+    "mismatchTitle": "B/L numarası dekontla eşleşmiyor",
+    "mismatchHint": "Dekontta okunan B/L numaraları: {list}. Girilen numara bunlardan biri değil.",
+    "mismatchText": "Dekontta okunan B/L numaraları: {list}. Girilen: {bl}. Yine de kaydedilsin mi?",
+    "mismatchConfirm": "Yine de kaydet"
   },
   "bls": {
     "customerEdit": "Müşteriyi değiştir",
@@ -895,7 +905,8 @@
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
         "overrides": "B/L ayar istisnaları değişti",
         "additionalPayment": "Ek depozito eklendi",
-        "additionalPaymentVoided": "Ek depozito iptal edildi"
+        "additionalPaymentVoided": "Ek depozito iptal edildi",
+        "additionalOpeningBalance": "Ek depozito eklendi (açılış bakiyesi)"
       },
       "payment": {
         "create": "Depozito ödemesi kaydedildi",
@@ -1462,11 +1473,13 @@
     "candidates": "Dekonttaki diğer B/L numaraları:",
     "fileNo": "Dosya no",
     "saved": "B/L açılış bakiyesiyle oluşturuldu.",
+    "joined": "Açılış bakiyesi, B/L {bl} için ek depozito olarak eklendi.",
     "createdNow": "Bu oturumda oluşturulanlar",
     "source": "Açılış bakiyesi (Excel'den)",
     "errors": {
       "pastAttempts": "0 ile 50 arasında bir sayı girin.",
-      "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır."
+      "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır.",
+      "joinFields": "B/L {bl} zaten kayıtlı; kayıt ona ek depozito olarak eklenir. Talep sayısı, müşteri, dosya no ve konteynerleri boş bırakın."
     }
   },
   "reports": {
