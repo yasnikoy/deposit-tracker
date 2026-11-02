@@ -107,7 +107,7 @@ test("operations downloads the prefilled form and uploads the signed scan", asyn
   await expect(page.getByText(tr.timeline.actions.form.upload)).toBeVisible();
 });
 
-test("the due list groups B/Ls by agency; a portal request is recorded once the form is uploaded", async ({ page }) => {
+test("the due list groups B/Ls by agency; a portal B/L links its portal and is sent like the others once the form is uploaded", async ({ page }) => {
   await login(page, OPS.username, OPS.final);
   await page.getByRole("link", { name: tr.nav.dueRequests, exact: true }).click();
   const hapag = page.getByRole("region", { name: AGENCY });
@@ -117,20 +117,12 @@ test("the due list groups B/Ls by agency; a portal request is recorded once the 
   const portalGroup = page.getByRole("region", { name: PORTAL_AGENCY });
   const row = portalGroup.getByTestId(`due-row-${PORTAL_BL_NO}`);
   await expect(row.getByRole("link", { name: tr.requests.openPortal })).toHaveAttribute("href", "https://portal.example.com");
-  // Without the signed form the request cannot be recorded.
-  await expect(row.getByRole("button", { name: tr.requests.recordPortal })).toBeDisabled();
+  // Without the signed form the request cannot be selected for sending.
+  const select = row.getByRole("checkbox", { name: `${tr.table.selectRow} – ${PORTAL_BL_NO}` });
+  await expect(select).toBeDisabled();
   await row.getByLabel(`${tr.forms.uploadForm} – ${PORTAL_BL_NO}`).setInputFiles(pdf("portal-form.pdf"));
   await expect(page.getByText(tr.forms.formUploaded)).toBeVisible();
-
-  await row.getByRole("button", { name: tr.requests.recordPortal }).click();
-  const dialog = page.getByRole("dialog");
-  await dialog.getByLabel(tr.requests.portalRef).fill("PRT-4411");
-  await dialog.getByRole("button", { name: tr.requests.recordPortal }).click();
-  await expect(page.getByText(tr.requests.portalRecorded)).toBeVisible();
-  await expect(page.getByTestId(`due-row-${PORTAL_BL_NO}`)).toHaveCount(0);
-
-  await page.goto("/bls");
-  await expect(page.getByRole("row").filter({ hasText: PORTAL_BL_NO })).toContainText(tr.bls.statuses.REQUESTED);
+  await expect(select).toBeEnabled();
 });
 
 test("an admin sees the impact of a timing change before saving it", async ({ page }) => {
@@ -192,6 +184,22 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   await page.getByRole("link", { name: tr.bls.openDetail }).click();
   await expect(page.getByText(tr.timeline.actions.request.sent, { exact: true })).toBeVisible();
   await expect(page.locator("ol").getByText(tr.timeline.notes.dryRun)).toBeVisible();
+
+  // A portal agency: the email carries the documents of the portal request and goes only once the filing is confirmed.
+  await page.goto("/requests");
+  await page.getByRole("checkbox", { name: `${tr.table.selectRow} – ${PORTAL_BL_NO}` }).check();
+  await page.getByRole("button", { name: tr.requests.prepare }).click();
+  const portalDraft = page.getByRole("dialog");
+  await expect(portalDraft.getByText(tr.requests.portalFiling.replace("{bls}", PORTAL_BL_NO))).toBeVisible();
+  await expect(portalDraft.getByRole("link", { name: tr.requests.openPortal })).toHaveAttribute("href", "https://portal.example.com");
+  await expect(portalDraft.getByRole("button", { name: tr.requests.send })).toBeDisabled();
+  await portalDraft.getByLabel(tr.requests.portalFiledConfirm).check();
+  await portalDraft.getByRole("button", { name: tr.requests.send }).click();
+  await expect(page.getByText(tr.requests.queued)).toBeVisible();
+  await expect(async () => {
+    await page.goto(`/bls`);
+    await expect(page.getByRole("row").filter({ hasText: PORTAL_BL_NO })).toContainText(tr.bls.statuses.REQUESTED, { timeout: 1000 });
+  }).toPass({ timeout: 30_000 });
 });
 
 /**

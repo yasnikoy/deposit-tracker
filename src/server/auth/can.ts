@@ -100,7 +100,6 @@ const rules = {
   // B/L setting overrides are settings, like agency overrides.
   "bl.updateOverrides": only("ADMIN"),
   "request.view": only("OPERATIONS", "ACCOUNTANT"),
-  "request.recordPortal": only("OPERATIONS"),
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),
   "request.sendEmail": only("OPERATIONS"),

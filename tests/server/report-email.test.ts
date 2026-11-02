@@ -12,10 +12,10 @@ import { uploadBlForm } from "@/server/forms";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { createRefund } from "@/server/refunds";
 import { listSentReports, queueReportEmail, reportEmailDraft, type ReportRequest } from "@/server/report-email";
-import { recordPortalRequest } from "@/server/requests";
+
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
+import { PDF, makeAgency, makeBl, markRequested, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -32,7 +32,7 @@ let c: number;
 function requestedBl(blNo: string, amount: number, currency = "USD"): number {
   const { blId } = makeBl(db, { acc, ops }, { agencyId: line, blNo, paidAt: "2026-08-03", amountMinor: usd(amount), currency }, NOW);
   uploadBlForm(db, ops, { blId, documentId: storeUpload(db, ops, { originalName: "form.pdf", content: PDF, kind: "FORM" }, NOW).id }, NOW);
-  recordPortalRequest(db, ops, { blId, requestedOn: "2026-09-01", portalRef: null }, NOW);
+  markRequested(db, ops, { blId, requestedOn: "2026-09-01" }, NOW);
   return blId;
 }
 

@@ -65,6 +65,9 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
   // Rule 12: B/Ls whose payment lacks its receipt or invoice go only after an explicit confirmation.
   const [evidenceConfirmed, setEvidenceConfirmed] = useState(false);
   const evidenceMissing = draft.missingEvidence.length > 0;
+  // A portal agency's first request: filed on the portal, then its documents go by this email.
+  const [portalFiled, setPortalFiled] = useState(false);
+  const portalFiling = draft.portalFiling.length > 0;
 
   const totalBytes = draft.attachments.filter((a) => kept.has(a.documentId)).reduce((sum, a) => sum + a.sizeBytes, 0);
   const tooLarge = totalBytes > draft.maxAttachmentBytes;
@@ -81,6 +84,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
       body,
       documentIds: [...kept],
       confirmMissingEvidence: evidenceConfirmed,
+      confirmPortalFiled: portalFiled,
     });
     setBusy(false);
     if (!result.ok) {
@@ -149,6 +153,20 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
           {t("requests.attachmentsTotal", { size: mb(totalBytes), max: mb(draft.maxAttachmentBytes) })}
         </span>
       </fieldset>
+      {portalFiling && (
+        <div role="alert" className="flex flex-col gap-2 rounded-md border border-sky-300 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100">
+          <span>{t("requests.portalFiling", { bls: draft.portalFiling.join(", ") })}</span>
+          {draft.portalUrl && (
+            <a href={draft.portalUrl} target="_blank" rel="noreferrer" className="underline">
+              {t("requests.openPortal")}
+            </a>
+          )}
+          <label className="flex items-center gap-2">
+            <Checkbox checked={portalFiled} onCheckedChange={(checked) => setPortalFiled(checked === true)} />
+            {t("requests.portalFiledConfirm")}
+          </label>
+        </div>
+      )}
       {evidenceMissing && (
         <div role="alert" className="flex flex-col gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
           <span>{t("requests.evidenceWarning", { bls: draft.missingEvidence.join(", ") })}</span>
@@ -167,7 +185,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
         <Button variant="ghost" onClick={onSkip} disabled={busy}>
           {t("requests.skip")}
         </Button>
-        <Button onClick={send} disabled={busy || tooLarge || (evidenceMissing && !evidenceConfirmed)}>
+        <Button onClick={send} disabled={busy || tooLarge || (evidenceMissing && !evidenceConfirmed) || (portalFiling && !portalFiled)}>
           {t("requests.send")}
         </Button>
       </DialogFooter>

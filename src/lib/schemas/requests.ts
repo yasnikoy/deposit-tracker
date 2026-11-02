@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { isValidIsoDate } from "@/domain/business-days";
 import { SETTING_KEYS } from "@/domain/settings/definitions";
 import type { TranslationKey } from "@/i18n";
 import { agencyOverridesSchema } from "./agencies";
@@ -7,17 +6,6 @@ import { reasonSchema } from "./holidays";
 
 const msg = (key: TranslationKey) => key;
 const id = z.number().int().positive();
-
-export const recordPortalRequestSchema = z.object({
-  blId: id,
-  requestedOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
-  portalRef: z
-    .string()
-    .trim()
-    .max(100)
-    .nullish()
-    .transform((value) => value || null),
-});
 
 export const updateBlOverridesSchema = z.object({ blId: id, overrides: agencyOverridesSchema, reason: reasonSchema });
 
@@ -44,4 +32,5 @@ export const queueEmailSchema = z.object({
   body: z.string().min(1).max(20_000),
   documentIds: z.array(id).max(100),
   confirmMissingEvidence: z.boolean().default(false),
+  confirmPortalFiled: z.boolean().default(false),
 });

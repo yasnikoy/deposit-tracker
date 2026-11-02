@@ -49,7 +49,17 @@ export type EmailDraft = {
   maxAttachmentBytes: number;
   /** B/Ls whose payment has no receipt or invoice yet: sending needs a confirmation (rule 12). */
   missingEvidence: string[];
+  /**
+   * B/Ls of a portal agency whose first request this is: it is filed on the portal and this
+   * email sends the documents; together they are one request, so sending needs the user to
+   * confirm the portal filing.
+   */
+  portalFiling: string[];
+  portalUrl: string | null;
 };
+
+/** The first refund request of a portal agency: filed on the portal, documents by this email. */
+const isPortalFirst = (entry: DueEntry) => entry.agency.requestChannel === "PORTAL" && entry.state.type === "REFUND" && entry.state.kind === "FIRST";
 
 /**
  * The latest message of a B/L's request chain of one type, to reply to: our last sent request
@@ -93,16 +103,6 @@ function lastThread(tx: DbOrTx, blId: number, type: RequestType): ThreadEmail | 
   return { ...thread, sentAt: receivedAt ?? thread.sentAt, incoming: receivedAt !== null };
 }
 
-function lastPortalRef(tx: DbOrTx, blId: number): string {
-  const row = tx
-    .select({ portalRef: requests.portalRef })
-    .from(requests)
-    .where(and(eq(requests.blId, blId), eq(requests.channel, "PORTAL"), isNotNull(requests.portalRef)))
-    .orderBy(desc(requests.id))
-    .get();
-  return row?.portalRef ?? "";
-}
-
 const replySubject = (subject: string) => (/^re:/i.test(subject) ? subject : `Re: ${subject}`);
 
 /**
@@ -122,7 +122,6 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
     if (!blNo) throw new DomainError("errors.notFound");
     if (!entry || entry.state.list === null) throw new DomainError("requests.errors.notDueBl", { bl: blNo });
     const refund = entry.state.type === "REFUND";
-    if (refund && entry.agency.requestChannel === "PORTAL" && entry.state.kind === "FIRST") throw new DomainError("requests.errors.portalFirst", { bl: blNo });
     if (refund && formRequired && !currentBlForm(tx, id)) throw new DomainError("requests.errors.formMissing", { bl: blNo });
     if (entry.agency.toRecipients.length === 0) throw new DomainError("requests.errors.noRecipients", { agency: entry.agency.name });
   }
@@ -130,9 +129,10 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   // Group: agency → (first requests | thread of the follow-up), or one group per B/L.
   const groups = new Map<string, { entries: DueEntry[]; thread: ThreadEmail | null }>();
   for (const entry of entries.sort((a, b) => a.bl.paidAt.localeCompare(b.bl.paidAt) || a.bl.id - b.bl.id)) {
-    const thread = entry.state.kind === "FOLLOW_UP" ? lastThread(tx, entry.bl.id, entry.state.type) : null;
+    // A portal agency's first request goes as a reply when the agency already wrote about the B/L.
+    const thread = entry.state.kind === "FOLLOW_UP" || isPortalFirst(entry) ? lastThread(tx, entry.bl.id, entry.state.type) : null;
     const key = entry.agency.batchSending
-      ? `${entry.agency.id}:${entry.state.kind === "FIRST" ? "first" : `thread-${thread?.emailId ?? "none"}`}`
+      ? `${entry.agency.id}:${entry.state.kind === "FIRST" && !thread ? "first" : `thread-${thread?.emailId ?? "none"}`}`
       : `${entry.agency.id}:bl-${entry.bl.id}`;
     const group = groups.get(key) ?? { entries: [], thread };
     group.entries.push(entry);
@@ -176,8 +176,6 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
         }
       : { ...lines[0], agency_name: agency.name, signature };
 
-    // A follow-up with nothing to reply to and no portal reference (e.g. a migrated B/L) takes the first-request subject.
-    const subjectTemplate = templateKey === "FOLLOW_UP" && !values.portal_ref ? getEmailTemplate(tx, "REFUND_REQUEST").subject : template.subject;
     const attachments: DraftAttachment[] = group.flatMap((entry) => blAttachments(tx, entry));
     for (const doc of standing) {
       attachments.push({ documentId: doc.documentId, originalName: doc.originalName, sizeBytes: doc.sizeBytes, kind: "STANDING", blNo: null });
@@ -190,12 +188,14 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       to: agency.toRecipients,
       cc: [...new Set([...agency.ccRecipients, ...defaultCc])],
       bcc: defaultBcc,
-      subject: thread ? replySubject(thread.subject) : renderTemplate(subjectTemplate, values),
+      subject: thread ? replySubject(thread.subject) : renderTemplate(template.subject, values),
       body: renderTemplate(template.body, values) + (thread ? quoteOf(tx, thread) : ""),
       thread: thread && { emailId: thread.emailId, messageId: thread.messageId, references: thread.references, subject: thread.subject },
       attachments,
       maxAttachmentBytes,
       missingEvidence: group.filter((entry) => lacksPaymentEvidence(tx, entry.bl)).map((entry) => entry.bl.blNo),
+      portalFiling: group.filter(isPortalFirst).map((entry) => entry.bl.blNo),
+      portalUrl: agency.portalUrl,
     };
   });
 }
@@ -231,7 +231,6 @@ function blValues(tx: DbOrTx, entry: DueEntry): Record<string, string> {
     amount: formatAmount(blBalance(ledger, entry.bl.currency).depositMinor),
     currency: entry.bl.currency,
     attempt_no: String(entry.state.attemptNo),
-    portal_ref: lastPortalRef(tx, entry.bl.id),
     deduction_amount: entry.unexplainedMinor === null ? "" : formatAmount(entry.unexplainedMinor),
   };
 }

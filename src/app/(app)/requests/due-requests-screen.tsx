@@ -10,9 +10,6 @@ import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
@@ -20,7 +17,7 @@ import { cn } from "@/lib/utils";
 import type { EmailDraft } from "@/server/email/compose";
 import type { DueGroup, DueLists, DueRow, FailedRequest } from "@/server/requests";
 import { generateBlFormAction, uploadBlFormAction } from "../bls/actions";
-import { prepareEmailsAction, recordPortalRequestAction } from "./actions";
+import { prepareEmailsAction } from "./actions";
 import { EmailPreviewDialog } from "./email-preview-dialog";
 
 export type DueTab = "DUE" | "UPCOMING" | "FAILED";
@@ -31,26 +28,22 @@ const TABS: { tab: DueTab; href: string }[] = [
 ];
 
 /** A row can go into an email when it is an email request, has its form (if required) and nobody else is drafting it. */
-const selectable = (row: DueRow) => row.channel === "EMAIL" && (!row.needsForm || !!row.form) && !row.lockedBy;
+// A portal agency's first request is filed on the portal and goes with its documents by email, so it is sent like the others.
+const selectable = (row: DueRow) => (!row.needsForm || !!row.form) && !row.lockedBy;
 
 /** Due (today and overdue) and upcoming requests, grouped by agency. */
 export function DueRequestsScreen({
   tab,
   lists,
-  today,
-  canRecordPortal,
   canForms,
   canSend,
 }: {
   tab: DueTab;
   lists: DueLists;
-  today: string;
-  canRecordPortal: boolean;
   canForms: boolean;
   canSend: boolean;
 }) {
   const router = useRouter();
-  const [portalRow, setPortalRow] = useState<DueRow | null>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [drafts, setDrafts] = useState<EmailDraft[] | null>(null);
   const [preparing, setPreparing] = useState(false);
@@ -116,15 +109,12 @@ export function DueRequestsScreen({
             <AgencyGroup
               key={group.agencyId}
               group={group}
-              canRecordPortal={canRecordPortal}
               canForms={canForms}
               selection={canSend ? { selected, toggle } : null}
-              onRecordPortal={setPortalRow}
             />
           ))}
         </>
       )}
-      {portalRow && <PortalDialog row={portalRow} today={today} onClose={() => setPortalRow(null)} />}
       {drafts && (
         <EmailPreviewDialog
           drafts={drafts}
@@ -183,16 +173,12 @@ function FailedList({ failed, onRetry }: { failed: FailedRequest[]; onRetry?: (b
 
 function AgencyGroup({
   group,
-  canRecordPortal,
   canForms,
   selection,
-  onRecordPortal,
 }: {
   group: DueGroup;
-  canRecordPortal: boolean;
   canForms: boolean;
   selection: { selected: Set<number>; toggle: (ids: number[], on: boolean) => void } | null;
-  onRecordPortal: (row: DueRow) => void;
 }) {
   const ids = group.rows.filter((row) => selectable(row)).map((row) => row.blId);
   const all = ids.length > 0 && ids.every((id) => selection?.selected.has(id));
@@ -288,11 +274,6 @@ function AgencyGroup({
                         <ExternalLink className="size-3.5" /> {t("requests.openPortal")}
                       </a>
                     )}
-                    {canRecordPortal && (
-                      <Button size="sm" variant="outline" onClick={() => onRecordPortal(row)} disabled={row.needsForm && !row.form}>
-                        {t("requests.recordPortal")}
-                      </Button>
-                    )}
                   </div>
                 )}
               </td>
@@ -350,54 +331,3 @@ function FormCell({ row, editable }: { row: DueRow; editable: boolean }) {
   );
 }
 
-function PortalDialog({ row, today, onClose }: { row: DueRow; today: string; onClose: () => void }) {
-  const router = useRouter();
-  const [requestedOn, setRequestedOn] = useState(today);
-  const [portalRef, setPortalRef] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const save = async () => {
-    setBusy(true);
-    const result = await recordPortalRequestAction({ blId: row.blId, requestedOn, portalRef });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    toast.success(t("requests.portalRecorded"));
-    onClose();
-    router.refresh();
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t("requests.recordPortalTitle", { bl: row.blNo })}</DialogTitle>
-          <DialogDescription>{t("requests.recordPortalText")}</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="portal-date">{t("requests.requestedOn")}</Label>
-            <Input id="portal-date" type="date" max={today} min={row.paidAt} value={requestedOn} onChange={(event) => setRequestedOn(event.target.value)} />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="portal-ref">{t("requests.portalRef")}</Label>
-            <Input id="portal-ref" value={portalRef} onChange={(event) => setPortalRef(event.target.value)} />
-          </div>
-          {error && (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            {t("common.cancel")}
-          </Button>
-          <Button onClick={save} disabled={busy || !requestedOn}>
-            {t("requests.recordPortal")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}

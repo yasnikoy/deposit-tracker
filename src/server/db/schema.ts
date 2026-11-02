@@ -489,7 +489,6 @@ export const requests = sqliteTable(
     // Business date the request counts from: the send date, or the filing date on a portal.
     requestedOn: text("requested_on"),
     sentAt: timestamp("sent_at"),
-    portalRef: text("portal_ref"),
     // The email that carries this request; null for portal requests.
     emailId: integer("email_id").references((): AnySQLiteColumn => emails.id),
     failureReason: text("failure_reason"),
@@ -508,7 +507,7 @@ export const requests = sqliteTable(
       sql`(${t.sendStatus} = 'SENT') = (${t.requestedOn} IS NOT NULL AND ${t.sentAt} IS NOT NULL)`,
     ),
     check("requests_requested_on", sql`${t.requestedOn} IS NULL OR ${t.requestedOn} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`),
-    // Portal requests are recorded after filing, so they are never queued or failed.
+    // Portal requests recorded after filing (before they went with the documents email) are never queued or failed.
     check("requests_portal_sent", sql`${t.channel} <> 'PORTAL' OR ${t.sendStatus} = 'SENT'`),
     // One live request per attempt; a failed send may be retried under the same attempt number.
     uniqueIndex("requests_attempt_unique")

@@ -1,10 +1,11 @@
 import { eq } from "drizzle-orm";
+import { nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { agencyInputSchema, type AgencyInput, type AgencyOverrides } from "@/lib/schemas/agencies";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { createBls } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { customers, refundAllocations, refunds } from "@/server/db/schema";
+import { billsOfLading, customers, refundAllocations, refunds, requests } from "@/server/db/schema";
 import { storeUpload } from "@/server/files";
 import { addLedgerEntry } from "@/server/ledger";
 import { createPayment } from "@/server/payments";
@@ -101,4 +102,22 @@ export function confirmedAllocationFixture(
     .get();
   addLedgerEntry(db, { blId: input.blId, type: "REFUND_ALLOCATION", amountMinor: input.amountMinor, currency, entryDate: at.slice(0, 10), refundAllocationId: allocation.id, createdBy: users.ops.id }, input.now);
   return allocation.id;
+}
+
+/**
+ * Puts a B/L into REQUESTED as if its first refund request had gone out on `requestedOn`: a
+ * shortcut for tests that start later in the request chain.
+ */
+export function markRequested(db: Db, user: AuthUser, input: { blId: number; requestedOn: string }, now: Date): void {
+  db.transaction((tx) => {
+    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get()!;
+    const at = now.toISOString();
+    tx.insert(requests)
+      .values({ blId: bl.id, type: "REFUND", channel: "EMAIL", attemptNo: 1, sendStatus: "SENT", requestedOn: input.requestedOn, sentAt: at, createdBy: user.id, createdAt: at })
+      .run();
+    tx.update(billsOfLading)
+      .set({ status: nextStatus(bl.status as StoredBlStatus, "REFUND_REQUEST_SENT"), updatedAt: at })
+      .where(eq(billsOfLading.id, bl.id))
+      .run();
+  });
 }

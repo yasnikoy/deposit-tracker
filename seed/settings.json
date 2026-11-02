@@ -123,7 +123,7 @@
       "body": "Merhabalar,\n\n{bl_no} numaralı konşimentoya ait {containers} numaralı konteyner(ler) için ödemiş olduğumuz {amount} {currency} tutarındaki depozitonun iadesini rica ederiz. İade talep formu, depozito dekontu, imza sirküleri ve vekaletname ektedir.\n\nBilgilerinize sunar, iyi çalışmalar dileriz.\n\n{signature}"
     },
     "FOLLOW_UP": {
-      "subject": "Depozito İade Talebi – {bl_no} – Portal ref. {portal_ref}",
+      "subject": "Depozito İade Talebi – {bl_no}",
       "body": "Merhabalar,\n\n{bl_no} numaralı konşimentoya ait depozito iadesi için {attempt_no}. kez yazıyoruz. Konteynerler boş olarak teslim edildiyse iade sürecini başlatmanızı, edilmediyse bilgi vermenizi rica ederiz. Belgeler tekrar ektedir.\n\n{signature}"
     },
     "DEDUCTION_STATEMENT": {

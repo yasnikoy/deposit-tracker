@@ -63,7 +63,7 @@ Money enters the system through the accountant role; money is attributed to B/Ls
 | Role | Can do | Cannot do |
 | --- | --- | --- |
 | Accountant | Open outgoing deposit payment records by uploading bank receipts (one or many at once) or, for offsets, the invoice, or without them for now and attach them later. Enter incoming refunds and offsets. Correct or void own money records with a reason while they have no confirmed allocation. Confirm the accounting entry of B/Ls settled with deductions or an offset (Muhasebe kaydı). Optionally note a B/L number on a payment as a hint. When a payment's agency is not in the system yet, add it by name from the payment form (name only; operations completes the card). Keep the B/L description (Açıklama) up to date, as operations does. Follow the Operations work lists read-only: All B/Ls, agencies, due requests and payments awaiting a B/L. | Create or edit B/Ls (sees linked B/L numbers read-only, with a copy button), allocate refunds, record deductions. |
-| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls (number, file number, containers), void a B/L created with wrong data while it has no confirmed allocation, keep the B/L description, generate and upload forms, send requests, record portal requests, record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions, send the report email to internal addresses. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
+| Operations | Create B/Ls from payment records (one at a time or in bulk), edit B/Ls (number, file number, containers), void a B/L created with wrong data while it has no confirmed allocation, keep the B/L description, generate and upload forms, send requests (for portal agencies after filing the first one on the portal), record agency replies (also in bulk), record deductions, allocate refunds, mark disputes, attach a missing deposit receipt or invoice, undo own recent actions, send the report email to internal addresses. | Create or correct money records, including a deposit's amount or currency (the accountant corrects the payment record and the B/L follows). |
 | Admin | Everything in settings, users and roles; agency form templates; reverse a confirmed allocation with a reason; approve write-offs; void any record after its allocations are reversed. | — |
 
 A user holding both accountant and operations roles gets a continuous flow: after saving a deposit payment, the same screen continues to B/L creation with agency, amount, currency and extracted B/L number prefilled. The audit log records each step under its own role.
@@ -79,7 +79,7 @@ A B/L moves from payment through repeated requests to collection. Its money is s
 | From | To | Trigger |
 | --- | --- | --- |
 | `PAID` | `DUE` | Computed on read, never stored: payment date + first-request duration has been reached |
-| `PAID` (upcoming) / `DUE` | `REQUESTED` | Refund request email sent successfully, or portal request recorded (attempt 1) |
+| `PAID` (upcoming) / `DUE` | `REQUESTED` | Refund request email sent successfully (for a portal agency's first request: the documents email after filing on the portal) |
 | `REQUESTED` | `AWAITING_RETURN` | Reply type *container not yet returned* recorded |
 | `AWAITING_RETURN` | `REQUESTED` | Follow-up request sent successfully |
 | `REQUESTED` / `AWAITING_RETURN` | `COLLECTED` | Confirmed allocations + classified deductions = deposit |
@@ -137,7 +137,7 @@ The B/L is the central entity; money moves are ledger rows; emails relate to B/L
 | `refunds` | Incoming money entered by accountant | agency\_id, customer\_id (required for new refunds), amount, currency, value\_date, kind (BANK, OFFSET), evidence\_file\_id (optional), unallocated\_reason (set when operations leaves the remainder on purpose), void fields. Status is computed from confirmed allocations, never stored: `OPEN`, `PARTIALLY_ALLOCATED`, `ALLOCATED`, or remainder left unallocated with a reason |
 | `refund_allocations` | Split of a refund over B/Ls | refund\_id, bl\_id, amount, state (CONFIRMED, REVERSED), bl\_status\_before (restored on reversal), confirmed\_by, role\_used, reversed\_by, reversed\_at, reversal\_reason. Each confirmed row also writes a REFUND\_ALLOCATION ledger entry; a shortfall deduction confirmed with it references the same allocation |
 | `write_offs` | Write-off proposals (rule 16) | bl\_id, amount (what the B/L lacked when proposed), currency, reason, state (PROPOSED, APPROVED, REJECTED), proposed\_by, decided\_by, decided\_at, decision\_note (mandatory on rejection), ledger\_entry\_id (the WRITE\_OFF deduction written on approval). One open proposal per B/L |
-| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null for portal), portal\_ref, requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
+| `requests` | Each request cycle | bl\_id, type (REFUND, DEDUCTION\_STATEMENT), channel (EMAIL, PORTAL), email\_id (null only for portal requests recorded before they went with the documents email), requested\_on (business date the clock counts from), sent\_at, attempt\_no (one live request per attempt; a failed send keeps its number for the retry), send\_status (QUEUED, SENT, FAILED), failure\_reason |
 | `emails` | Sent messages and in-thread replies | direction, agency\_id, message\_id, in\_reply\_to, references, from, to, cc, bcc, subject, body as sent, send\_status, dry\_run, send\_attempts, last\_error, queued\_by, role\_used, sent\_at, copied\_to\_sent\_at, raw\_document\_id (the `.eml`), received\_at (incoming only). Whether an incoming email is processed is computed from `replies`, never stored |
 | `email_attachments` | Files sent with an email | email\_id, document\_id |
 | `report_emails` | Operations report emails (an `emails` row with no agency and no requests) | email\_id, sections, filters as chosen |
@@ -228,7 +228,7 @@ Agency-level configuration (not global settings): B/L number patterns, form temp
 
 ### Email template drafts (Turkish)
 
-Starting texts (the seed file `seed/settings.json` holds them; below as of the Unreleased change), editable in settings. A template nobody has edited follows the seed of the installed release; one an admin has saved keeps its text. The daily unprocessed-reply email (internal, never to agencies) has its own template with `{count}`, `{warning_days}`, `{agency_lines}` and `{link}`. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{portal_ref}`, `{deduction_amount}`, `{signature}`.
+Starting texts (the seed file `seed/settings.json` holds them; below as of the Unreleased change), editable in settings. A template nobody has edited follows the seed of the installed release; one an admin has saved keeps its text. The daily unprocessed-reply email (internal, never to agencies) has its own template with `{count}`, `{warning_days}`, `{agency_lines}` and `{link}`. Placeholders: `{agency_name}`, `{bl_no}`, `{containers}`, `{amount}`, `{currency}`, `{attempt_no}`, `{deduction_amount}`, `{signature}`.
 
 ```text
 [Refund request]
@@ -243,7 +243,7 @@ Bilgilerinize sunar, iyi çalışmalar dileriz.
 {signature}
 
 [Follow-up – sent as a reply in the same thread; the subject only when there is nothing to reply to]
-Konu: Depozito İade Talebi – {bl_no} – Portal ref. {portal_ref}
+Konu: Depozito İade Talebi – {bl_no}
 
 Merhabalar,
 
@@ -312,10 +312,10 @@ Agencies require the same supporting set with every request: the signature circu
 
 **Portal agencies**
 
-- For an agency with `request_channel = PORTAL`, the due list shows the first request as "open on portal" with a link to the portal instead of an email preview.
-- After filing on the portal, operations records the request in the app (date, optional portal reference number). It counts as attempt 1 and starts the follow-up clock.
-- The agency's first email about it is not in an app-started thread, so operations links it to the B/L (see Match suggestions and Manual link). From then on, follow-ups are sent as replies to that linked email, and its later replies are imported automatically.
-- If no email has been linked when a follow-up is due, the follow-up goes as a new email to the agency's recipient list, with the portal reference in the subject.
+- For an agency with `request_channel = PORTAL`, the first refund request is filed on the agency's portal and its documents (form, receipts, standing documents) go by email. Filing and email are one request: it counts as made (attempt 1, `REQUESTED`, follow-up clock from the send date) only when the email is sent. Nothing is recorded in between.
+- The due list shows the portal link on the first request, and the row is selected and sent like any other. The email preview names the portal B/Ls, links the portal and keeps *Gönder* disabled until the user ticks *Portalda talep oluşturuldu*; the server refuses the send without that confirmation, and the audit row of the request carries `portalFiled`.
+- Some agencies ask for the documents at once, others write first after the portal filing. When an agency email is already linked to the B/L (see Match suggestions and Manual link), the documents go as a reply in that thread; otherwise as a new email with the first-request subject. Follow-ups are replies in the request's thread, and the agency's later replies are imported automatically.
+- There is no portal reference number: none of our agencies uses one.
 
 **Inbound (agency replies)**
 
@@ -423,7 +423,7 @@ Desktop-only, dense tables; a row opens its details in a large centered dialog o
 | --- | --- | --- |
 | Dashboard | Operations | Top: open balance per currency and collected this month. Three columns with counts that open filtered lists: today's work (due and follow-up requests), pending matches (payments without B/L, refunds to allocate, unprocessed replies, unallocated amounts, write-offs awaiting approval), problem B/Ls (deduction open, disputed) |
 | All B/Ls | All (accountant read-only) | One dense table of every B/L: B/L no, agency, status, paid date, deposit, currency, expected amount, collected, attempts, last reply, business days waiting (since payment, while the B/L is open). Filter and sort on every column, "show voided" filter, CSV download and copy, detail panel on the right |
-| Due requests | Operations (accountant read-only) | Tabs: due (today and overdue), upcoming, failed to send. Grouped by agency with batch type, channel, B/L count and totals per currency. Rows: select, B/L no, paid date, business days waiting, attempt no, last reply, amount, form status with "download prefilled form" and drag-and-drop upload; a B/L without form cannot be selected. Request type badge. Actions: prepare email, record portal request, record reply |
+| Due requests | Operations (accountant read-only) | Tabs: due (today and overdue), upcoming, failed to send. Grouped by agency with batch type, channel, B/L count and totals per currency. Rows: select, B/L no, paid date, business days waiting, attempt no, last reply, amount, form status with "download prefilled form" and drag-and-drop upload; a B/L without form cannot be selected. Request type badge. Actions: prepare email (portal agencies: open the portal, then send the documents email), record reply |
 | B/L detail | Operations | Header: B/L no, agency, status, balance strip (deposit, collected, deductions, remaining). Sections: summary with containers and source payment, timeline, email threads, documents, ledger, description, setting overrides. Actions: download prefilled form, record reply, add deduction from statement, mark dispute, propose write-off, link email from mailbox, void B/L |
 | Create B/Ls | Operations (accountant sees the payments awaiting a B/L, read-only) | Table of payments without a B/L, prefilled with agency, amount, currency and B/L number candidates; type or paste B/L numbers and containers; save all valid rows at once |
 | Refund allocation | Operations | Left: refunds awaiting allocation. Right: suggestion cards (exact subset, FIFO) with their difference; chosen suggestion opens an editable allocation table with running total and remainder; difference row assigns B/L and type. Confirm only when remainder is zero or left unallocated with a reason |
@@ -495,6 +495,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - The duplicate warning covers opening balances too, both in the opening-balance form (new there) and against payments. The opening-balance form also shows the B/L number pattern and container check-digit hints.
 - Opening-balance form: B/L number, past request count and last request date now come first, then file number and containers.
 - B/L description (*Açıklama*) replaces the team notes: one free text per B/L that accounting and operations edit at any time (B/L detail, All B/Ls row panel, bulk *Açıklamaya ekle*, `N`), audited but not on the timeline, with a check against overwriting someone else's newer text. Migration 0022 moves the notes in effect into the description (`DD.MM.YYYY Name: text`, oldest first) and drops the notes table; @mentions and their notification setting are gone (older mention notifications stay). All B/Ls shows the first line in a new column, which also appears in its CSV export.
+- Portal agencies: the first request is filed on the portal and its documents go by email, as one request. *Portal talebini kaydet* is gone; the B/L is selected on the due list and sent like others, after confirming *Portalda talep oluşturuldu* in the preview (checked on the server). When the agency already wrote about the B/L and the email is linked, the documents go as a reply in that thread. Portal requests recorded earlier keep their history.
+- The portal reference number is removed (field, `{portal_ref}` placeholder, follow-up subject, `requests.portal_ref`). Migration 0023 keeps any recorded reference as a line in its B/L's description (`Portal ref.: …`) and removes the placeholder from saved templates.
 - File number editing: the B/L edit dialog and an inline cell on All B/Ls change the file number (operations), audited and undoable like the B/L number and containers.
 
 **Nov 1, 2026 — agency export and import, deleting unused agencies and customers, customers under General, new template wording, v0.12.0**
@@ -731,7 +733,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Oct 25, 2026 — test feedback on build step 4**
 
-- Accountants see the due-requests list and the payments awaiting a B/L read-only; sending, forms, portal records and B/L creation stay with operations.
+- Accountants see the due-requests list and the payments awaiting a B/L read-only; sending, forms and B/L creation stay with operations.
 - A B/L's own files are named after it: the uploaded signed form becomes "İade formu <B/L>.<ext>" and its payment's receipt or invoice "Dekont <B/L>" / "Fatura <B/L>", also when the B/L number is corrected later. Agencies receive these names; the uploaded name stays in the audit log. Generated forms are named "İade formu <B/L>.docx". The name prefixes live in the locale file.
 - The `PAID` status is shown as "Depozito yatırıldı" (was "Ödendi", which read like a refund paid to us).
 - Follow-ups keep replying in the thread of the earlier request email (confirmed), and now quote it below the new text the way Outlook does on "Reply all": a REPLY\_QUOTE header (Özgün İleti, Kimden, Gönderildi, Kime, Bilgi, Konu; editable template) followed by the earlier email's text, which carries its own quotes, so the whole chain is readable in each follow-up. The quote is part of the editable preview and of the stored body.

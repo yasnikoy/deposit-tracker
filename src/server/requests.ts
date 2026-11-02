@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { blBalance } from "@/domain/balances";
-import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
+import type { StoredBlStatus } from "@/domain/bl-lifecycle";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar, type IsoDate } from "@/domain/business-days";
 import { dueState, statementDueState, type DueList, type DueState, type RequestDurations, type StatementDurations } from "@/domain/due-requests";
 import type { RequestChannel } from "@/domain/agency";
@@ -203,7 +203,7 @@ export type DueRow = {
   kind: DueState["kind"];
   attemptNo: number;
   dueDate: string;
-  /** The first request of a portal agency is filed on the portal; follow-ups go by email. */
+  /** A portal agency's first request is filed on the portal, with its documents by email; follow-ups go by email. */
   channel: RequestChannel;
   form: { id: number; originalName: string } | null;
   /** Refund requests need the uploaded form when the rule setting is on; statement requests do not. */
@@ -296,7 +296,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
         kind: state.kind,
         attemptNo: state.attemptNo,
         dueDate: state.dueDate,
-        // Portal agencies file only the first refund request on the portal; the rest goes by email.
+        // A portal agency's first refund request is filed on the portal (its documents still go by email).
         channel: agency.requestChannel === "PORTAL" && state.type === "REFUND" && state.kind === "FIRST" ? "PORTAL" : "EMAIL",
         form: form ? { id: form.id, originalName: form.originalName } : null,
         needsForm: state.type === "REFUND" && lists.formRequired,
@@ -383,73 +383,6 @@ export function previewDueImpact(db: DbOrTx, actor: AuthUser, hypothesis: Settin
 /** The current due state of one B/L, or null when no request can be made. */
 export function blDueState(db: DbOrTx, blId: number, now: Date = new Date()): DueState | null {
   return dueEntries(db, now, {}, [blId])[0]?.state ?? null;
-}
-
-/**
- * Operations records a first request filed on an agency portal (attempt 1). It counts like a
- * sent email: the B/L moves to REQUESTED and the follow-up clock starts from the filing date.
- */
-export function recordPortalRequest(
-  db: Db,
-  actor: AuthUser,
-  input: { blId: number; requestedOn: IsoDate; portalRef: string | null },
-  now: Date = new Date(),
-): number {
-  const roleUsed = authorize(actor, "request.recordPortal");
-  return db.transaction((tx) => {
-    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get();
-    if (!bl) throw new DomainError("errors.notFound");
-    if (bl.voidedAt) throw new DomainError("bls.errors.voided");
-    const agency = tx.select().from(agencies).where(eq(agencies.id, bl.agencyId)).get()!;
-    if (agency.requestChannel !== "PORTAL") throw new DomainError("requests.errors.notPortal");
-    const state = blDueState(tx, bl.id, now);
-    if (!state || state.type !== "REFUND" || state.kind !== "FIRST" || state.list === null) throw new DomainError("requests.errors.notDue");
-    if (input.requestedOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
-    if (input.requestedOn < bl.paidAt) throw new DomainError("requests.errors.beforePayment");
-    if (getSetting("rules.blockSendingWithoutForm", {}, tx) && !currentBlForm(tx, bl.id)) {
-      throw new DomainError("requests.errors.formMissing", { bl: bl.blNo });
-    }
-
-    let status: StoredBlStatus;
-    try {
-      status = nextStatus(bl.status as StoredBlStatus, "REFUND_REQUEST_SENT");
-    } catch (error) {
-      if (error instanceof InvalidTransitionError) throw new DomainError("requests.errors.notDue");
-      throw error;
-    }
-    const at = now.toISOString();
-    const request = tx
-      .insert(requests)
-      .values({
-        blId: bl.id,
-        type: "REFUND",
-        channel: "PORTAL",
-        attemptNo: state.attemptNo,
-        sendStatus: "SENT",
-        requestedOn: input.requestedOn,
-        sentAt: at,
-        portalRef: input.portalRef,
-        createdBy: actor.id,
-        createdAt: at,
-      })
-      .returning()
-      .get();
-    tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
-    writeAudit(
-      tx,
-      {
-        actorUserId: actor.id,
-        roleUsed,
-        action: "request.portal",
-        entityType: "bill_of_lading",
-        entityId: bl.id,
-        before: { status: bl.status },
-        after: { status, requestId: request.id, attemptNo: request.attemptNo, requestedOn: input.requestedOn, portalRef: input.portalRef },
-      },
-      now,
-    );
-    return request.id;
-  });
 }
 
 /** Admin-only: request-timing overrides for one B/L; null inherits the agency, then the global value. */

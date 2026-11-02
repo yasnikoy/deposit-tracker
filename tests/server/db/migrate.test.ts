@@ -129,4 +129,34 @@ describe("migrateWithBackup", () => {
     ]);
     expect(db.$client.prepare("SELECT name FROM sqlite_master WHERE name = 'notes'").all()).toHaveLength(0);
   });
+
+  it("keeps recorded portal references in the B/L description and strips the placeholder from edited templates", async () => {
+    const before = path.join(dir, "before-0023");
+    fs.cpSync(MIGRATIONS, before, { recursive: true });
+    const journalFile = path.join(before, "meta", "_journal.json");
+    const journal = JSON.parse(fs.readFileSync(journalFile, "utf8"));
+    journal.entries = journal.entries.filter((e: { tag: string }) => e.tag < "0023");
+    fs.writeFileSync(journalFile, JSON.stringify(journal));
+
+    const db = openDatabase(path.join(dir, "app.sqlite"));
+    await migrateWithBackup(db, { backupDir: path.join(dir, "backups"), migrationsFolder: before });
+    db.$client.exec(`
+      INSERT INTO users(id,username,display_name,password_hash,created_at,updated_at) VALUES (1,'ayse','Ayşe','x','t','t');
+      INSERT INTO currencies(code,name) VALUES ('USD','Dolar');
+      INSERT INTO agencies(id,name,request_channel,portal_url,created_at,updated_at) VALUES (1,'P','PORTAL','https://p.example','t','t');
+      INSERT INTO bills_of_lading(id,bl_no,agency_id,currency,deposit_amount_minor,paid_at,status,description,created_by,created_at,updated_at)
+        VALUES (1,'B1',1,'USD',100,'2026-10-01','REQUESTED','Eski açıklama',1,'t','t'), (2,'B2',1,'USD',100,'2026-10-01','REQUESTED',NULL,1,'t','t');
+      INSERT INTO requests(bl_id,type,channel,attempt_no,send_status,requested_on,sent_at,portal_ref,created_by,created_at)
+        VALUES (1,'REFUND','PORTAL',1,'SENT','2026-10-05','t','PRT-1',1,'t'), (2,'REFUND','PORTAL',1,'SENT','2026-10-05','t',NULL,1,'t');
+      INSERT INTO email_templates(key,subject,body,updated_at,updated_by)
+        VALUES ('FOLLOW_UP','Talep – {bl_no} – Portal ref. {portal_ref}','Ref {portal_ref} için','t',1);`);
+
+    await migrateWithBackup(db, { backupDir: path.join(dir, "backups"), migrationsFolder: MIGRATIONS });
+    expect(db.$client.prepare("SELECT id, description FROM bills_of_lading ORDER BY id").all()).toEqual([
+      { id: 1, description: "Eski açıklama\nPortal ref.: PRT-1" },
+      { id: 2, description: null },
+    ]);
+    expect(db.$client.prepare("SELECT subject, body FROM email_templates WHERE key = 'FOLLOW_UP'").get()).toEqual({ subject: "Talep – {bl_no}", body: "Ref  için" });
+    expect(db.$client.prepare("SELECT count(*) n FROM pragma_table_info('requests') WHERE name = 'portal_ref'").get()).toEqual({ n: 0 });
+  });
 });

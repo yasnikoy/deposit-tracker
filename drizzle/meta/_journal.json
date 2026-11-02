@@ -162,6 +162,13 @@
       "when": 1793640522258,
       "tag": "0022_bl_description",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1793641683137,
+      "tag": "0023_drop_portal_ref",
+      "breakpoints": true
     }
   ]
 }

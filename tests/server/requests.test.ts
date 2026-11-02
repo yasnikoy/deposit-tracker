@@ -2,15 +2,14 @@ import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { updateAgencyOverrides } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
-import { listAllBls } from "@/server/bl-overview";
 import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { auditLog, billsOfLading } from "@/server/db/schema";
+import { auditLog } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
-import { listDueRequests, previewDueImpact, recordPortalRequest, updateBlOverrides } from "@/server/requests";
-import { getSetting, updateSettings } from "@/server/settings";
+import { listDueRequests, previewDueImpact, updateBlOverrides } from "@/server/requests";
+import { getSetting } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
 import { makeAgency, makeBl, NO_OVERRIDES, PDF } from "../support/records";
 
@@ -89,55 +88,6 @@ describe("due-requests list", () => {
     expect(getSetting("durations.firstRequestDueDays", { blId: a }, db)).toBe(10);
     expect(getSetting("durations.followUpDays", { blId: a }, db)).toBe(5);
     expect(db.select().from(auditLog).where(eq(auditLog.action, "bl.overrides")).get()).toMatchObject({ roleUsed: "ADMIN", reason: "Acente geç iade ediyor" });
-  });
-});
-
-describe("portal requests", () => {
-  let blId: number;
-  beforeEach(() => {
-    blId = bl(portal, "CMAU0000001", "2026-10-05");
-  });
-
-  it("are recorded after filing: attempt 1, REQUESTED, follow-up clock from the filing date", () => {
-    attachForm(blId);
-    expect(() => recordPortalRequest(db, acc, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toThrow(ForbiddenError);
-    recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: "CMA-77" }, NOW);
-
-    expect(db.select().from(billsOfLading).where(eq(billsOfLading.id, blId)).get()?.status).toBe("REQUESTED");
-    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ status: "REQUESTED", attempts: 1, lastRequestOn: "2026-10-21" });
-    expect(rows("DUE")).toEqual([]);
-    // Wed 21 Oct + 5 business days = Wed 28 Oct; the follow-up then goes by email.
-    const later = listDueRequests(db, ops, new Date("2026-10-28T09:00:00Z")).DUE[0].rows[0];
-    expect(later).toMatchObject({ kind: "FOLLOW_UP", attemptNo: 2, dueDate: "2026-10-28", channel: "EMAIL" });
-    expect(db.select().from(auditLog).where(eq(auditLog.action, "request.portal")).get()).toMatchObject({ roleUsed: "OPERATIONS" });
-  });
-
-  it("need the uploaded form while the rule is on", () => {
-    expect(() => recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toThrow(
-      expect.objectContaining({ messageKey: "requests.errors.formMissing" }),
-    );
-    updateSettings(db, admin, { changes: [{ key: "rules.blockSendingWithoutForm", value: false }] }, NOW);
-    expect(recordPortalRequest(db, ops, { blId, requestedOn: "2026-10-21", portalRef: null }, NOW)).toBeGreaterThan(0);
-  });
-
-  it("reject dates in the future or before payment, email agencies, and a second first request", () => {
-    attachForm(blId);
-    const record = (requestedOn: string, id = blId) => () => recordPortalRequest(db, ops, { blId: id, requestedOn, portalRef: null }, NOW);
-    expect(record("2026-10-23")).toThrow(expect.objectContaining({ messageKey: "requests.errors.futureDate" }));
-    expect(record("2026-10-04")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforePayment" }));
-    const emailBl = bl(msc, "MEDU0000001", "2026-10-01");
-    attachForm(emailBl);
-    expect(record("2026-10-21", emailBl)).toThrow(expect.objectContaining({ messageKey: "requests.errors.notPortal" }));
-    record("2026-10-21")();
-    expect(record("2026-10-22")).toThrow(expect.objectContaining({ messageKey: "requests.errors.notDue" }));
-  });
-
-  it("are not accepted before the B/L is due or upcoming", () => {
-    const fresh = bl(portal, "CMAU0000002", "2026-10-22");
-    attachForm(fresh);
-    expect(() => recordPortalRequest(db, ops, { blId: fresh, requestedOn: "2026-10-22", portalRef: null }, NOW)).toThrow(
-      expect.objectContaining({ messageKey: "requests.errors.notDue" }),
-    );
   });
 });
 

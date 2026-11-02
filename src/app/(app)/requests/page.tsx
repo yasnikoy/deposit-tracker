@@ -1,5 +1,4 @@
 import { Forbidden } from "@/components/forbidden";
-import { istanbulToday } from "@/domain/business-days";
 import { t } from "@/i18n";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
@@ -19,8 +18,6 @@ export default async function DueRequestsPage({ searchParams }: PageProps<"/requ
       <DueRequestsScreen
         tab={tab}
         lists={listDueRequests(getDb(), user)}
-        today={istanbulToday()}
-        canRecordPortal={can(user, "request.recordPortal").allowed}
         canForms={can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed}
         canSend={can(user, "request.prepareEmail").allowed && can(user, "request.sendEmail").allowed}
       />

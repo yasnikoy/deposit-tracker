@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail, listAllBls } from "@/server/bl-overview";
 import type { Db } from "@/server/db/client";
-import { auditLog, emails, jobs, requests } from "@/server/db/schema";
+import { auditLog, emailBlLinks, emails, jobs, requests } from "@/server/db/schema";
 import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
 import { emailJobHandlers, queueRequestEmail, sendTestEmail } from "@/server/email/send";
 import { getEmailTemplate, seedEmailTemplates, updateEmailTemplate } from "@/server/email/templates";
@@ -17,7 +17,7 @@ import { uploadBlForm } from "@/server/forms";
 import { createBls } from "@/server/bls";
 import { attachPaymentEvidence, createPayment } from "@/server/payments";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
-import { listDueRequests, recordPortalRequest } from "@/server/requests";
+import { listDueRequests } from "@/server/requests";
 import { mailOutages } from "@/server/service-status";
 import { updateSettings } from "@/server/settings";
 import { setStandingDocument } from "@/server/standing-documents";
@@ -129,16 +129,12 @@ describe("preparing request emails", () => {
     ]);
   });
 
-  it("refuses B/Ls without a form, not yet due, portal first requests and agencies without recipients", () => {
+  it("refuses B/Ls without a form, not yet due and agencies without recipients", () => {
     const noForm = bl(msc, "MEDU1000001");
     expect(() => prepareRequestEmails(db, ops, { blIds: [noForm] }, NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.formMissing" }));
     const fresh = bl(msc, "MEDU1000002", "2026-10-22");
     attachForm(fresh);
     expect(() => prepareRequestEmails(db, ops, { blIds: [fresh] }, NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.notDueBl" }));
-    const portal = makeAgency(db, ops, "Portal", { requestChannel: "PORTAL", portalUrl: "https://p.example", toRecipients: ["p@p.example"] });
-    const p = bl(portal, "PRTL1000001");
-    attachForm(p);
-    expect(() => prepareRequestEmails(db, ops, { blIds: [p] }, NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.portalFirst" }));
     const silent = makeAgency(db, ops, "Alıcısız");
     const s = bl(silent, "SLNT1000001");
     attachForm(s);
@@ -374,13 +370,52 @@ describe("follow-ups", () => {
     expect(drafts[0].body).toContain("Kime: refund@maersk.example\nKonu: Depozito Talepleri – MAEU1000001, MAEU1000002");
   });
 
-  it("of a portal agency go as a new email with the portal reference when no email is linked", () => {
+  it("of a portal agency go by email too, as a new email when nothing is linked", async () => {
     const portal = makeAgency(db, ops, "Portal", { requestChannel: "PORTAL", portalUrl: "https://p.example", toRecipients: ["p@p.example"] });
     const p = bl(portal, "PRTL1000001");
     attachForm(p);
-    recordPortalRequest(db, ops, { blId: p, requestedOn: "2026-10-21", portalRef: "PRT-9" }, NOW);
-    const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, new Date("2026-10-28T09:00:00Z"));
-    expect(draft).toMatchObject({ subject: "Depozito İade Talebi – PRTL1000001 – Portal ref. PRT-9", thread: null });
+    send(prepareRequestEmails(db, ops, { blIds: [p] }, NOW)[0], ops, { confirmPortalFiled: true });
+    await runJobs(fakeTransport().transport);
+    const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, new Date("2026-10-29T09:00:00Z"));
+    expect(draft).toMatchObject({ subject: "Re: Depozito İade Talebi – PRTL1000001", portalFiling: [] });
+  });
+});
+
+describe("portal agencies", () => {
+  let portal: number;
+  beforeEach(() => {
+    portal = makeAgency(db, ops, "Portal", { requestChannel: "PORTAL", portalUrl: "https://p.example", toRecipients: ["p@p.example"] });
+  });
+
+  it("file the first request on the portal and send its documents by email: one request, counted once sent", async () => {
+    const p = bl(portal, "PRTL1000001");
+    attachForm(p);
+    expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blNo: "PRTL1000001", kind: "FIRST", channel: "PORTAL" });
+    const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, NOW);
+    expect(draft).toMatchObject({ subject: "Depozito İade Talebi – PRTL1000001", thread: null, portalFiling: ["PRTL1000001"], portalUrl: "https://p.example" });
+    expect(draft.attachments.map((a) => a.kind)).toEqual(["FORM", "RECEIPT"]);
+
+    // Not sent before the user confirms the portal filing (checked on the server).
+    expect(() => send(draft)).toThrow(expect.objectContaining({ messageKey: "requests.errors.portalNotFiled" }));
+    send(draft, ops, { confirmPortalFiled: true });
+    expect(listAllBls(db, ops, NOW).find((b) => b.id === p)).toMatchObject({ status: "DUE", attempts: 0 });
+    await runJobs(fakeTransport().transport);
+    expect(listAllBls(db, ops, NOW).find((b) => b.id === p)).toMatchObject({ status: "REQUESTED", attempts: 1, lastRequestOn: "2026-10-22" });
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "request.queue")).get()?.after).toMatchObject({ portalFiled: true });
+  });
+
+  it("send the documents as a reply when the agency already wrote about the B/L", () => {
+    const p = bl(portal, "PRTL1000002");
+    attachForm(p);
+    const incoming = db
+      .insert(emails)
+      .values({ direction: "IN", agencyId: portal, messageId: "<talep-1@p.example>", fromAddress: "p@p.example", to: ["depozito@firma.example"], subject: "Talebiniz alındı – evrak bekleniyor", bodyText: "Evrakları iletiniz.", receivedAt: NOW.toISOString(), createdAt: NOW.toISOString() })
+      .returning()
+      .get();
+    db.insert(emailBlLinks).values({ emailId: incoming.id, blId: p, linkedBy: "MANUAL", linkedByUser: ops.id, createdAt: NOW.toISOString() }).run();
+    const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, NOW);
+    expect(draft).toMatchObject({ subject: "Re: Talebiniz alındı – evrak bekleniyor", thread: { messageId: "<talep-1@p.example>" }, portalFiling: ["PRTL1000002"] });
+    expect(draft.body).toContain("Evrakları iletiniz.");
   });
 });
 

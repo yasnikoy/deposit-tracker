@@ -30,10 +30,10 @@ import {
   searchMailboxForBl,
   unprocessedSummary,
 } from "@/server/replies";
-import { blDueState, recordPortalRequest } from "@/server/requests";
+import { blDueState } from "@/server/requests";
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { PDF, makeAgency, makeBl, markRequested } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -307,7 +307,7 @@ describe("manual link from the B/L detail", () => {
   it("finds a portal agency's email by sender and subject; its later replies join the thread", async () => {
     const portal = makeAgency(db, ops, "Portal Line", { requestChannel: "PORTAL", portalUrl: "https://p.example", toRecipients: ["ops@portal.example"] });
     const p = newBl(portal, "PRTL1000001");
-    recordPortalRequest(db, ops, { blId: p, requestedOn: "2026-10-20", portalRef: "R-1" }, NOW);
+    markRequested(db, ops, { blId: p, requestedOn: "2026-10-20" }, NOW);
     const { mailbox, deliver } = fakeMailbox();
     const first = await deliver({ from: "ops@portal.example", subject: "Başvurunuz alındı", text: "Referans R-1" });
     await pollMailbox(db, mailbox, NOW);

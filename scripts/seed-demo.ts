@@ -32,7 +32,6 @@ import { saveHolidays } from "@/server/holidays";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { saveBankAccount } from "@/server/lists";
 import { correctPayment, createPayment } from "@/server/payments";
-import { recordPortalRequest } from "@/server/requests";
 import { updateSettings } from "@/server/settings";
 import { setStandingDocument } from "@/server/standing-documents";
 import { prepareDatabase } from "@/server/startup";
@@ -324,10 +323,9 @@ async function seed(db: Db) {
   record({ ...B, blNo: "BGZU2000004", amountMinor: 220000, currency: "EUR", daysAgo: 11, kind: "OFFSET", containers: [container("BGZU", "100005")] });
   record({ ...B, blNo: null, amountMinor: 125000, currency: "EUR", daysAgo: 4 });
 
-  // Kuzey Konteyner (portal first, then email follow-ups)
+  // Kuzey Konteyner (portal agency: the first request is filed on the portal, its documents go by email)
   record({ ...K, blNo: "KZYU3000001", amountMinor: 500000, currency: "USD", daysAgo: 10, form: true, containers: [container("KZYU", "300001")] });
-  const kzyu2 = record({ ...K, blNo: "KZYU3000002", amountMinor: 330000, currency: "USD", daysAgo: 20, form: true, containers: [container("KZYU", "300002")] });
-  recordPortalRequest(db, ops, { blId: kzyu2.blId!, requestedOn: businessDaysAgo(6), portalRef: "KZ-2026-0815" }, now);
+  record({ ...K, blNo: "KZYU3000002", amountMinor: 330000, currency: "USD", daysAgo: 20, form: true, containers: [container("KZYU", "300002")] });
 
   // Ege Hatları (misconfigured agency)
   record({ ...E, blNo: "EGEU4000001", amountMinor: 120000, currency: "USD", daysAgo: 12, form: true, containers: [container("EGEU", "400001")] });

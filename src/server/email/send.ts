@@ -34,6 +34,8 @@ export type QueueEmailInput = {
   documentIds: number[];
   /** The user saw that some B/Ls have no receipt or invoice yet and sends anyway. */
   confirmMissingEvidence?: boolean;
+  /** The user filed the first request of the draft's portal B/Ls on the agency portal. */
+  confirmPortalFiled?: boolean;
 };
 
 const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((x) => b.includes(x));
@@ -53,6 +55,10 @@ export function queueRequestEmail(db: Db, actor: AuthUser, input: QueueEmailInpu
     // Rule 12: a payment may lack its receipt or invoice; the request then goes only once confirmed.
     if (draft.missingEvidence.length > 0 && !input.confirmMissingEvidence) {
       throw new DomainError("requests.errors.evidenceMissing", { bls: draft.missingEvidence.join(", ") });
+    }
+    // A portal agency's first request is the portal filing plus this email: it is sent only once filed.
+    if (draft.portalFiling.length > 0 && !input.confirmPortalFiled) {
+      throw new DomainError("requests.errors.portalNotFiled", { bls: draft.portalFiling.join(", ") });
     }
     lockForDraft(tx, actor, input.blIds, now);
 
@@ -112,7 +118,15 @@ export function queueRequestEmail(db: Db, actor: AuthUser, input: QueueEmailInpu
           action: "request.queue",
           entityType: "bill_of_lading",
           entityId: item.blId,
-          after: { emailId: email.id, type: item.type, attemptNo: item.attemptNo, subject: input.subject, to: input.to, cc: input.cc },
+          after: {
+            emailId: email.id,
+            type: item.type,
+            attemptNo: item.attemptNo,
+            subject: input.subject,
+            to: input.to,
+            cc: input.cc,
+            ...(draft.portalFiling.includes(item.blNo) ? { portalFiled: true } : {}),
+          },
         },
         now,
       );

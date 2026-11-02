@@ -20,7 +20,7 @@ export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
 /** Placeholders each template may use; shown next to the editor. */
 export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly string[]> = {
   REFUND_REQUEST: ["agency_name", "bl_no", "containers", "amount", "currency", "attempt_no", "signature"],
-  FOLLOW_UP: ["agency_name", "bl_no", "containers", "amount", "currency", "attempt_no", "portal_ref", "signature"],
+  FOLLOW_UP: ["agency_name", "bl_no", "containers", "amount", "currency", "attempt_no", "signature"],
   // First request and follow-ups alike; a follow-up replies in the statement thread.
   DEDUCTION_STATEMENT: ["agency_name", "bl_no", "containers", "deduction_amount", "currency", "attempt_no", "signature"],
   BATCH: ["agency_name", "bl_no", "refund_section", "statement_section", "signature"],
@@ -49,7 +49,6 @@ export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   amount: "3.000,00",
   currency: "USD",
   attempt_no: "2",
-  portal_ref: "PRT-1001",
   deduction_amount: "700,00",
   from: "Örnek Lojistik Depozito <depozito@ornek-lojistik.com.tr>",
   sent_at: "16.10.2026 10:30",

@@ -5,7 +5,6 @@ import {
   impactPreviewSchema,
   prepareEmailsSchema,
   queueEmailSchema,
-  recordPortalRequestSchema,
   updateBlOverridesSchema,
 } from "@/lib/schemas/requests";
 import { runAction } from "@/server/actions";
@@ -14,12 +13,7 @@ import { getDb } from "@/server/db/client";
 import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
 import { queueRequestEmail } from "@/server/email/send";
 import { DomainError, type ActionResult } from "@/server/errors";
-import { previewDueImpact, recordPortalRequest, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
-
-export async function recordPortalRequestAction(input: unknown): Promise<ActionResult<number>> {
-  const { user } = await requireSession();
-  return runAction(recordPortalRequestSchema, input, (data) => recordPortalRequest(getDb(), user, data));
-}
+import { previewDueImpact, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
 
 export async function updateBlOverridesAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();

@@ -13,10 +13,10 @@ import { storeUpload } from "@/server/files";
 import { currentBlForm, uploadBlForm } from "@/server/forms";
 import { createRefund } from "@/server/refunds";
 import { acceptSuggestion, getReplyDetail, recordEmailReplies, recordReplyWithoutEmail } from "@/server/replies";
-import { recordPortalRequest } from "@/server/requests";
+
 import { undoActions } from "@/server/undo";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
+import { PDF, makeAgency, makeBl, markRequested, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul; the undo window is 10 minutes (seed).
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -49,7 +49,7 @@ beforeEach(async () => {
   line = makeAgency(db, ops, "Hat Lojistik", { requestChannel: "PORTAL", portalUrl: "https://portal.example" });
   bl = makeBl(db, { acc, ops }, { agencyId: line, blNo: "HATU1000001", paidAt: "2026-08-03", amountMinor: 150000, containers: ["MSCU1234565"] }, NOW).blId;
   uploadBlForm(db, ops, { blId: bl, documentId: upload("FORM") }, NOW);
-  recordPortalRequest(db, ops, { blId: bl, requestedOn: "2026-09-01", portalRef: null }, NOW);
+  markRequested(db, ops, { blId: bl, requestedOn: "2026-09-01" }, NOW);
 });
 
 describe("undo", () => {
