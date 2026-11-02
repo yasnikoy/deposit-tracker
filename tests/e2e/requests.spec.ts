@@ -165,6 +165,9 @@ test("operations previews and sends a request email; the scheduler sends it (dry
 
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByLabel(tr.requests.subject)).toHaveValue(`Depozito İade Talebi – ${BL_NO}`);
+  // The first field gets the focus without its text selected, so a keypress cannot replace the recipients.
+  await expect(dialog.getByLabel(tr.requests.to)).toBeFocused();
+  expect(await dialog.getByLabel(tr.requests.to).evaluate((el: HTMLInputElement) => el.selectionStart === el.selectionEnd)).toBe(true);
   await expect(dialog.getByLabel(tr.requests.to)).toHaveValue("iade@example.com");
   await expect(dialog.getByLabel(tr.requests.body)).toHaveValue(/2\.500,00 USD tutarındaki depozitonun iadesini/);
   for (const name of [`İade formu ${BL_NO}.pdf`, `Dekont ${BL_NO}.pdf`, "imza-sirkuleri.pdf"]) {
@@ -454,7 +457,13 @@ test("inline editing: containers on All B/Ls (undone from the toast), an agency'
   await page.getByLabel(tr.description.label).press("Escape");
   await page.locator("body").click({ position: { x: 5, y: 300 } });
   await page.keyboard.press("r");
-  await expect(page.getByRole("dialog").getByRole("heading", { name: tr.blReplies.record })).toBeVisible();
+  const replyDialog = page.getByRole("dialog");
+  await expect(replyDialog.getByRole("heading", { name: tr.blReplies.record })).toBeVisible();
+  // Date and note first; one click on the reply type records it, as on the Replies screen.
+  await replyDialog.getByLabel(tr.blReplies.note).fill("Portalda görüldü.");
+  await replyDialog.getByRole("button", { name: "Bilgi / işlem gerekmez" }).click();
+  await expect(page.getByText(tr.blReplies.recorded)).toBeVisible();
+  await expect(replyDialog).toHaveCount(0);
 });
 
 test("B/L detail: emails open in place, with the message; the customer is changed there", async ({ page }) => {

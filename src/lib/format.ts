@@ -25,3 +25,15 @@ export function formatTimestamp(value: string): string {
   );
   return `${parts.day}.${parts.month}.${parts.year} ${parts.hour}:${parts.minute}`;
 }
+
+/** A file or database size in Turkish format with its unit: B, KB, MB, GB or TB. */
+export function formatBytes(n: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = n;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
+}

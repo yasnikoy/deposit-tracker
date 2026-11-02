@@ -234,7 +234,8 @@ export function AgencyForm({
       </div>
 
       {!readOnly && (
-        <div className="flex justify-end">
+        // The card is long: Save stays in view at the bottom of the scrolling dialog body.
+        <div className="bg-background sticky -bottom-4 -mx-5 -mb-4 flex justify-end border-t px-5 py-2">
           <Button type="submit" size="sm" disabled={isSubmitting || (agency !== null && !isDirty)}>
             {t("common.save")}
           </Button>

@@ -8,22 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { addCalendarDays, istanbulToday } from "@/domain/business-days";
 import { t } from "@/i18n";
-import { formatBusinessDate, formatTimestamp } from "@/lib/format";
+import { formatBusinessDate, formatBytes, formatTimestamp } from "@/lib/format";
 import type { SystemHealth } from "@/server/health";
 import { runBackupNowAction } from "./actions";
 
-const bytes = (n: number | null) => {
-  if (n === null) return "—";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  let value = n;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit++;
-  }
-  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
-};
+const bytes = (n: number | null) => (n === null ? "—" : formatBytes(n));
 const when = (iso: string | null) => (iso ? formatTimestamp(iso) : "—");
+/** A backup's time, which already holds its date; the date alone when the time is unknown. */
+const backupTime = (backup: { date: string; at: string | null }) => (backup.at ? formatTimestamp(backup.at) : formatBusinessDate(backup.date));
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -89,7 +81,7 @@ export function SystemScreen({ health, canBackup }: { health: SystemHealth; canB
         </CardHeader>
         <CardContent>
           <Row label={t("system.backupLocal")}>
-            {backups.local ? `${formatBusinessDate(backups.local.date)} · ${when(backups.local.at)} · ${bytes(backups.local.sizeBytes)}` : "—"}{" "}
+            {backups.local ? `${backupTime(backups.local)} · ${bytes(backups.local.sizeBytes)}` : "—"}{" "}
             {localStale && <Badge variant="destructive">{t("system.backupStale")}</Badge>}
           </Row>
           <Row label={t("system.backupSecond")}>
@@ -102,7 +94,7 @@ export function SystemScreen({ health, canBackup }: { health: SystemHealth; canB
                 {!backups.second.reachable
                   ? t("system.backupSecondUnreachable")
                   : backups.second.latest
-                    ? `${formatBusinessDate(backups.second.latest.date)} · ${when(backups.second.latest.at)}`
+                    ? backupTime(backups.second.latest)
                     : "—"}{" "}
                 {secondProblem && <Badge variant="destructive">{t("system.backupSecondProblem")}</Badge>}
               </>

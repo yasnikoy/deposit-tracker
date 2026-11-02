@@ -66,6 +66,18 @@ function DialogContent({
           className
         )}
         {...props}
+        onOpenAutoFocus={(event) => {
+          props.onOpenAutoFocus?.(event)
+          if (event.defaultPrevented) return
+          // Radix focuses the first field with its text selected, so one keypress would replace
+          // e.g. the recipients or an agency name. Focus it without selecting.
+          event.preventDefault()
+          const container = event.target as HTMLElement
+          const first = container.querySelector<HTMLElement>(
+            "[autofocus], input:not([type=hidden]):not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])"
+          )
+          ;(first ?? container).focus()
+        }}
       >
         {children}
         {showCloseButton && (

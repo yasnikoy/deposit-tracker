@@ -47,7 +47,7 @@ export function ListsScreen({
   };
 
   return (
-    <div className="grid max-w-5xl grid-cols-[20rem_1fr] items-start gap-4">
+    <div className="grid max-w-5xl grid-cols-2 items-start gap-4">
       <Card>
         <CardHeader className="flex flex-row items-center">
           <CardTitle>{t("lists.currencies")}</CardTitle>

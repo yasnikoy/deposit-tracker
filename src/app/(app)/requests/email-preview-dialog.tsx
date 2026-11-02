@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
+import { formatBytes } from "@/lib/format";
 import type { EmailDraft } from "@/server/email/compose";
 import { cancelEmailsAction, queueEmailAction } from "./actions";
 
@@ -17,7 +18,6 @@ const toList = (text: string) =>
     .split(/[,;\s]+/)
     .map((part) => part.trim())
     .filter(Boolean);
-const mb = (bytes: number) => (bytes / 1024 / 1024).toLocaleString("tr-TR", { maximumFractionDigits: 1 });
 
 /**
  * Every email is shown before sending, one after the other; recipients, subject, body and
@@ -145,12 +145,12 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
               {attachment.originalName}
             </a>
             <span className="text-muted-foreground text-xs">
-              {attachment.blNo ?? t("standing.title")} · {mb(attachment.sizeBytes)} MB
+              {attachment.blNo ?? t("standing.title")} · {formatBytes(attachment.sizeBytes)}
             </span>
           </label>
         ))}
         <span className={tooLarge ? "text-destructive text-xs" : "text-muted-foreground text-xs"}>
-          {t("requests.attachmentsTotal", { size: mb(totalBytes), max: mb(draft.maxAttachmentBytes) })}
+          {t("requests.attachmentsTotal", { size: formatBytes(totalBytes), max: formatBytes(draft.maxAttachmentBytes) })}
         </span>
       </fieldset>
       {portalFiling && (

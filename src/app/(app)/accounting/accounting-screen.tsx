@@ -174,7 +174,8 @@ function ReviewQueue({ queue, refs, onSaved }: { queue: QueueItem[]; refs: Refer
 
   return (
     <div className="flex items-start gap-4">
-      <div className="flex w-80 shrink-0 flex-col gap-3">
+      {/* Empty, the drop zone takes the width of the forms; with receipts, it is the list beside the form. */}
+      <div className={cn("flex shrink-0 flex-col gap-3", queue.length ? "w-80" : "w-full max-w-2xl")}>
         <FileDrop
           kind="RECEIPT"
           multiple
@@ -187,7 +188,7 @@ function ReviewQueue({ queue, refs, onSaved }: { queue: QueueItem[]; refs: Refer
             router.refresh();
           }}
         />
-        <p className="text-muted-foreground text-xs">
+        <p className={cn("text-muted-foreground", queue.length ? "text-xs" : "text-sm")}>
           {queue.length ? t("payments.queueCount", { count: queue.length }) : t("payments.queueEmpty")}
         </p>
         <ul className="flex flex-col gap-1">

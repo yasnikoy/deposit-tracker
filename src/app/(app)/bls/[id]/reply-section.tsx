@@ -145,7 +145,10 @@ export function ReplySection({
   );
 }
 
-/** A reply that did not come by email (e.g. read on the agency portal); it counts like one. */
+/**
+ * A reply that did not come by email (e.g. read on the agency portal); it counts like one.
+ * Date and note first, then one click on the reply type saves it, as on the Replies screen.
+ */
 function RecordReplyDialog({
   blId,
   replyTypes,
@@ -159,15 +162,12 @@ function RecordReplyDialog({
   onCancel: () => void;
   onDone: () => void;
 }) {
-  const [replyTypeId, setReplyTypeId] = useState<number | null>(null);
   const [repliedOn, setRepliedOn] = useState(today);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    if (replyTypeId === null) return setError(t("blReplies.chooseType"));
+  const save = async (replyTypeId: number) => {
     setBusy(true);
     const result = await recordReplyWithoutEmailAction({ blId, replyTypeId, repliedOn, note });
     setBusy(false);
@@ -179,20 +179,11 @@ function RecordReplyDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onCancel()}>
       <DialogContent>
-        <form onSubmit={save} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>{t("blReplies.record")}</DialogTitle>
             <DialogDescription>{t("blReplies.recordHint")}</DialogDescription>
           </DialogHeader>
-          <fieldset className="flex flex-col gap-1.5">
-            <legend className="mb-1.5 text-sm font-medium">{t("blReplies.type")}</legend>
-            {replyTypes.map((type) => (
-              <label key={type.id} className="flex items-center gap-2 text-sm">
-                <input type="radio" name="reply-type" checked={replyTypeId === type.id} onChange={() => setReplyTypeId(type.id)} />
-                {type.name}
-              </label>
-            ))}
-          </fieldset>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="reply-date">{t("blReplies.date")}</Label>
             <Input id="reply-date" type="date" value={repliedOn} max={today} onChange={(event) => setRepliedOn(event.target.value)} className="w-44" />
@@ -208,6 +199,18 @@ function RecordReplyDialog({
               className="border-input bg-background rounded-md border px-2 py-1 text-sm"
             />
           </div>
+          <div role="group" aria-labelledby="reply-types" className="flex flex-col gap-1.5">
+            <span id="reply-types" className="text-sm font-medium">
+              {t("blReplies.type")} <span className="text-muted-foreground font-normal">{t("blReplies.typeSaves")}</span>
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {replyTypes.map((type) => (
+                <Button key={type.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => save(type.id)}>
+                  {type.name}
+                </Button>
+              ))}
+            </div>
+          </div>
           {error && (
             <p role="alert" className="text-destructive text-sm">
               {error}
@@ -217,11 +220,8 @@ function RecordReplyDialog({
             <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
               {t("common.cancel")}
             </Button>
-            <Button type="submit" disabled={busy}>
-              {t("common.save")}
-            </Button>
           </DialogFooter>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );
