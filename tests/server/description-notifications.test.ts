@@ -6,17 +6,15 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail } from "@/server/bl-overview";
 import type { Db } from "@/server/db/client";
-import { emailBlLinks, emails, jobs, notes } from "@/server/db/schema";
+import { auditLog, emailBlLinks, emails, jobs } from "@/server/db/schema";
 import type { MailTransport } from "@/server/email/transport";
-import { DomainError, ForbiddenError } from "@/server/errors";
+import { ForbiddenError } from "@/server/errors";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
-import { addNotes, blNotes } from "@/server/notes";
-import { listNotifications, markNotificationsRead, notifyOverdueReplies, unreadNotificationCount } from "@/server/notifications";
+import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
+import { listNotifications, markNotificationsRead, notify, notifyOverdueReplies, unreadNotificationCount } from "@/server/notifications";
 import { correctPayment } from "@/server/payments";
 import { ensureRecurringJobs, recurringJobHandlers, scheduleWeeklySummary, weeklySummaryValues } from "@/server/recurring-jobs";
 import { updateSettings } from "@/server/settings";
-import { undoActions } from "@/server/undo";
-import { users } from "@/server/db/schema";
 import { approveWriteOff, proposeWriteOff, rejectWriteOff } from "@/server/write-offs";
 import { createTestDb, makeUser } from "../support/db";
 import { makeAgency, makeBl } from "../support/records";
@@ -51,44 +49,44 @@ beforeEach(async () => {
   b = makeBl(db, { acc, ops }, { agencyId: agency, blNo: "HLCU1000002", amountMinor: 150000, paidAt: "2026-10-01", currency: "EUR" }, NOW);
 });
 
-describe("notes", () => {
-  it("adds a note with @mentions; mentioned users are notified, the author is not", () => {
-    const [auditId] = addNotes(db, ops, { blIds: [a.blId], body: "@Ayse acenteyi aradım, @ops ve @ayse yarın tekrar." }, NOW);
-    expect(auditId).toBeGreaterThan(0);
-    expect(blNotes(db, a.blId)).toMatchObject([{ body: "@Ayse acenteyi aradım, @ops ve @ayse yarın tekrar.", authorName: "OPS", undone: false }]);
-    expect(listNotifications(db, ops2)).toMatchObject([
-      { kind: "MENTION", entityType: "bill_of_lading", entityId: a.blId, read: false, detail: { author: "OPS", blNo: "HLCU1000001" } },
+describe("B/L description", () => {
+  it("is one text that accounting and operations change at will; audited, not on the timeline", () => {
+    updateBlDescription(db, ops, { blId: a.blId, description: "  Acente arandı.  ", previous: null }, NOW);
+    updateBlDescription(db, acc, { blId: a.blId, description: "Acente arandı.\nDekont tekrar istendi.", previous: "Acente arandı." }, NOW);
+    expect(getBlDetail(db, ops, a.blId, NOW).bl.description).toBe("Acente arandı.\nDekont tekrar istendi.");
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "bl.description")).all()).toMatchObject([
+      { roleUsed: "OPERATIONS", before: { description: null }, after: { description: "Acente arandı." } },
+      { roleUsed: "ACCOUNTANT", after: { description: "Acente arandı.\nDekont tekrar istendi." } },
     ]);
-    expect(kinds(ops)).toEqual([]);
-    expect(kinds(ops3)).toEqual([]);
-    // The note shows on the B/L timeline.
-    expect(getBlDetail(db, ops, a.blId, NOW).timeline[0]).toMatchObject({ action: "note.add", actorName: "OPS", undoable: true });
+    expect(getBlDetail(db, ops, a.blId, NOW).timeline.some((e) => e.action === "bl.description")).toBe(false);
+
+    // Emptied, it is null again.
+    updateBlDescription(db, ops, { blId: a.blId, description: " ", previous: "Acente arandı.\nDekont tekrar istendi." }, NOW);
+    expect(getBlDetail(db, ops, a.blId, NOW).bl.description).toBeNull();
+    expect(() => updateBlDescription(db, admin, { blId: a.blId, description: "x", previous: null }, NOW)).toThrow(ForbiddenError);
   });
 
-  it("refuses unknown or inactive users, empty notes and other roles", () => {
-    expect(() => addNotes(db, ops, { blIds: [a.blId], body: "@kimse bakar mı?" }, NOW)).toThrow(DomainError);
-    db.update(users).set({ active: false }).where(eq(users.id, ops3.id)).run();
-    expect(() => addNotes(db, ops, { blIds: [a.blId], body: "@mehmet" }, NOW)).toThrow(/unknownMention/);
-    expect(() => addNotes(db, ops, { blIds: [a.blId], body: "   " }, NOW)).toThrow(/empty/);
-    expect(() => addNotes(db, acc, { blIds: [a.blId], body: "Not" }, NOW)).toThrow(ForbiddenError);
-    expect(db.select().from(notes).all()).toHaveLength(0);
+  it("refuses to overwrite a text someone else saved meanwhile", () => {
+    updateBlDescription(db, ops, { blId: a.blId, description: "İlk", previous: null }, NOW);
+    expect(() => updateBlDescription(db, ops2, { blId: a.blId, description: "Benimki", previous: null }, NOW)).toThrow(/description.errors.changed/);
+    updateBlDescription(db, ops2, { blId: a.blId, description: "Benimki", previous: "İlk" }, NOW);
+    expect(getBlDetail(db, ops, a.blId, NOW).bl.description).toBe("Benimki");
   });
 
-  it("adds one note to several B/Ls as one action, which undo takes back together", () => {
-    const auditIds = addNotes(db, ops, { blIds: [a.blId, b.blId], body: "Toplu takip @ayse" }, NOW);
-    expect(auditIds).toHaveLength(2);
-    expect(kinds(ops2)).toEqual(["MENTION", "MENTION"]);
-    undoActions(db, ops, { auditIds }, at("2026-10-22T09:05:00Z"));
-    expect([...blNotes(db, a.blId), ...blNotes(db, b.blId)].map((n) => n.undone)).toEqual([true, true]);
-    expect(() => undoActions(db, ops, { auditIds }, at("2026-10-22T09:06:00Z"))).toThrow(DomainError);
+  it("adds one line to several B/Ls at once (bulk action)", () => {
+    updateBlDescription(db, ops, { blId: a.blId, description: "Eski satır", previous: null }, NOW);
+    expect(appendBlDescription(db, ops, { blIds: [a.blId, b.blId], text: " Haftalık kontrol yapıldı. " }, NOW)).toBe(2);
+    expect(getBlDetail(db, ops, a.blId, NOW).bl.description).toBe("Eski satır\nHaftalık kontrol yapıldı.");
+    expect(getBlDetail(db, ops, b.blId, NOW).bl.description).toBe("Haftalık kontrol yapıldı.");
+    expect(() => appendBlDescription(db, ops, { blIds: [a.blId], text: "  " }, NOW)).toThrow(/description.errors.empty/);
   });
 });
 
 describe("notifications", () => {
   it("a payment correction notifies the operations users who worked on the B/L", () => {
-    addNotes(db, ops2, { blIds: [a.blId], body: "Takipteyim" }, NOW);
+    updateBlDescription(db, ops2, { blId: a.blId, description: "Takipteyim", previous: null }, NOW);
     correctPayment(db, acc, { id: a.paymentId, agencyId: agency, amountMinor: 310000, currency: "USD", paidAt: "2026-07-01", reason: "Tutar hatalı" }, NOW);
-    // ops created the B/L, ayse wrote a note; mehmet never touched it.
+    // ops created the B/L, ayse wrote its description; mehmet never touched it.
     expect(kinds(ops)).toEqual(["CORRECTION"]);
     expect(kinds(ops2)).toEqual(["CORRECTION"]);
     expect(kinds(ops3)).toEqual([]);
@@ -106,9 +104,9 @@ describe("notifications", () => {
   });
 
   it("a kind switched off in settings notifies nobody", () => {
-    updateSettings(db, admin, { changes: [{ key: "notifications.inAppMention", value: false }] }, NOW);
-    addNotes(db, ops, { blIds: [a.blId], body: "@ayse" }, NOW);
-    expect(kinds(ops2)).toEqual([]);
+    updateSettings(db, admin, { changes: [{ key: "notifications.inAppCorrection", value: false }] }, NOW);
+    correctPayment(db, acc, { id: a.paymentId, agencyId: agency, amountMinor: 310000, currency: "USD", paidAt: "2026-07-01", reason: "Tutar hatalı" }, NOW);
+    expect(kinds(ops)).toEqual([]);
   });
 
   it("an overdue reply notifies every operations user once", () => {
@@ -129,7 +127,9 @@ describe("notifications", () => {
   });
 
   it("each user reads and marks only their own", () => {
-    addNotes(db, ops, { blIds: [a.blId, b.blId], body: "@ayse @mehmet" }, NOW);
+    for (const entityId of [1, 2]) {
+      notify(db, { userIds: [ops2.id, ops3.id], actorId: null, kind: "NEW_AGENCY", entityType: "agency", entityId, detail: { actor: "A", agency: `Yeni ${entityId}` } }, NOW);
+    }
     const [latest] = listNotifications(db, ops2);
     markNotificationsRead(db, ops2, { ids: [latest.id] }, NOW);
     expect(unreadNotificationCount(db, ops2)).toBe(1);

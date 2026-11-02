@@ -204,7 +204,7 @@
     "globalSearch": "B/L ara (her yerden)",
     "editCell": "Satırdaki düzenlenebilir alanı düzenle",
     "recordReply": "B/L ayrıntısında yanıt kaydet",
-    "addNote": "B/L ayrıntısında not ekle; listede seçili B/L'lere not ekle"
+    "addNote": "B/L ayrıntısında açıklamaya git; listede seçili B/L'lerin açıklamasına ekle"
   },
   "weekdays": {
     "1": "Pzt",
@@ -447,10 +447,6 @@
         "weeklySummaryRecipients": {
           "label": "Haftalık özet alıcıları",
           "help": "Yalnızca şirket içi adresler."
-        },
-        "inAppMention": {
-          "label": "Bildirim: bahsetme",
-          "help": "Bir notta @kullanıcıadı ile bahsedilen kullanıcı bildirim alır."
         },
         "inAppCorrection": {
           "label": "Bildirim: ödeme düzeltmesi",
@@ -1594,21 +1590,22 @@
       }
     }
   },
-  "notes": {
-    "title": "Notlar",
-    "add": "Not ekle",
-    "placeholder": "Not yazın… Bir kullanıcıdan bahsetmek için @kullanıcıadı yazın.",
-    "mentionHint": "Bahsetmek için tıklayın:",
-    "saved": "Not eklendi.",
-    "savedBulk": "{count} B/L'ye not eklendi.",
-    "undone": "geri alındı",
-    "empty": "Henüz not yok.",
-    "bulk": "Not ekle",
-    "bulkTitle": "Seçili B/L'lere not ekle",
-    "bulkConfirm": "Bu not aşağıdaki {count} B/L'ye eklenecek:",
+  "description": {
+    "title": "Açıklama",
+    "label": "B/L açıklaması",
+    "placeholder": "Bu B/L ile ilgili notlar… (ekip görür, istendiğinde değiştirilebilir)",
+    "save": "Açıklamayı kaydet",
+    "saved": "Açıklama kaydedildi.",
+    "empty": "Açıklama yok.",
+    "bulk": "Açıklamaya ekle",
+    "bulkTitle": "Seçili B/L'lerin açıklamasına ekle",
+    "bulkConfirm": "Bu satır aşağıdaki {count} B/L'nin açıklamasının sonuna eklenecek:",
+    "bulkText": "Eklenecek satır",
+    "bulkSaved": "{count} B/L'nin açıklamasına eklendi.",
     "errors": {
-      "empty": "Not boş olamaz.",
-      "unknownMention": "Bu kullanıcılar bulunamadı veya pasif: {names}"
+      "empty": "Eklenecek satır boş olamaz.",
+      "tooLong": "Açıklama çok uzun (en fazla 10.000 karakter).",
+      "changed": "Bu açıklama siz düzenlerken başka biri tarafından değiştirildi. Metniniz duruyor; yeniden kaydederseniz güncel metnin yerine geçer."
     }
   },
   "notifications": {

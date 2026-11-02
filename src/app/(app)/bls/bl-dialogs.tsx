@@ -13,18 +13,19 @@ import type { BlStatus } from "@/domain/records";
 import { t } from "@/i18n";
 import { updateBlAction, voidBlAction } from "./actions";
 
-export type EditableBl = { id: number; blNo: string; containers: string[]; status: BlStatus };
+export type EditableBl = { id: number; blNo: string; containers: string[]; fileNo: string | null; status: BlStatus };
 
-/** B/L number (until the first request) and containers; every change goes through updateBlAction. */
+/** B/L number (until the first request), file number and containers; every change goes through updateBlAction. */
 export function EditBlDialog({ bl, onCancel, onSaved }: { bl: EditableBl; onCancel: () => void; onSaved: () => void }) {
   const [blNo, setBlNo] = useState(bl.blNo);
+  const [fileNo, setFileNo] = useState(bl.fileNo ?? "");
   const [containers, setContainers] = useState(bl.containers.join(", "));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const save = async () => {
     setBusy(true);
-    const result = await updateBlAction({ id: bl.id, blNo, containers: parseContainerList(containers) });
+    const result = await updateBlAction({ id: bl.id, blNo, fileNo, containers: parseContainerList(containers) });
     setBusy(false);
     if (!result.ok) {
       const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
@@ -51,6 +52,10 @@ export function EditBlDialog({ bl, onCancel, onSaved }: { bl: EditableBl; onCanc
               disabled={bl.status !== "PAID" && bl.status !== "DUE"}
               autoFocus
             />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="edit-file-no">{t("bls.fileNo")}</Label>
+            <Input id="edit-file-no" className="font-mono uppercase" value={fileNo} onChange={(event) => setFileNo(event.target.value)} />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="edit-containers">{t("bls.containers")}</Label>

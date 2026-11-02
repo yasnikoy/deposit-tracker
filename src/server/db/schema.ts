@@ -380,6 +380,8 @@ export const billsOfLading = sqliteTable(
     // The importer we paid the deposit for, and our internal file number (e.g. T26-90815).
     customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
     fileNo: text("file_no"),
+    // Free text kept by accounting and operations ("Açıklama"); replaced the team notes.
+    description: text("description"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -914,30 +916,6 @@ export const reportEmails = sqliteTable("report_emails", {
   sections: text("sections", { mode: "json" }).$type<string[]>().notNull(),
   filters: text("filters", { mode: "json" }).$type<Record<string, unknown>>().notNull(),
 });
-
-/** Team notes on a B/L, with @mentions. Never deleted: an undo sets the flag. */
-export const notes = sqliteTable(
-  "notes",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    blId: integer("bl_id")
-      .notNull()
-      .references(() => billsOfLading.id),
-    authorId: integer("author_id")
-      .notNull()
-      .references(() => users.id),
-    body: text("body").notNull(),
-    mentionedUserIds: text("mentioned_user_ids", { mode: "json" }).$type<number[]>().notNull().default(sql`'[]'`),
-    createdAt: timestamp("created_at").notNull(),
-    undoneAt: timestamp("undone_at"),
-    undoneBy: integer("undone_by").references(() => users.id),
-  },
-  (t) => [
-    check("notes_body", sql`length(trim(${t.body})) > 0`),
-    check("notes_undone", sql`(${t.undoneAt} IS NULL) = (${t.undoneBy} IS NULL)`),
-    index("notes_bl").on(t.blId),
-  ],
-);
 
 /** In-app notifications; `detail` keeps what the text needs as it was when the event happened. */
 export const notifications = sqliteTable(

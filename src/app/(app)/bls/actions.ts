@@ -2,7 +2,7 @@
 
 import { blSearchSchema, createBlsSchema, generateFormSchema, setBlCustomerSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
-import { addNotesSchema } from "@/lib/schemas/notes";
+import { appendBlDescriptionSchema, updateBlDescriptionSchema } from "@/lib/schemas/descriptions";
 import { voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
@@ -12,7 +12,7 @@ import { getDb } from "@/server/db/client";
 import { classifyDeduction, disputeDeduction, recordStatementDeductions } from "@/server/deductions";
 import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
-import { addNotes } from "@/server/notes";
+import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
 import { proposeWriteOff } from "@/server/write-offs";
 
 /** Each row is validated by createBls with the shared row schema; invalid rows come back with errors. */
@@ -71,7 +71,12 @@ export async function proposeWriteOffAction(input: unknown): Promise<ActionResul
   return runAction(proposeWriteOffSchema, input, (data) => proposeWriteOff(getDb(), user, data));
 }
 
-export async function addNotesAction(input: unknown): Promise<ActionResult<number[]>> {
+export async function updateBlDescriptionAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
-  return runAction(addNotesSchema, input, (data) => addNotes(getDb(), user, data));
+  return runAction(updateBlDescriptionSchema, input, (data) => updateBlDescription(getDb(), user, data));
+}
+
+export async function appendBlDescriptionAction(input: unknown): Promise<ActionResult<number>> {
+  const { user } = await requireSession();
+  return runAction(appendBlDescriptionSchema, input, (data) => appendBlDescription(getDb(), user, data));
 }

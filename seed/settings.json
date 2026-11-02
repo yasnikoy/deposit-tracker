@@ -57,7 +57,6 @@
     "notifications.weeklySummaryWeekday": 1,
     "notifications.weeklySummaryTime": "09:00",
     "notifications.weeklySummaryRecipients": [],
-    "notifications.inAppMention": true,
     "notifications.inAppCorrection": true,
     "notifications.inAppUnprocessedReply": true,
     "notifications.inAppWriteOff": true,

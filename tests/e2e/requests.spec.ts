@@ -311,7 +311,7 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   const [tableCsv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: tr.table.downloadCsv }).click()]);
   expect(tableCsv.suggestedFilename()).toMatch(/^all-bls-\d{4}-\d{2}-\d{2}\.csv$/);
   const lines = fs.readFileSync(await tableCsv.path(), "utf8").split("\r\n");
-  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.expected};${tr.bls.collected};${tr.bls.attempts};${tr.bls.lastRequestOn};${tr.bls.lastReply};${tr.bls.daysWaiting};${tr.bls.containers}`);
+  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.expected};${tr.bls.collected};${tr.bls.attempts};${tr.bls.lastRequestOn};${tr.bls.lastReply};${tr.bls.daysWaiting};${tr.description.title};${tr.bls.containers}`);
   expect(lines[1]).toContain(`${BL_NO};${AGENCY};Hapag Müşteri;;${tr.bls.statuses.COLLECTED};`);
   expect(lines[1]).toContain(";2.500,00;USD;");
   expect(lines).toHaveLength(3);
@@ -365,40 +365,35 @@ test("report email: operations previews a status report; agency addresses are re
   await expect(page.getByTestId("sent-reports")).toContainText("mudur@firma.example");
 });
 
-test("notes: operations mentions a colleague on a B/L, adds a bulk note; the colleague is notified", async ({ page }) => {
+test("description: kept on the B/L detail (not on the timeline), a line added to several B/Ls at once", async ({ page }) => {
+  const d = tr.description;
   await login(page, OPS.username, OPS.final);
   await page.goto("/bls");
   await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).click();
   await page.getByRole("link", { name: tr.bls.openDetail }).click();
-  await page.getByRole("button", { name: `@${E2E_ADMIN.username}` }).click();
-  await page.getByLabel(tr.notes.add).pressSequentially("portalı kontrol eder misiniz?");
-  await page.getByRole("button", { name: tr.notes.add, exact: true }).click();
-  await expect(page.getByText(tr.notes.saved)).toBeVisible();
-  await expect(page.getByTestId("bl-notes")).toContainText(`@${E2E_ADMIN.username} portalı kontrol eder misiniz?`);
-  await expect(page.locator("ol").getByText(tr.timeline.actions.note.add, { exact: true })).toBeVisible();
+  // The row panel has the same editor: wait for the detail page itself.
+  await expect(page).toHaveURL(/\/bls\/\d+$/);
+  await page.getByLabel(d.label).fill("Portal kontrol edilecek.");
+  await page.getByRole("button", { name: d.save }).click();
+  await expect(page.getByText(d.saved)).toBeVisible();
+  await expect(page.getByRole("button", { name: d.save })).toBeDisabled();
+  await page.reload();
+  await expect(page.getByLabel(d.label)).toHaveValue("Portal kontrol edilecek.");
 
-  // Bulk: the confirmation lists the B/Ls before the note is added.
+  // Bulk: the confirmation lists the B/Ls before the line is added.
   await page.goto("/bls");
   for (const blNo of [BL_NO, PORTAL_BL_NO]) await page.getByRole("row").filter({ hasText: blNo }).getByRole("checkbox").check();
-  await page.getByRole("button", { name: tr.notes.bulk }).click();
+  await page.getByRole("button", { name: d.bulk }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog.getByTestId("bulk-note-bls")).toContainText(BL_NO);
-  await expect(dialog.getByTestId("bulk-note-bls")).toContainText(PORTAL_BL_NO);
-  await dialog.getByLabel(tr.notes.add).fill("Haftalık kontrol yapıldı.");
-  await dialog.getByRole("button", { name: tr.notes.add }).click();
-  await expect(page.getByText("2 B/L'ye not eklendi.")).toBeVisible();
+  await expect(dialog).toContainText(BL_NO);
+  await expect(dialog).toContainText(PORTAL_BL_NO);
+  await dialog.getByLabel(d.bulkText).fill("Haftalık kontrol yapıldı.");
+  await dialog.getByRole("button", { name: d.bulk }).click();
+  await expect(page.getByText(d.bulkSaved.replace("{count}", "2"))).toBeVisible();
 
-  await page.getByRole("button", { name: OPS.displayName }).click();
-  await page.getByRole("menuitem", { name: tr.nav.logout }).click();
-  await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
-  const bell = page.getByRole("link", { name: tr.nav.notifications });
-  await expect(bell).toContainText("1");
-  await bell.click();
-  const item = page.getByTestId("notifications").getByRole("link");
-  await expect(item).toContainText(`${OPS.displayName}, B/L ${PORTAL_BL_NO} notunda sizden bahsetti`);
-  await item.click();
-  await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
-  await expect(bell).not.toContainText("1");
+  // The row panel shows the whole text.
+  await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).getByText(PORTAL_BL_NO, { exact: true }).click();
+  await expect(page.getByRole("dialog").getByLabel(d.label)).toHaveValue("Portal kontrol edilecek.\nHaftalık kontrol yapıldı.");
 });
 
 test("inline editing: containers on All B/Ls (undone from the toast), an agency's CC list; R and N on the B/L detail", async ({ page }) => {
@@ -422,9 +417,9 @@ test("inline editing: containers on All B/Ls (undone from the toast), an agency'
   await page.keyboard.press("Escape");
   await page.locator("tbody").locator("..").locator("..").focus();
   await page.keyboard.press("F2");
-  await expect(page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`)).toBeFocused();
+  await expect(page.getByLabel(`${tr.bls.fileNo} — ${tr.table.editCell}`)).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`)).toHaveCount(0);
+  await expect(page.getByLabel(`${tr.bls.fileNo} — ${tr.table.editCell}`)).toHaveCount(0);
 
   await page.goto("/agencies");
   const agencyRow = page.getByRole("row").filter({ hasText: AGENCY });
@@ -441,13 +436,14 @@ test("inline editing: containers on All B/Ls (undone from the toast), an agency'
   await page.goto("/bls");
   await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).click();
   await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await expect(page).toHaveURL(/\/bls\/\d+$/);
   await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
   // The heading is server-rendered; the shortcut listener needs the page to hydrate first.
   await expect(async () => {
     await page.keyboard.press("n");
-    await expect(page.getByLabel(tr.notes.add)).toBeFocused({ timeout: 500 });
+    await expect(page.getByLabel(tr.description.label)).toBeFocused({ timeout: 500 });
   }).toPass({ timeout: 10_000 });
-  await page.getByLabel(tr.notes.add).press("Escape");
+  await page.getByLabel(tr.description.label).press("Escape");
   await page.locator("body").click({ position: { x: 5, y: 300 } });
   await page.keyboard.press("r");
   await expect(page.getByRole("dialog").getByRole("heading", { name: tr.blReplies.record })).toBeVisible();

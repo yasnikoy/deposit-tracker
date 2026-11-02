@@ -193,24 +193,38 @@ const containerNumbers = (tx: DbOrTx, blId: number) =>
     .all()
     .map((c) => c.containerNo);
 
-/** Edits the B/L number (only before any request is sent) and the container list. */
-export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: string; containers: string[] }, now: Date = new Date()): number[] {
+/**
+ * Edits the B/L number (only before any request is sent), the container list and our file
+ * number; a field left out stays as it is.
+ */
+export function updateBl(
+  db: Db,
+  actor: AuthUser,
+  input: { id: number; blNo?: string; containers?: string[]; fileNo?: string | null },
+  now: Date = new Date(),
+): number[] {
   const roleUsed = authorize(actor, "bl.update");
   return db.transaction((tx) => {
     const bl = requireBl(tx, input.id);
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     const beforeContainers = containerNumbers(tx, bl.id);
+    const blNo = input.blNo ?? bl.blNo;
+    const nextContainers = input.containers ?? beforeContainers;
+    const fileNo = input.fileNo === undefined ? bl.fileNo : input.fileNo;
     let renamed: DocumentRename[] = [];
-    if (input.blNo !== bl.blNo) {
+    if (blNo !== bl.blNo) {
       if (bl.status !== "PAID") throw new DomainError("bls.errors.blNoLocked");
-      if (blNoTaken(tx, input.blNo, bl.id)) throw new DomainError("bls.errors.blNoTaken");
-      tx.update(billsOfLading).set({ blNo: input.blNo, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
-      renamed = nameBlDocuments(tx, { ...bl, blNo: input.blNo });
+      if (blNoTaken(tx, blNo, bl.id)) throw new DomainError("bls.errors.blNoTaken");
+      tx.update(billsOfLading).set({ blNo, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+      renamed = nameBlDocuments(tx, { ...bl, blNo });
     }
-    if (JSON.stringify(beforeContainers) !== JSON.stringify(input.containers)) {
+    if (fileNo !== bl.fileNo) {
+      tx.update(billsOfLading).set({ fileNo, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+    }
+    if (JSON.stringify(beforeContainers) !== JSON.stringify(nextContainers)) {
       tx.delete(containers).where(eq(containers.blId, bl.id)).run();
-      if (input.containers.length > 0) {
-        tx.insert(containers).values(input.containers.map((containerNo) => ({ blId: bl.id, containerNo }))).run();
+      if (nextContainers.length > 0) {
+        tx.insert(containers).values(nextContainers.map((containerNo) => ({ blId: bl.id, containerNo }))).run();
       }
     }
     const auditId = writeAudit(
@@ -221,8 +235,8 @@ export function updateBl(db: Db, actor: AuthUser, input: { id: number; blNo: str
         action: "bl.update",
         entityType: "bill_of_lading",
         entityId: bl.id,
-        before: { blNo: bl.blNo, containers: beforeContainers },
-        after: { blNo: input.blNo, containers: input.containers, ...(renamed.length ? { renamed } : {}) },
+        before: { blNo: bl.blNo, containers: beforeContainers, fileNo: bl.fileNo },
+        after: { blNo, containers: nextContainers, fileNo, ...(renamed.length ? { renamed } : {}) },
       },
       now,
     );

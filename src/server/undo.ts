@@ -20,7 +20,6 @@ import {
 import { DomainError } from "./errors";
 import { nameBlDocuments } from "./files";
 import { activeLedgerEntries, compensateLedgerEntry } from "./ledger";
-import { undoNote } from "./notes";
 import { undoAgencyUpdate } from "./agencies";
 import { getSetting } from "./settings";
 
@@ -40,7 +39,6 @@ const UNDOABLE: Record<string, { permission: Action; undo: (tx: DbOrTx, actor: A
   "email.link": { permission: "email.link", undo: undoEmailLink },
   "form.upload": { permission: "bl.uploadForm", undo: undoFormUpload },
   "bl.update": { permission: "bl.update", undo: undoBlUpdate },
-  "note.add": { permission: "note.add", undo: (tx, actor, audit, now) => undoNote(tx, actor, (audit.after as { noteId: number }).noteId, now) },
   "agency.update": { permission: "agency.update", undo: undoAgencyUpdate },
   "bl.accountingRecorded": { permission: "bl.recordAccounting", undo: undoAccountingEntry },
 };
@@ -198,11 +196,16 @@ function undoFormUpload(tx: DbOrTx, actor: AuthUser, audit: AuditRow, now: Date)
 
 /** The B/L number and containers return to what they were, if nobody changed them since. */
 function undoBlUpdate(tx: DbOrTx, _actor: AuthUser, audit: AuditRow, now: Date): Snapshot {
-  const before = audit.before as { blNo: string; containers: string[] };
-  const after = audit.after as { blNo: string; containers: string[] };
+  // `fileNo` is missing from edits recorded before it became editable.
+  const before = audit.before as { blNo: string; containers: string[]; fileNo?: string | null };
+  const after = audit.after as { blNo: string; containers: string[]; fileNo?: string | null };
   const bl = activeBl(tx, Number(audit.entityId));
   const current = tx.select({ containerNo: containers.containerNo }).from(containers).where(eq(containers.blId, bl.id)).orderBy(containers.id).all().map((c) => c.containerNo);
-  if (bl.blNo !== after.blNo || JSON.stringify(current) !== JSON.stringify(after.containers)) throw new DomainError("undo.errors.movedOn");
+  const fileNoMoved = after.fileNo !== undefined && bl.fileNo !== after.fileNo;
+  if (bl.blNo !== after.blNo || JSON.stringify(current) !== JSON.stringify(after.containers) || fileNoMoved) throw new DomainError("undo.errors.movedOn");
+  if (before.fileNo !== undefined && before.fileNo !== bl.fileNo) {
+    tx.update(billsOfLading).set({ fileNo: before.fileNo, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+  }
   if (before.blNo !== bl.blNo) {
     // The same checks as an edit: the number is editable until the first request, and unique.
     if (bl.status !== "PAID") throw new DomainError("bls.errors.blNoLocked");

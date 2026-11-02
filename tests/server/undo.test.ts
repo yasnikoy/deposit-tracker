@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
+import { updateBlSchema } from "@/lib/schemas/bls";
 import { allocationProposal, confirmAllocation } from "@/server/allocations";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail } from "@/server/bl-overview";
@@ -125,6 +126,14 @@ describe("undo", () => {
     undoActions(db, ops, { auditIds: edit }, later(1));
     expect(getBlDetail(db, ops, fresh, later(1)).bl).toMatchObject({ blNo: "HATU1000002", containers: [] });
     expect(currentBlForm(db, fresh)!.originalName).toBe("İade formu HATU1000002.pdf");
+  });
+
+  it("takes back a file number edit; the other fields stay as they are", () => {
+    const [edit] = updateBl(db, ops, updateBlSchema.parse({ id: bl, fileNo: "t2600123" }), NOW);
+    expect(getBlDetail(db, ops, bl, NOW).bl).toMatchObject({ fileNo: "26-00123" });
+    expect(db.select().from(auditLog).where(eq(auditLog.id, edit)).get()).toMatchObject({ before: { fileNo: null }, after: { fileNo: "26-00123" } });
+    undoActions(db, ops, { auditIds: [edit] }, later(1));
+    expect(getBlDetail(db, ops, bl, later(1)).bl.fileNo).toBeNull();
   });
 
   it("is offered on the viewer's own recent timeline events only", () => {

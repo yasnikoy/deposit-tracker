@@ -1,6 +1,6 @@
 "use server";
 
-import { markReadSchema } from "@/lib/schemas/notes";
+import { markReadSchema } from "@/lib/schemas/descriptions";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";

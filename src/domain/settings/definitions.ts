@@ -142,7 +142,6 @@ export const settingDefinitions = {
   "notifications.weeklySummaryTime": { group: "notifications", kind: "time", schema: time },
   "notifications.weeklySummaryRecipients": { group: "notifications", kind: "emailList", schema: emailList },
   /** In-app notifications are always on; these choose which events notify. */
-  "notifications.inAppMention": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppCorrection": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppUnprocessedReply": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppWriteOff": { group: "notifications", kind: "boolean", schema: z.boolean() },

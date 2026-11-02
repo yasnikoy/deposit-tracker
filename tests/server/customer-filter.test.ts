@@ -65,7 +65,7 @@ describe("customer filter", () => {
 
   it("hides notifications about B/Ls of other customers, and leaves other notifications", () => {
     for (const blId of [bls.ornek, bls.beta]) {
-      notify(db, { userIds: [ops.id], actorId: null, kind: "MENTION", entityType: "bill_of_lading", entityId: blId, detail: { author: "X", blNo: "B", excerpt: "e" } }, NOW);
+      notify(db, { userIds: [ops.id], actorId: null, kind: "CORRECTION", entityType: "bill_of_lading", entityId: blId, detail: { actor: "X", blNo: "B" } }, NOW);
     }
     notify(db, { userIds: [ops.id], actorId: null, kind: "NEW_AGENCY", entityType: "agency", entityId: 1, detail: { actor: "A", agency: "Yeni" } }, NOW);
     expect(unreadNotificationCount(db, ops)).toBe(3);

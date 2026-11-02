@@ -51,10 +51,12 @@ export type BlRowInput = z.infer<typeof blRowSchema>;
 /** Rows are validated one by one on the server; this only bounds the request. */
 export const createBlsSchema = z.object({ rows: z.array(z.unknown()).min(1).max(MAX_ROWS) });
 
+/** A B/L edit: only the fields sent change. */
 export const updateBlSchema = z.object({
   id: z.number().int().positive(),
-  blNo: blNumberSchema,
-  containers: containerListSchema,
+  blNo: blNumberSchema.optional(),
+  containers: containerListSchema.optional(),
+  fileNo: fileNoSchema.nullable().optional(),
 });
 
 /** Header search; a pasted column of numbers may be long. */

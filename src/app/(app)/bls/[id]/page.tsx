@@ -7,7 +7,6 @@ import { getBlDetail } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
 import { listDeductionTypes, listReplyTypes } from "@/server/lists";
 import { DomainError } from "@/server/errors";
-import { mentionableUsers } from "@/server/notes";
 import { BlDetailScreen } from "./bl-detail-screen";
 import { listCustomers } from "@/server/customers";
 
@@ -41,11 +40,10 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         recordDeduction: can(user, "deduction.record").allowed,
         disputeDeduction: can(user, "deduction.dispute").allowed,
         proposeWriteOff: can(user, "writeOff.propose").allowed,
-        addNote: can(user, "note.add").allowed,
+        editDescription: can(user, "bl.editDescription").allowed,
         setCustomer: can(user, "bl.setCustomer").allowed,
         recordAccounting: can(user, "bl.recordAccounting").allowed,
       }}
-      mentionable={mentionableUsers(getDb())}
       customers={listCustomers(getDb(), user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
       // Users enter real types; the system types come from allocation and write-off approval.
       deductionTypes={listDeductionTypes(getDb(), user)

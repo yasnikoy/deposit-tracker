@@ -82,8 +82,8 @@ const rules = {
   "customer.manage": only("ADMIN"),
   // Only a customer no record names; others are deactivated instead.
   "customer.delete": only("ADMIN"),
-  // Team notes on B/Ls, with @mentions.
-  "note.add": only("OPERATIONS"),
+  // The B/L description ("Açıklama"), a free text accounting and operations keep up to date.
+  "bl.editDescription": only("OPERATIONS", "ACCOUNTANT"),
   // Each user sees and marks read only their own notifications.
   "notification.view": ALL_ROLES,
   "bl.create": only("OPERATIONS"),

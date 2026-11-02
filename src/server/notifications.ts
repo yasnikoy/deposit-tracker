@@ -5,7 +5,7 @@ import type { Role } from "@/domain/roles";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { billsOfLading, notes, notifications, replies, requests, userRoles, users } from "./db/schema";
+import { auditLog, billsOfLading, notifications, replies, requests, userRoles, users } from "./db/schema";
 import { unprocessedReplies } from "./replies";
 import { getSetting } from "./settings";
 import { customerScope } from "./preferences";
@@ -18,7 +18,7 @@ export type NotificationDetail = Record<string, string | number | null>;
  */
 export function notify(
   tx: DbOrTx,
-  input: { userIds: number[]; actorId: number | null; kind: NotificationKind; entityType: string; entityId: number; detail: NotificationDetail },
+  input: { userIds: number[]; actorId: number | null; kind: Exclude<NotificationKind, "MENTION">; entityType: string; entityId: number; detail: NotificationDetail },
   now: Date = new Date(),
 ): void {
   if (!getSetting(NOTIFICATION_SETTINGS[input.kind], {}, tx)) return;
@@ -45,7 +45,8 @@ export function usersWithRole(tx: DbOrTx, role: Role): number[] {
 
 /**
  * Operations users who worked on a B/L: created it, recorded or sent its requests, recorded
- * its replies or wrote notes on it. Without any, every operations user (shared pool).
+ * its replies, or wrote its description (or, before that, notes on it). Without any, every
+ * operations user (shared pool).
  */
 export function operationsOnBl(tx: DbOrTx, blId: number): number[] {
   const bl = tx.select({ createdBy: billsOfLading.createdBy }).from(billsOfLading).where(eq(billsOfLading.id, blId)).get();
@@ -53,7 +54,12 @@ export function operationsOnBl(tx: DbOrTx, blId: number): number[] {
     ...(bl ? [bl.createdBy] : []),
     ...tx.select({ id: requests.createdBy }).from(requests).where(eq(requests.blId, blId)).all().map((r) => r.id),
     ...tx.select({ id: replies.createdBy }).from(replies).where(eq(replies.blId, blId)).all().map((r) => r.id),
-    ...tx.select({ id: notes.authorId }).from(notes).where(eq(notes.blId, blId)).all().map((r) => r.id),
+    ...tx
+      .select({ id: auditLog.actorUserId })
+      .from(auditLog)
+      .where(and(eq(auditLog.entityType, "bill_of_lading"), eq(auditLog.entityId, String(blId)), inArray(auditLog.action, ["bl.description", "note.add"])))
+      .all()
+      .flatMap((r) => (r.id === null ? [] : [r.id])),
   ]);
   const operations = usersWithRole(tx, "OPERATIONS");
   const onBl = operations.filter((id) => involved.has(id));

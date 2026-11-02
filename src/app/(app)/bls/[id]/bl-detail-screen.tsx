@@ -26,8 +26,7 @@ import type { DeductionTypeOption } from "../deduction-dialog";
 import { AllocationsSection } from "./allocations-section";
 import { DeductionsSection } from "./deductions-section";
 import { ReplySection } from "./reply-section";
-import { NotesSection } from "./notes-section";
-import type { MentionableUser } from "../note-editor";
+import { DescriptionEditor } from "../description-editor";
 import type { CustomerOption } from "@/components/customer-combobox";
 import { CustomerField } from "./customer-field";
 import { recordAccountingEntryAction } from "../../accounting/actions";
@@ -63,7 +62,7 @@ export type BlDetailPermissions = {
   recordDeduction: boolean;
   disputeDeduction: boolean;
   proposeWriteOff: boolean;
-  addNote: boolean;
+  editDescription: boolean;
   setCustomer: boolean;
   /** Confirm the accounting entry of a B/L settled with deductions or an offset. */
   recordAccounting: boolean;
@@ -75,7 +74,6 @@ export function BlDetailScreen({
   replyTypes,
   deductionTypes,
   customers,
-  mentionable,
   today,
 }: {
   detail: BlDetail;
@@ -83,7 +81,6 @@ export function BlDetailScreen({
   replyTypes: ReplyTypeOption[];
   deductionTypes: DeductionTypeOption[];
   customers: CustomerOption[];
-  mentionable: MentionableUser[];
   today: string;
 }) {
   const router = useRouter();
@@ -94,7 +91,7 @@ export function BlDetailScreen({
     const onKeyDown = (event: KeyboardEvent) => {
       if (!isPlainKey(event) || isTyping(event.target) || document.querySelector('[role="dialog"]')) return;
       const key = event.key.toLowerCase();
-      const target = key === "r" ? document.getElementById("record-reply") : key === "n" ? document.getElementById("note-body") : null;
+      const target = key === "r" ? document.getElementById("record-reply") : key === "n" ? document.getElementById("bl-description") : null;
       if (!target) return;
       event.preventDefault();
       if (key === "r") target.click();
@@ -255,6 +252,10 @@ export function BlDetailScreen({
           </dl>
         </Section>
 
+        <Section title={t("description.title")}>
+          <DescriptionEditor key={bl.id} blId={bl.id} description={bl.description} editable={can.editDescription && !bl.voidedAt} />
+        </Section>
+
         <Section title={t("forms.sectionTitle")}>
           <FormSection blId={bl.id} form={detail.form} editable={can.forms && !bl.voidedAt} />
         </Section>
@@ -271,10 +272,6 @@ export function BlDetailScreen({
             canLink={can.linkEmail && !bl.voidedAt}
             canRecordDeduction={can.recordDeduction && !bl.voidedAt}
           />
-        </Section>
-
-        <Section title={t("notes.title")}>
-          <NotesSection blId={bl.id} notes={detail.notes} canAdd={can.addNote && !bl.voidedAt} users={mentionable} />
         </Section>
 
         <Section title={t("bls.detail.documents")}>

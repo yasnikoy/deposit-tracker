@@ -21,13 +21,13 @@ import type { BlOverview } from "@/server/bl-overview";
 import { updateBlAction } from "./actions";
 import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
 import { BalanceStrip } from "./balance-strip";
-import { BulkNoteDialog } from "./bulk-note-dialog";
-import type { MentionableUser } from "./note-editor";
+import { BulkDescriptionDialog } from "./bulk-description-dialog";
+import { DescriptionEditor } from "./description-editor";
 
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
 const col = dataTableColumns<BlOverview>();
-/** Inline editing (rule 11: never money or status): the B/L number while still PAID, and containers. */
+/** Inline editing (rule 11: never money or status): the B/L number while still PAID, file number and containers. */
 const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor("blNo", {
     meta: {
@@ -36,7 +36,7 @@ const buildColumns = (canEdit: boolean) => col.columns([
       edit: {
         editable: (b: BlOverview) => canEdit && !b.voidedAt && b.status === "PAID",
         text: (b: BlOverview) => b.blNo,
-        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, blNo: text.trim(), containers: b.containers }),
+        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, blNo: text.trim() }),
       },
     },
     sortFn: "turkishText",
@@ -55,7 +55,15 @@ const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor((b) => b.customerName ?? "", { id: "customer", meta: { label: "bls.customer", filter: "text" }, sortFn: "turkishText" }),
   col.accessor((b) => b.fileNo ?? "", {
     id: "fileNo",
-    meta: { label: "bls.fileNo", filter: "text" },
+    meta: {
+      label: "bls.fileNo",
+      filter: "text",
+      edit: {
+        editable: (b: BlOverview) => canEdit && !b.voidedAt,
+        text: (b: BlOverview) => b.fileNo ?? "",
+        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, fileNo: text }),
+      },
+    },
     sortFn: "turkishText",
     cell: ({ getValue }) => <span className="font-mono text-xs">{getValue()}</span>,
   }),
@@ -104,6 +112,12 @@ const buildColumns = (canEdit: boolean) => col.columns([
     sortFn: "basic",
     cell: ({ getValue }) => getValue() ?? t("common.none"),
   }),
+  col.accessor((b) => b.description ?? "", {
+    id: "description",
+    meta: { label: "description.title", filter: "text" },
+    // The first line in the table; the whole text in the row panel and on the detail.
+    cell: ({ getValue }) => <span className="block max-w-64 truncate text-xs">{getValue().split("\n")[0]}</span>,
+  }),
   col.accessor((b) => b.containers.join(", "), {
     id: "containers",
     meta: {
@@ -112,7 +126,7 @@ const buildColumns = (canEdit: boolean) => col.columns([
       edit: {
         editable: (b: BlOverview) => canEdit && !b.voidedAt,
         text: (b: BlOverview) => b.containers.join(", "),
-        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, blNo: b.blNo, containers: parseContainerList(text) }),
+        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, containers: parseContainerList(text) }),
       },
     },
   }),
@@ -127,8 +141,7 @@ export function AllBlsScreen({
   status,
   canEdit,
   canVoid,
-  canAddNote,
-  mentionable,
+  canEditDescription,
 }: {
   bls: BlOverview[];
   layout: TableLayout | null;
@@ -136,8 +149,7 @@ export function AllBlsScreen({
   status: BlOverview["status"] | null;
   canEdit: boolean;
   canVoid: boolean;
-  canAddNote: boolean;
-  mentionable: MentionableUser[];
+  canEditDescription: boolean;
 }) {
   const router = useRouter();
   const [showVoided, setShowVoided] = useState(false);
@@ -146,7 +158,7 @@ export function AllBlsScreen({
   const [order, setOrder] = useState<string[]>([]);
   const [dialog, setDialog] = useState<Dialog>(null);
   const columns = useMemo(() => buildColumns(canEdit), [canEdit]);
-  const [noteFor, setNoteFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
+  const [describeFor, setDescribeFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
   const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
   const open = bls.find((b) => b.id === openId) ?? null;
   const done = () => {
@@ -169,22 +181,22 @@ export function AllBlsScreen({
         }}
         rowClassName={(b) => (b.voidedAt ? "text-muted-foreground line-through" : undefined)}
         shortcuts={
-          canAddNote
+          canEditDescription
             ? {
                 n: (rows, clear) => {
                   const active = rows.filter((b) => !b.voidedAt);
-                  if (active.length > 0) setNoteFor({ bls: active, clear });
+                  if (active.length > 0) setDescribeFor({ bls: active, clear });
                 },
               }
             : undefined
         }
         bulkActions={
-          canAddNote
+          canEditDescription
             ? (selected, clear) => {
                 const active = selected.filter((b) => !b.voidedAt);
                 return (
-                  <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setNoteFor({ bls: active, clear })}>
-                    {t("notes.bulk")}
+                  <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setDescribeFor({ bls: active, clear })}>
+                    {t("description.bulk")}
                   </Button>
                 );
               }
@@ -197,14 +209,13 @@ export function AllBlsScreen({
           </label>
         }
       />
-      {noteFor && (
-        <BulkNoteDialog
-          bls={noteFor.bls}
-          users={mentionable}
-          onClose={() => setNoteFor(null)}
+      {describeFor && (
+        <BulkDescriptionDialog
+          bls={describeFor.bls}
+          onClose={() => setDescribeFor(null)}
           onDone={() => {
-            noteFor.clear();
-            setNoteFor(null);
+            describeFor.clear();
+            setDescribeFor(null);
             router.refresh();
           }}
         />
@@ -229,6 +240,10 @@ export function AllBlsScreen({
               <dt className="text-muted-foreground">{t("bls.containers")}</dt>
               <dd className="font-mono text-xs">{open.containers.length ? open.containers.join(", ") : t("bls.noContainers")}</dd>
             </dl>
+            <section className="flex flex-col gap-1">
+              <h3 className="text-sm font-medium">{t("description.title")}</h3>
+              <DescriptionEditor key={open.id} id="panel-description" blId={open.id} description={open.description} editable={canEditDescription && !open.voidedAt} />
+            </section>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm">
                 <Link href={`/bls/${open.id}`}>{t("bls.openDetail")}</Link>

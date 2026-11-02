@@ -1,5 +1,5 @@
 import "server-only";
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
@@ -39,7 +39,7 @@ import { currentBlForm } from "./forms";
 import { replyHistory } from "./reply-history";
 import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
-import { blNotes, type BlNote } from "./notes";
+import { DESCRIPTION_AUDIT_ACTION } from "./bl-description";
 import { blPayments, missingOpeningEvidence, openingEvidences } from "./payments";
 import { activeOpeningEntries } from "./ledger";
 import { getSetting } from "./settings";
@@ -57,6 +57,8 @@ export type BlOverview = BlBalance & {
   customerName: string | null;
   /** Our internal file number (26-12345), when known. */
   fileNo: string | null;
+  /** Free text kept by accounting and operations ("Açıklama"). */
+  description: string | null;
   /** Shown status: DUE is derived on read, never stored. */
   status: BlStatus;
   paidAt: string;
@@ -117,6 +119,7 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
       customerId: row.customerId,
       customerName: row.customerName,
       fileNo: row.fileNo,
+      description: row.description,
       status,
       paidAt: row.paidAt,
       currency: row.currency,
@@ -300,7 +303,6 @@ export type BlDetail = {
   documents: BlDocument[];
   emails: BlEmail[];
   replies: BlReply[];
-  notes: BlNote[];
   timeline: TimelineEvent[];
   /** Request-timing overrides of this B/L, and what each falls back to (agency, then global). */
   overrides: { values: AgencyOverrides; inherited: Record<OverridableSettingKey, number> };
@@ -426,7 +428,8 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     .select({ id: auditLog.id, at: auditLog.at, action: auditLog.action, actorName: users.displayName, reason: auditLog.reason, after: auditLog.after, undoOf: auditLog.undoOf })
     .from(auditLog)
     .leftJoin(users, eq(users.id, auditLog.actorUserId))
-    .where(or(...entityConditions))
+    // Description edits are audited but are not timeline events.
+    .where(and(or(...entityConditions), ne(auditLog.action, DESCRIPTION_AUDIT_ACTION)))
     .orderBy(desc(auditLog.at), desc(auditLog.id))
     .all()
     .map(({ after, undoOf, ...event }) => {
@@ -486,7 +489,6 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     documents: blDocuments,
     emails: blEmails(db, id),
     replies: blReplies(db, id),
-    notes: blNotes(db, id),
     timeline,
     overrides,
     deductionTarget: deductionTarget(db, found.bl),
