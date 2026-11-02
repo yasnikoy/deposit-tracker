@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — Architecture
 
-Oct 20, 2026 · updated Nov 1, 2026 (see Change log)
+Oct 20, 2026 · updated Nov 2, 2026 (see Change log)
 
 ## Purpose and scope
 
@@ -488,6 +488,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 **How versions and this log work.** A version number belongs to a published release, never to a commit. Changes go under **Unreleased** as they are committed; the version in `package.json` stays as it is. Building a release turns Unreleased into one entry titled with the date and `vX.Y.Z`, raises the version, tags the commit and publishes (RUNBOOK → Publishing a release). Semantic Versioning, before 1.0: a new minor version (0.10.0 → 0.11.0) for new features or database migrations, a patch (0.10.0 → 0.10.1) for fixes only. A change that needs manual steps on the office PC raises the major version, which the in-app update never installs by itself (Updates).
 
 **Unreleased**
+
+- Nothing yet.
+
+**Nov 2, 2026 — opening balances join existing B/Ls, B/L description replaces notes, one portal request, UI review and docs/UI.md, v0.13.0**
 
 - `docs/UI.md` documents the interface as it now stands: navigation map, page patterns, shared components, status colours, amount/date/empty-value rules, keyboard and wording, with a checklist for UI changes; CLAUDE.md makes it binding. ARCHITECTURE → Screens updated to the current screens. Remaining status chips follow the one scheme: write-off *Onay bekliyor* and an open deduction in amber, approved/rejected write-offs grey, the missing-receipt badge on Talepler uses the shared amber style.
 - UI review, third round: *Muhasebe* has three tabs instead of six (*Ödemeler* = new payment, review queue and payment list; *İadeler* = new refund and refund list; *Muhasebe kaydı*); older `?tab=` links still open the right one. *Talepler* groups share fixed column widths, so the agency tables line up, and a request shows as "2. iade talebi" / "1. döküm talebi" instead of a badge plus a number. Status chips use one scheme everywhere: outline for the normal course, amber where someone has to act (*Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*), red for a problem (*İtirazlı*, locked user, *Bilgi eksik*), grey once closed or inactive (*Tahsil edildi*, *Pasif*). *Uygulama ayarları* shows one section at a time from tabs; unsaved changes survive switching. All B/Ls hides *Beklenen*, *Talep sayısı* and *Son yanıt* by default (shown in the row panel; the CSV export follows the visible columns). B/L detail: *B/L'yi iptal et* is shown in red, and the read-only B/L setting exceptions card appears only to admins or when an exception is set. Wording: page titles match the menu (*Talepler*, *Yanıtlar*); the agency send mode reads *B/L başına e-posta* / *Toplu e-posta* as on Talepler; *Kesintiler ve silme* with *Kalanı silmeyi öner*; optional fields carry a grey "(isteğe bağlı)" after the label; the opening-balance note is *Kaynak*; the bulk B/L button reads "B/L numarası girilen satırları kaydet (n)", and a receipt's B/L candidate is not repeated as a chip once it fills the field; Kişisel ayarlar points to Ayarlar → Müşteriler; an empty customer list tells non-admins that the admin adds customers; the search placeholder fits; the opening-balance intro is one line, with its details next to the fields; empty report cells show "—".
