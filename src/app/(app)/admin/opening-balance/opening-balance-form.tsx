@@ -10,6 +10,7 @@ import { AgencyCombobox } from "@/components/agency-combobox";
 import { CustomerCombobox } from "@/components/customer-combobox";
 import { FileDrop, uploadErrorText, type UploadResponse } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { parseContainerList } from "@/domain/containers";
@@ -205,196 +206,200 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={onSubmit} noValidate className="flex max-w-3xl flex-col gap-4">
-        <fieldset className="flex gap-4">
-          <legend className="mb-1 text-sm font-medium">{t("payments.kind")}</legend>
-          {PAYMENT_KINDS.map((k) => (
-            <label key={k} className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                name="opening-kind"
-                value={k}
-                checked={kind === k}
-                onChange={() => {
-                  form.setValue("kind", k);
-                  // The evidence type depends on the kind.
-                  setReceipt(null);
-                  setQueue([]);
-                }}
-              />
-              {t(`payments.kinds.${k}`)}
-            </label>
-          ))}
-        </fieldset>
+      <Card className="max-w-3xl">
+        <CardContent>
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+            <fieldset className="flex gap-4">
+              <legend className="mb-1 text-sm font-medium">{t("payments.kind")}</legend>
+              {PAYMENT_KINDS.map((k) => (
+                <label key={k} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="opening-kind"
+                    value={k}
+                    checked={kind === k}
+                    onChange={() => {
+                      form.setValue("kind", k);
+                      // The evidence type depends on the kind.
+                      setReceipt(null);
+                      setQueue([]);
+                    }}
+                  />
+                  {t(`payments.kinds.${k}`)}
+                </label>
+              ))}
+            </fieldset>
 
-        <div className="flex flex-col gap-1.5">
-          <Label>
-            {t(`openingBalances.receipt.${kind}`)} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
-          </Label>
-          {receipt && (
-            <div className="flex items-center gap-2">
-              <a href={`/api/files/${receipt.id}`} target="_blank" rel="noreferrer" className="underline">
-                {receipt.originalName}
-              </a>
-              <Button type="button" variant="ghost" size="sm" onClick={() => load(null)}>
-                {t("openingBalances.withoutReceipt")}
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                {t(`openingBalances.receipt.${kind}`)} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
+              </Label>
+              {receipt && (
+                <div className="flex items-center gap-2">
+                  <a href={`/api/files/${receipt.id}`} target="_blank" rel="noreferrer" className="underline">
+                    {receipt.originalName}
+                  </a>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => load(null)}>
+                    {t("openingBalances.withoutReceipt")}
+                  </Button>
+                </div>
+              )}
+              {receipt && !receipt.read && kind === "BANK" && <p className="text-muted-foreground text-xs">{t("payments.parserUnknown")}</p>}
+              <FileDrop kind={kind === "BANK" ? "RECEIPT" : "INVOICE"} multiple compact={!!receipt} label={t("openingBalances.dropReceipts")} onUploaded={onUploaded} />
+              {queue.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-muted-foreground text-xs">{t("openingBalances.queue", { count: queue.length })}</span>
+                  <ul className="flex flex-wrap gap-2">
+                    {queue.map((item) => (
+                      <li key={item.id} className="flex items-center rounded border text-xs">
+                        <button type="button" className="px-2 py-1 hover:underline" onClick={() => pick(item)}>
+                          {item.originalName}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={t("openingBalances.removeFromQueue", { name: item.originalName })}
+                          className="text-muted-foreground hover:text-foreground px-1"
+                          onClick={() => setQueue((q) => q.filter((r) => r.id !== item.id))}
+                        >
+                          <X className="size-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-agency">{t("payments.agency")}</Label>
+                <AgencyCombobox
+                  id="opening-agency"
+                  agencies={refs.agencies}
+                  value={agencyId}
+                  onChange={(id) => form.setValue("agencyId", id, { shouldValidate: form.formState.isSubmitted })}
+                  newName={newAgencyName}
+                  onNewName={(name) => form.setValue("newAgencyName", name, { shouldValidate: form.formState.isSubmitted })}
+                  placeholder={t("payments.agencySearch")}
+                  invalid={!!errors.agencyId}
+                />
+                {newAgencyName && !isKnownAgency(newAgencyName) && <p className="text-muted-foreground text-xs">{t("openingBalances.newAgencyHelp")}</p>}
+                {message(errors.agencyId?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-customer">
+                  {t("openingBalances.customer")} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
+                </Label>
+                <CustomerCombobox
+                  id="opening-customer"
+                  disabled={joining}
+                  customers={customers}
+                  value={customerId}
+                  onChange={(id) => form.setValue("customerId", id)}
+                  newName={newCustomerName}
+                  onNewName={(name) => form.setValue("newCustomerName", name)}
+                  placeholder={t("openingBalances.customerSearch")}
+                  invalid={!!errors.customerId}
+                />
+                {newCustomerName && !customers.some((c) => c.name.toLocaleLowerCase("tr-TR") === newCustomerName.toLocaleLowerCase("tr-TR")) && (
+                  <p className="text-muted-foreground text-xs">{t("openingBalances.newCustomerHelp")}</p>
+                )}
+                {message(errors.customerId?.message)}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[1fr_8rem_10rem] gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-amount">{t("openingBalances.amount")}</Label>
+                <Input id="opening-amount" inputMode="decimal" placeholder="3.000,00" className="tabular" {...form.register("amountText")} />
+                {amount !== null && <span className="text-muted-foreground text-xs">{formatMoney(amount, currency)}</span>}
+                {message(errors.amountText?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-currency">{t("payments.currency")}</Label>
+                <select id="opening-currency" className="border-input bg-background h-9 rounded-md border px-2" {...form.register("currency")}>
+                  {activeCurrencies.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code}
+                    </option>
+                  ))}
+                </select>
+                {message(errors.currency?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-paid-at">{t("payments.paidAt")}</Label>
+                <Input id="opening-paid-at" type="date" max={refs.today} {...form.register("paidAt")} />
+                {message(errors.paidAt?.message)}
+              </div>
+            </div>
+
+            {/* Tab order follows daily use: B/L number and request history first, then file number and containers. */}
+            <div className="grid grid-cols-[14rem_14rem_14rem] gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-bl-no">{t("bls.blNo")}</Label>
+                <Input id="opening-bl-no" className="font-mono uppercase" {...form.register("blNo")} />
+                {message(errors.blNo?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-attempts">{t("openingBalances.pastAttempts")}</Label>
+                <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" disabled={joining} {...form.register("pastAttempts")} />
+                {message(errors.pastAttempts?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-last-request">{t("openingBalances.lastRequestOn")}</Label>
+                <Input id="opening-last-request" type="date" max={refs.today} disabled={joining || pastAttempts === "0"} {...form.register("lastRequestOn")} />
+                {message(errors.lastRequestOn?.message)}
+              </div>
+            </div>
+            <div className="-mt-2 flex flex-col gap-1">
+              {candidates.length > 1 && (
+                <p className="text-xs">
+                  {t("openingBalances.candidates")}{" "}
+                  {candidates.map((c) => (
+                    <button key={c} type="button" className={cn("mr-1 font-mono underline")} onClick={() => form.setValue("blNo", c)}>
+                      {c}
+                    </button>
+                  ))}
+                </p>
+              )}
+              <ReceiptMismatchHint blNo={blNo} candidates={candidates} />
+              {blWarnings.map((w) => (
+                <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
+                  {w}
+                </p>
+              ))}
+              <BlJoinNotice preview={joinPreview} amountMinor={amount}>
+                <p>{t("blJoin.keepsHistory")}</p>
+              </BlJoinNotice>
+              {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
+            </div>
+
+            <div className="grid grid-cols-[14rem_1fr] gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
+                <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
+                {message(errors.fileNo?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="opening-containers">{t("bls.containers")}</Label>
+                <Input id="opening-containers" className="font-mono uppercase" placeholder="MSCU1234565, CSQU3054383" disabled={joining} {...form.register("containersText")} />
+                {message(errors.containersText?.message)}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="opening-note">{t("openingBalances.note")}</Label>
+              <Input id="opening-note" placeholder={t("openingBalances.notePlaceholder")} {...form.register("note")} />
+            </div>
+
+            <div className="flex justify-end">
+              <Button type="submit" disabled={form.formState.isSubmitting}>
+                {queue.length > 0 ? t("openingBalances.saveAndNext") : t("openingBalances.save")}
               </Button>
             </div>
-          )}
-          {receipt && !receipt.read && kind === "BANK" && <p className="text-muted-foreground text-xs">{t("payments.parserUnknown")}</p>}
-          <FileDrop kind={kind === "BANK" ? "RECEIPT" : "INVOICE"} multiple compact={!!receipt} label={t("openingBalances.dropReceipts")} onUploaded={onUploaded} />
-          {queue.length > 0 && (
-            <div className="flex flex-col gap-1">
-              <span className="text-muted-foreground text-xs">{t("openingBalances.queue", { count: queue.length })}</span>
-              <ul className="flex flex-wrap gap-2">
-                {queue.map((item) => (
-                  <li key={item.id} className="flex items-center rounded border text-xs">
-                    <button type="button" className="px-2 py-1 hover:underline" onClick={() => pick(item)}>
-                      {item.originalName}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={t("openingBalances.removeFromQueue", { name: item.originalName })}
-                      className="text-muted-foreground hover:text-foreground px-1"
-                      onClick={() => setQueue((q) => q.filter((r) => r.id !== item.id))}
-                    >
-                      <X className="size-3" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-agency">{t("payments.agency")}</Label>
-            <AgencyCombobox
-              id="opening-agency"
-              agencies={refs.agencies}
-              value={agencyId}
-              onChange={(id) => form.setValue("agencyId", id, { shouldValidate: form.formState.isSubmitted })}
-              newName={newAgencyName}
-              onNewName={(name) => form.setValue("newAgencyName", name, { shouldValidate: form.formState.isSubmitted })}
-              placeholder={t("payments.agencySearch")}
-              invalid={!!errors.agencyId}
-            />
-            {newAgencyName && !isKnownAgency(newAgencyName) && <p className="text-muted-foreground text-xs">{t("openingBalances.newAgencyHelp")}</p>}
-            {message(errors.agencyId?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-customer">
-              {t("openingBalances.customer")} <span className="text-muted-foreground font-normal">{t("payments.evidenceOptional")}</span>
-            </Label>
-            <CustomerCombobox
-              id="opening-customer"
-              disabled={joining}
-              customers={customers}
-              value={customerId}
-              onChange={(id) => form.setValue("customerId", id)}
-              newName={newCustomerName}
-              onNewName={(name) => form.setValue("newCustomerName", name)}
-              placeholder={t("openingBalances.customerSearch")}
-              invalid={!!errors.customerId}
-            />
-            {newCustomerName && !customers.some((c) => c.name.toLocaleLowerCase("tr-TR") === newCustomerName.toLocaleLowerCase("tr-TR")) && (
-              <p className="text-muted-foreground text-xs">{t("openingBalances.newCustomerHelp")}</p>
-            )}
-            {message(errors.customerId?.message)}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-[1fr_8rem_10rem] gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-amount">{t("openingBalances.amount")}</Label>
-            <Input id="opening-amount" inputMode="decimal" placeholder="3.000,00" className="tabular" {...form.register("amountText")} />
-            {amount !== null && <span className="text-muted-foreground text-xs">{formatMoney(amount, currency)}</span>}
-            {message(errors.amountText?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-currency">{t("payments.currency")}</Label>
-            <select id="opening-currency" className="border-input bg-background h-9 rounded-md border px-2" {...form.register("currency")}>
-              {activeCurrencies.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.code}
-                </option>
-              ))}
-            </select>
-            {message(errors.currency?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-paid-at">{t("payments.paidAt")}</Label>
-            <Input id="opening-paid-at" type="date" max={refs.today} {...form.register("paidAt")} />
-            {message(errors.paidAt?.message)}
-          </div>
-        </div>
-
-        {/* Tab order follows daily use: B/L number and request history first, then file number and containers. */}
-        <div className="grid grid-cols-[14rem_14rem_14rem] gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-bl-no">{t("bls.blNo")}</Label>
-            <Input id="opening-bl-no" className="font-mono uppercase" {...form.register("blNo")} />
-            {message(errors.blNo?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-attempts">{t("openingBalances.pastAttempts")}</Label>
-            <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" disabled={joining} {...form.register("pastAttempts")} />
-            {message(errors.pastAttempts?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-last-request">{t("openingBalances.lastRequestOn")}</Label>
-            <Input id="opening-last-request" type="date" max={refs.today} disabled={joining || pastAttempts === "0"} {...form.register("lastRequestOn")} />
-            {message(errors.lastRequestOn?.message)}
-          </div>
-        </div>
-        <div className="-mt-2 flex flex-col gap-1">
-          {candidates.length > 1 && (
-            <p className="text-xs">
-              {t("openingBalances.candidates")}{" "}
-              {candidates.map((c) => (
-                <button key={c} type="button" className={cn("mr-1 font-mono underline")} onClick={() => form.setValue("blNo", c)}>
-                  {c}
-                </button>
-              ))}
-            </p>
-          )}
-          <ReceiptMismatchHint blNo={blNo} candidates={candidates} />
-          {blWarnings.map((w) => (
-            <p key={w} className="text-xs text-amber-700 dark:text-amber-400">
-              {w}
-            </p>
-          ))}
-          <BlJoinNotice preview={joinPreview} amountMinor={amount}>
-            <p>{t("blJoin.keepsHistory")}</p>
-          </BlJoinNotice>
-          {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
-        </div>
-
-        <div className="grid grid-cols-[14rem_1fr] gap-3">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
-            <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
-            {message(errors.fileNo?.message)}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="opening-containers">{t("bls.containers")}</Label>
-            <Input id="opening-containers" className="font-mono uppercase" placeholder="MSCU1234565, CSQU3054383" disabled={joining} {...form.register("containersText")} />
-            {message(errors.containersText?.message)}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="opening-note">{t("openingBalances.note")}</Label>
-          <Input id="opening-note" placeholder={t("openingBalances.notePlaceholder")} {...form.register("note")} />
-        </div>
-
-        <div className="flex justify-end">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
-            {queue.length > 0 ? t("openingBalances.saveAndNext") : t("openingBalances.save")}
-          </Button>
-        </div>
-      </form>
+          </form>
+        </CardContent>
+      </Card>
       {confirmations.dialog}
 
       {created.length > 0 && (

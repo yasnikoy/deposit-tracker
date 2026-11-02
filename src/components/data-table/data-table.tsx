@@ -67,6 +67,10 @@ export type DataTableProps<TData extends RowData> = {
   /** Letter shortcuts of the screen (lower-case key), given the selected rows, or the active row when none is selected. */
   shortcuts?: Record<string, (rows: TData[], clearSelection: () => void) => void>;
   rowClassName?: (row: TData) => string | undefined;
+  /** Shown instead of "no results" when the list itself is empty (not merely filtered to nothing). */
+  emptyText?: string;
+  /** Columns hidden until the user shows them ("Sütunlar"), e.g. rarely needed counts on a wide table. */
+  hiddenByDefault?: string[];
 };
 
 export function DataTable<TData extends RowData>({
@@ -81,8 +85,11 @@ export function DataTable<TData extends RowData>({
   toolbar,
   shortcuts,
   rowClassName,
+  emptyText,
+  hiddenByDefault,
 }: DataTableProps<TData>) {
-  const start = initialLayout ?? DEFAULT_TABLE_LAYOUT;
+  const defaultVisibility: ColumnVisibilityState = Object.fromEntries((hiddenByDefault ?? []).map((id) => [id, false]));
+  const start = initialLayout ?? { ...DEFAULT_TABLE_LAYOUT, columnVisibility: defaultVisibility };
   const [sorting, setSorting] = useState<SortingState>(start.sorting);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(initialFilters ?? start.columnFilters);
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(start.columnVisibility);
@@ -143,7 +150,7 @@ export function DataTable<TData extends RowData>({
   const resetLayout = () => {
     setSorting(DEFAULT_TABLE_LAYOUT.sorting);
     setColumnFilters(DEFAULT_TABLE_LAYOUT.columnFilters);
-    setColumnVisibility(DEFAULT_TABLE_LAYOUT.columnVisibility);
+    setColumnVisibility(defaultVisibility);
     setColumnOrder(DEFAULT_TABLE_LAYOUT.columnOrder);
     setDensity(DEFAULT_TABLE_LAYOUT.density);
     setShowFilters(DEFAULT_TABLE_LAYOUT.showFilters);
@@ -523,7 +530,7 @@ export function DataTable<TData extends RowData>({
             {rows.length === 0 && (
               <tr>
                 <td colSpan={table.getVisibleLeafColumns().length} className="text-muted-foreground px-3 py-6 text-center">
-                  {t("table.noResults")}
+                  {data.length === 0 && emptyText ? emptyText : t("table.noResults")}
                 </td>
               </tr>
             )}

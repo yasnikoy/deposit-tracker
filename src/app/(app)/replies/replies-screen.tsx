@@ -200,8 +200,8 @@ export function RepliesScreen({
                 )
               : undefined
           }
+          emptyText={t(`replies.empty.${tab}`)}
         />
-        {rows.length === 0 && <p className="text-muted-foreground mt-2">{t(`replies.empty.${tab}`)}</p>}
       </div>
       {openId !== null && (
         <DetailDialog

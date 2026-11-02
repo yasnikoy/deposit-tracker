@@ -6,9 +6,9 @@ import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { listCurrencies } from "@/server/lists";
-import { listOwnPayments, listReceiptQueue } from "@/server/payments";
+import { listPayments, listReceiptQueue } from "@/server/payments";
 import { getTableLayout } from "@/server/preferences";
-import { listOwnRefunds } from "@/server/refunds";
+import { listRefunds } from "@/server/refunds";
 import { AccountingScreen, type AccountingTab } from "./accounting-screen";
 import { listCustomers } from "@/server/customers";
 import { listAwaitingAccounting } from "@/server/bl-overview";
@@ -39,14 +39,15 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
           currencies: listCurrencies(db, user),
           today: istanbulToday(),
         }}
-        payments={listOwnPayments(db, user)}
-        refunds={listOwnRefunds(db, user)}
+        payments={listPayments(db, user)}
+        refunds={listRefunds(db, user)}
         queue={listReceiptQueue(db, user)}
         layout={getTableLayout(db, user.id, "my-payments")}
         refundsLayout={getTableLayout(db, user.id, "my-refunds")}
         canCreateBl={can(user, "bl.create").allowed}
         entries={listAwaitingAccounting(db, user)}
         entriesLayout={getTableLayout(db, user.id, "accounting-entries")}
+        currentUserId={user.id}
       />
     </>
   );

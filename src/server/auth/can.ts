@@ -45,14 +45,14 @@ const rules = {
   "document.view": ALL_ROLES,
   // Money enters through the accountant role; corrections only on own records (rule 7).
   "payment.create": only("ACCOUNTANT"),
-  "payment.viewOwn": only("ACCOUNTANT"),
+  "payment.list": only("ACCOUNTANT"),
   "payment.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
   "payment.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],
   // A missing receipt or invoice may follow later; it adds evidence and changes no amount.
   "payment.attachEvidence": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "OPERATIONS" }],
   // Incoming refunds and offsets are money records too (rule 7).
   "refund.create": only("ACCOUNTANT"),
-  "refund.viewOwn": only("ACCOUNTANT"),
+  "refund.list": only("ACCOUNTANT"),
   "refund.correct": [{ role: "ACCOUNTANT", when: ownRecord }],
   "refund.attachEvidence": [{ role: "ACCOUNTANT", when: ownRecord }],
   "refund.void": [{ role: "ACCOUNTANT", when: ownRecord }, { role: "ADMIN" }],

@@ -11,7 +11,7 @@ import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
 import { recordStatementDeductions } from "@/server/deductions";
 import { createRefundSchema } from "@/lib/schemas/refunds";
-import { attachRefundEvidence, correctRefund, createRefund, getRefund, listOwnRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
+import { attachRefundEvidence, correctRefund, createRefund, getRefund, listRefunds, listRefundsToAllocate, voidRefund } from "@/server/refunds";
 
 import { createCustomer, updateCustomer } from "@/server/customers";
 import { saveCustomerFilter } from "@/server/preferences";
@@ -75,7 +75,7 @@ describe("refunds", () => {
     expect(() => createRefund(db, acc, { ...input, valueDate: "2026-10-23", evidenceDocumentId: again.id }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "payments.errors.futureDate" }),
     );
-    expect(listOwnRefunds(db, acc)).toEqual([expect.objectContaining({ status: "OPEN", remainderMinor: usd(100) })]);
+    expect(listRefunds(db, acc)).toEqual([expect.objectContaining({ status: "OPEN", remainderMinor: usd(100) })]);
   });
 
   it("can be saved without a receipt, which only its accountant attaches later, once", async () => {

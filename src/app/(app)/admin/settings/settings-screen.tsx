@@ -39,7 +39,7 @@ const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationK
 
 export function SettingsScreen({ settings, standingDocuments }: { settings: SettingListItem[]; standingDocuments: StandingDocument[] }) {
   return (
-    <div className="flex gap-6">
+    <div className="flex max-w-4xl flex-col gap-4">
       <SectionNav
         label={t("settings.contents")}
         sections={[
@@ -48,7 +48,7 @@ export function SettingsScreen({ settings, standingDocuments }: { settings: Sett
           { id: "standing", label: t("standing.title") },
         ]}
       />
-      <div className="flex max-w-4xl flex-1 flex-col gap-4">
+      <div className="flex flex-col gap-4">
         {SETTING_GROUPS.map((group) => {
           const items = settings.filter((s) => settingDefinitions[s.key].group === group);
           // Remount after a save so the form starts from the stored values.
@@ -88,7 +88,7 @@ function GroupForm({ group, items }: { group: SettingGroup; items: SettingListIt
   };
 
   return (
-    <Card id={group} className="scroll-mt-16">
+    <Card id={group} className="scroll-mt-28">
       <CardHeader>
         <CardTitle>{t(`settings.groups.${group}`)}</CardTitle>
       </CardHeader>

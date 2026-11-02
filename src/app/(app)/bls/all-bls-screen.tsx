@@ -116,7 +116,11 @@ const buildColumns = (canEdit: boolean) => col.columns([
     id: "description",
     meta: { label: "description.title", filter: "text" },
     // The first line in the table; the whole text in the row panel and on the detail.
-    cell: ({ getValue }) => <span className="block max-w-64 truncate text-xs">{getValue().split("\n")[0]}</span>,
+    cell: ({ getValue }) => (
+      <span className="block max-w-64 truncate text-xs" title={getValue() || undefined}>
+        {getValue().split("\n")[0]}
+      </span>
+    ),
   }),
   col.accessor((b) => b.containers.join(", "), {
     id: "containers",

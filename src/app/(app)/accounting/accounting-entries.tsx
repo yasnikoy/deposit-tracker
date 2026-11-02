@@ -93,8 +93,8 @@ export function AccountingEntries({ bls, layout }: { bls: BlOverview[]; layout: 
             {t("payments.accountingEntries.recordSelected")}
           </Button>
         )}
+        emptyText={t("payments.accountingEntries.empty")}
       />
-      {bls.length === 0 && <p className="text-muted-foreground">{t("payments.accountingEntries.empty")}</p>}
       {confirm && (
         <ConfirmDialog
           open

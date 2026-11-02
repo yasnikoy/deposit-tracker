@@ -44,7 +44,8 @@ export default async function ReportsPage() {
 
   return (
     <>
-      <div className="flex items-center gap-4">
+      {/* Page-level actions sit at the right end of the title row (list screens: of the table toolbar). */}
+      <div className="flex items-center justify-between gap-4">
         <h1 className="text-lg font-semibold">{t("reports.title")}</h1>
         {can(user, "report.sendEmail").allowed && (
           <ReportEmailButton
@@ -61,7 +62,7 @@ export default async function ReportsPage() {
         {aging.rows.length === 0 ? (
           <p className="text-muted-foreground">{t("reports.aging.empty")}</p>
         ) : (
-          <table className="tabular w-full max-w-5xl text-sm">
+          <table className="tabular w-full text-sm">
             <thead className="text-muted-foreground text-left text-xs">
               <tr className="border-b">
                 <th className={`${cell} font-normal`}>{t("bls.agency")}</th>

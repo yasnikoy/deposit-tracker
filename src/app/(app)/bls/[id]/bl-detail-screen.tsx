@@ -174,6 +174,7 @@ export function BlDetailScreen({
       <BalanceStrip bl={bl} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {/* Work and money first; documents, admin-only overrides and the long timeline last. */}
         <Section title={t("bls.summary")}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
             <dt className="text-muted-foreground">{t("bls.customer")}</dt>
@@ -274,83 +275,6 @@ export function BlDetailScreen({
           />
         </Section>
 
-        <Section title={t("bls.detail.documents")}>
-          {documents.length === 0 ? (
-            <p className="text-muted-foreground">{t("bls.detail.noDocuments")}</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {documents.map((doc) => (
-                <li key={doc.id} className={cn("flex items-center gap-2", doc.withdrawn && "text-muted-foreground line-through")} title={doc.withdrawn ? t("undo.undone") : undefined}>
-                  <a href={`/api/files/${doc.id}`} target="_blank" rel="noreferrer" className="underline">
-                    {doc.originalName}
-                  </a>
-                  <span className="text-muted-foreground text-xs">
-                    {formatTimestamp(doc.uploadedAt)} · {doc.uploadedByName}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Section>
-
-        <Section title={t("bls.detail.timeline")}>
-          {timeline.length === 0 ? (
-            <p className="text-muted-foreground">{t("bls.detail.noTimeline")}</p>
-          ) : (
-            <ol className="flex flex-col gap-2 border-l pl-4">
-              {timeline.map((event) => (
-                <li key={event.id} className={cn(event.undone && "text-muted-foreground")}>
-                  <div className="flex items-center gap-2">
-                    <span className={cn(event.undone && "line-through")}>
-                      {event.undoOfAction ? t("undo.timeline", { action: actionLabel(event.undoOfAction) }) : actionLabel(event.action)}
-                    </span>
-                    {event.undoable && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={async () => {
-                          const result = await undoAction({ auditIds: [event.id] });
-                          if (!result.ok) return void toast.error(t(result.error, result.params));
-                          toast.success(t("undo.done"));
-                          router.refresh();
-                        }}
-                      >
-                        <Undo2 className="size-3.5" /> {t("undo.action")}
-                      </Button>
-                    )}
-                  </div>
-                  <div className="text-muted-foreground text-xs">
-                    {formatTimestamp(event.at)} · {event.actorName ?? t("timeline.system")}
-                  </div>
-                  {event.reason && <div className="text-xs italic">{event.reason}</div>}
-                  {event.notes.map((note) => (
-                    <div key={note} className="text-xs text-amber-700 dark:text-amber-400">
-                      {t(`timeline.notes.${note}`)}
-                    </div>
-                  ))}
-                </li>
-              ))}
-            </ol>
-          )}
-        </Section>
-
-        <section className="rounded-md border p-4">
-          <OverridesEditor
-            idPrefix="bl-override"
-            title={t("overrides.blTitle")}
-            hint={t("overrides.blHint")}
-            values={detail.overrides.values}
-            inherited={detail.overrides.inherited}
-            inheritedLabel={(value) => t("overrides.inherited", { value })}
-            editable={can.overrides && !bl.voidedAt}
-            hypothesisOf={(overrides) => ({ bl: { blId: bl.id, overrides } })}
-            onSave={(overrides, reason) => updateBlOverridesAction({ blId: bl.id, overrides, reason })}
-            saveLabel={t("overrides.save")}
-            savedMessage={t("overrides.saved")}
-          />
-        </section>
-
         <Section title={t("deductions.sectionTitle")}>
           <DeductionsSection
             detail={detail}
@@ -396,6 +320,83 @@ export function BlDetailScreen({
               ))}
             </tbody>
           </table>
+        </Section>
+
+        <Section title={t("bls.detail.documents")}>
+          {documents.length === 0 ? (
+            <p className="text-muted-foreground">{t("bls.detail.noDocuments")}</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {documents.map((doc) => (
+                <li key={doc.id} className={cn("flex items-center gap-2", doc.withdrawn && "text-muted-foreground line-through")} title={doc.withdrawn ? t("undo.undone") : undefined}>
+                  <a href={`/api/files/${doc.id}`} target="_blank" rel="noreferrer" className="underline">
+                    {doc.originalName}
+                  </a>
+                  <span className="text-muted-foreground text-xs">
+                    {formatTimestamp(doc.uploadedAt)} · {doc.uploadedByName}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Section>
+
+        <section className="rounded-md border p-4">
+          <OverridesEditor
+            idPrefix="bl-override"
+            title={t("overrides.blTitle")}
+            hint={t("overrides.blHint")}
+            values={detail.overrides.values}
+            inherited={detail.overrides.inherited}
+            inheritedLabel={(value) => t("overrides.inherited", { value })}
+            editable={can.overrides && !bl.voidedAt}
+            hypothesisOf={(overrides) => ({ bl: { blId: bl.id, overrides } })}
+            onSave={(overrides, reason) => updateBlOverridesAction({ blId: bl.id, overrides, reason })}
+            saveLabel={t("overrides.save")}
+            savedMessage={t("overrides.saved")}
+          />
+        </section>
+
+        <Section title={t("bls.detail.timeline")}>
+          {timeline.length === 0 ? (
+            <p className="text-muted-foreground">{t("bls.detail.noTimeline")}</p>
+          ) : (
+            <ol className="flex flex-col gap-2 border-l pl-4">
+              {timeline.map((event) => (
+                <li key={event.id} className={cn(event.undone && "text-muted-foreground")}>
+                  <div className="flex items-center gap-2">
+                    <span className={cn(event.undone && "line-through")}>
+                      {event.undoOfAction ? t("undo.timeline", { action: actionLabel(event.undoOfAction) }) : actionLabel(event.action)}
+                    </span>
+                    {event.undoable && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs"
+                        onClick={async () => {
+                          const result = await undoAction({ auditIds: [event.id] });
+                          if (!result.ok) return void toast.error(t(result.error, result.params));
+                          toast.success(t("undo.done"));
+                          router.refresh();
+                        }}
+                      >
+                        <Undo2 className="size-3.5" /> {t("undo.action")}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground text-xs">
+                    {formatTimestamp(event.at)} · {event.actorName ?? t("timeline.system")}
+                  </div>
+                  {event.reason && <div className="text-xs italic">{event.reason}</div>}
+                  {event.notes.map((note) => (
+                    <div key={note} className="text-xs text-amber-700 dark:text-amber-400">
+                      {t(`timeline.notes.${note}`)}
+                    </div>
+                  ))}
+                </li>
+              ))}
+            </ol>
+          )}
         </Section>
       </div>
 

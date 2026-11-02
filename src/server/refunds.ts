@@ -6,7 +6,7 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies, customers, refundAllocations, refunds } from "./db/schema";
+import { agencies, customers, refundAllocations, refunds, users } from "./db/schema";
 import { DomainError } from "./errors";
 import { attachDocument } from "./files";
 import { validateReferences, type DuplicateCandidate } from "./payments";
@@ -217,14 +217,15 @@ export type RefundListItem = {
   status: RefundStatus;
   unallocatedReason: string | null;
   createdBy: number;
+  createdByName: string;
   createdAt: string;
   voidedAt: string | null;
   voidReason: string | null;
 };
 
-function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string; customerName: string | null }[]): RefundListItem[] {
+function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string; customerName: string | null; createdByName: string }[]): RefundListItem[] {
   const allocated = allocatedByRefund(db);
-  return rows.map(({ refund, agencyName, customerName }) => {
+  return rows.map(({ refund, agencyName, customerName, createdByName }) => {
     const allocatedMinor = allocated.get(refund.id) ?? 0;
     return {
       id: refund.id,
@@ -242,6 +243,7 @@ function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string; cus
       status: refundStatus(refund, allocatedMinor),
       unallocatedReason: refund.unallocatedReason,
       createdBy: refund.createdBy,
+      createdByName,
       createdAt: refund.createdAt,
       voidedAt: refund.voidedAt,
       voidReason: refund.voidReason,
@@ -251,15 +253,19 @@ function toListItems(db: DbOrTx, rows: { refund: Refund; agencyName: string; cus
 
 const refundRows = (db: DbOrTx) =>
   db
-    .select({ refund: refunds, agencyName: agencies.name, customerName: customers.name })
+    .select({ refund: refunds, agencyName: agencies.name, customerName: customers.name, createdByName: users.displayName })
     .from(refunds)
     .innerJoin(agencies, eq(agencies.id, refunds.agencyId))
+    .innerJoin(users, eq(users.id, refunds.createdBy))
     .leftJoin(customers, eq(customers.id, refunds.customerId));
 
-/** The accountant's own refunds, newest first. */
-export function listOwnRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
-  authorize(actor, "refund.viewOwn");
-  return toListItems(db, refundRows(db).where(eq(refunds.createdBy, actor.id)).orderBy(desc(refunds.valueDate), desc(refunds.id)).all());
+/**
+ * Every refund record, newest first, with who entered it. Accountants see each other's work;
+ * corrections and voids stay with the record's owner (rule 7).
+ */
+export function listRefunds(db: DbOrTx, actor: AuthUser): RefundListItem[] {
+  authorize(actor, "refund.list");
+  return toListItems(db, refundRows(db).orderBy(desc(refunds.valueDate), desc(refunds.id)).all());
 }
 
 /** Active refunds within the viewer's customer filter, oldest first. */

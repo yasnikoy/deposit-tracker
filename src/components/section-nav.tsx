@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-/** How far below the window top a section counts as the one being read (the header is sticky). */
-const READING_LINE = 120;
+/** How far below the window top a section counts as the one being read (header and this bar are sticky). */
+const READING_LINE = 140;
 
 /**
- * A page's table of contents: links to its sections, with the section in view highlighted as the
- * page scrolls (the last one once the bottom is reached).
+ * A page's table of contents as a bar above its sections (a second menu column next to the
+ * settings menu made three levels): links to the sections, with the one in view highlighted as
+ * the page scrolls (the last one once the bottom is reached).
  */
 export function SectionNav({ sections, label }: { sections: { id: string; label: string }[]; label: string }) {
   const [active, setActive] = useState<string | null>(sections[0]?.id ?? null);
@@ -40,7 +41,7 @@ export function SectionNav({ sections, label }: { sections: { id: string; label:
   }, [ids]);
 
   return (
-    <nav aria-label={label} className="sticky top-16 flex h-fit w-48 shrink-0 flex-col gap-0.5 border-l text-sm">
+    <nav aria-label={label} className="bg-background sticky top-11 z-10 flex flex-wrap gap-1 border-b text-sm">
       {sections.map((section) => (
         <a
           key={section.id}
@@ -48,8 +49,8 @@ export function SectionNav({ sections, label }: { sections: { id: string; label:
           aria-current={active === section.id ? "location" : undefined}
           onClick={() => setActive(section.id)}
           className={cn(
-            "-ml-px border-l-2 px-3 py-1 transition-colors",
-            active === section.id ? "border-primary text-foreground bg-muted font-medium" : "text-muted-foreground hover:text-foreground border-transparent",
+            "-mb-px border-b-2 px-3 py-1.5 whitespace-nowrap transition-colors",
+            active === section.id ? "border-primary text-foreground font-medium" : "text-muted-foreground hover:text-foreground border-transparent",
           )}
         >
           {section.label}

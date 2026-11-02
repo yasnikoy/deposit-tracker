@@ -19,7 +19,7 @@ import {
   createPayment,
   discardQueueItem,
   enqueueReceipt,
-  listOwnPayments,
+  listPayments,
   listPaymentsAwaitingBl,
   listReceiptQueue,
   voidPayment,
@@ -112,7 +112,7 @@ describe("files", () => {
 describe("deposit payments", () => {
   it("is created by an accountant with the uploaded receipt attached", () => {
     const id = created(pay());
-    const [row] = listOwnPayments(db, acc);
+    const [row] = listPayments(db, acc);
     expect(row).toMatchObject({ id, amountMinor: 300000, blId: null });
     expect(row).not.toHaveProperty("bankAccountId");
     expect(db.select().from(documents).where(eq(documents.id, row.evidenceDocumentId!)).get()).toMatchObject({
@@ -160,7 +160,7 @@ describe("payment for an agency not in the system", () => {
     expect(agency).toMatchObject({ active: true, toRecipients: [], blNumberPatterns: [], requestChannel: "EMAIL" });
     expect(agencyDetailsMissing(agency)).toBe(true);
     expect(result.agencyId).toBe(agency.id);
-    expect(listOwnPayments(db, acc).find((p) => p.id === result.id)).toMatchObject({ agencyId: agency.id });
+    expect(listPayments(db, acc).find((p) => p.id === result.id)).toMatchObject({ agencyId: agency.id });
 
     const audit = db.select().from(auditLog).where(and(eq(auditLog.action, "agency.create"), eq(auditLog.entityId, String(agency.id)))).get();
     expect(audit).toMatchObject({ actorUserId: acc.id, roleUsed: "ACCOUNTANT" });
@@ -303,8 +303,15 @@ describe("corrections and voiding", () => {
     voidBl(db, ops, { id: listAllBls(db, ops, NOW)[0].id, reason: "Yanlış kayıt" });
     voidPayment(db, acc, { id: p1, reason: "Mükerrer kayıt" });
     expect(listPaymentsAwaitingBl(db, ops)).toEqual([]);
-    expect(listOwnPayments(db, acc)[0]).toMatchObject({ voidReason: "Mükerrer kayıt" });
+    expect(listPayments(db, acc)[0]).toMatchObject({ voidReason: "Mükerrer kayıt" });
     expect(db.select().from(auditLog).where(and(eq(auditLog.action, "payment.void"), eq(auditLog.entityId, String(p1)))).get()).toBeTruthy();
+  });
+
+  it("are listed for every accountant with who entered them; only the owner corrects or voids", () => {
+    const p1 = created(pay());
+    expect(listPayments(db, acc2)).toEqual([expect.objectContaining({ id: p1, createdBy: acc.id, createdByName: "ACC" })]);
+    expect(() => voidPayment(db, acc2, { id: p1, reason: "Başkasının kaydı" })).toThrow(ForbiddenError);
+    expect(() => listPayments(db, ops)).toThrow(ForbiddenError);
   });
 });
 

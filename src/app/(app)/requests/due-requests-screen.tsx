@@ -213,7 +213,6 @@ function AgencyGroup({
             <th className="px-3 py-1 font-normal">{t("bls.lastReply")}</th>
             <th className="px-3 py-1 text-right font-normal">{t("requests.amount")}</th>
             <th className="px-3 py-1 font-normal">{t("requests.form")}</th>
-            <th className="px-3 py-1 font-normal">{t("common.actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -243,6 +242,12 @@ function AgencyGroup({
                     <Lock /> {t("requests.lockedBy", { user: row.lockedBy })}
                   </Badge>
                 )}
+                {/* A portal agency's first request is filed there before its documents email is sent. */}
+                {row.channel === "PORTAL" && group.portalUrl && (
+                  <a href={group.portalUrl} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 text-xs underline">
+                    <ExternalLink className="size-3.5" /> {t("requests.openPortal")}
+                  </a>
+                )}
               </td>
               <td className="px-3 py-1.5 whitespace-nowrap">
                 <Badge variant={row.type === "DEDUCTION_STATEMENT" ? "destructive" : row.kind === "FIRST" ? "secondary" : "outline"}>
@@ -265,17 +270,6 @@ function AgencyGroup({
               <td className="px-3 py-1.5 text-right whitespace-nowrap">{formatMoney(row.amountMinor, row.currency)}</td>
               <td className="px-3 py-1.5">
                 <FormCell row={row} editable={canForms} />
-              </td>
-              <td className="px-3 py-1.5">
-                {row.channel === "PORTAL" && (
-                  <div className="flex items-center gap-2">
-                    {group.portalUrl && (
-                      <a href={group.portalUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">
-                        <ExternalLink className="size-3.5" /> {t("requests.openPortal")}
-                      </a>
-                    )}
-                  </div>
-                )}
               </td>
             </tr>
           ))}

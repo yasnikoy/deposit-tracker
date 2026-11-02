@@ -716,7 +716,7 @@
     "queueAdded": "{count} dekont kuyruğa eklendi.",
     "discard": "Kuyruktan çıkar",
     "discarded": "Dekont kuyruktan çıkarıldı.",
-    "myRecords": "Kayıtlarım",
+    "records": "Ödemeler",
     "status": "Durum",
     "statuses": {
       "awaitingBl": "B/L bekliyor",
@@ -733,6 +733,8 @@
     "voidText": "{agency} – {amount} – {date} kaydı iptal edilsin mi? Kayıt silinmez; listelerden ve bakiyelerden çıkar.",
     "voided": "Ödeme iptal edildi.",
     "showVoided": "İptal edilenleri göster",
+    "onlyMine": "Sadece benimkiler",
+    "createdBy": "Kaydeden",
     "continueToBl": "B/L oluşturmaya devam et",
     "newAgencyHelp": "Bu acente sistemde yok; ödemeyle birlikte yalnızca adıyla eklenir. Operasyon bilgilerini tamamlar.",
     "newAgencyAdded": "Yeni acente eklendi: {name}. Operasyona bildirildi.",
@@ -1248,7 +1250,7 @@
       "allocated": "Onaylanmış dağıtımı olan iade düzeltilemez veya iptal edilemez; önce yönetici dağıtımı geri almalı."
     },
     "newTitle": "Yeni iade",
-    "myRefunds": "İadelerim",
+    "records": "İadeler",
     "valueDate": "Valör tarihi",
     "remainder": "Dağıtılmamış",
     "save": "İadeyi kaydet",

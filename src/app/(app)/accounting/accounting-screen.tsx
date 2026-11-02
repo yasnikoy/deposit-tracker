@@ -13,7 +13,6 @@ import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,7 +25,7 @@ import { formatBusinessDate } from "@/lib/format";
 import { formatAmount, formatMoney } from "@/lib/money";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import type { RefundListItem } from "@/server/refunds";
-import { MyRefunds, RefundForm } from "./refunds-tab";
+import { RefundRecords, RefundForm } from "./refunds-tab";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/server/errors";
 import type { PaymentListItem, QueueItem } from "@/server/payments";
@@ -35,6 +34,7 @@ import { blCandidatesOf } from "../bls/bl-warnings";
 import { discardQueueItemAction, voidPaymentAction } from "./actions";
 import { CorrectPaymentDialog } from "./correct-payment-dialog";
 import { EvidenceDrop } from "./evidence-drop";
+import { useRecordFilters } from "./record-filters";
 import { PaymentForm, type ReferenceData, type SavedPayment } from "./payment-form";
 import type { BlOverview } from "@/server/bl-overview";
 import { AccountingEntries } from "./accounting-entries";
@@ -55,6 +55,7 @@ export function AccountingScreen({
   canCreateBl,
   entries,
   entriesLayout,
+  currentUserId,
 }: {
   tab: AccountingTab;
   refs: ReferenceData;
@@ -67,6 +68,7 @@ export function AccountingScreen({
   /** B/Ls waiting for the accounting entry. */
   entries: BlOverview[];
   entriesLayout: TableLayout | null;
+  currentUserId: number;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState<SavedPayment | null>(null);
@@ -86,9 +88,9 @@ export function AccountingScreen({
   const tabs: { id: AccountingTab; label: string }[] = [
     { id: "new", label: t("payments.newTitle") },
     { id: "queue", label: `${t("payments.queueTitle")}${queue.length ? ` (${queue.length})` : ""}` },
-    { id: "records", label: t("payments.myRecords") },
+    { id: "records", label: t("payments.records") },
     { id: "refund", label: t("refunds.newTitle") },
-    { id: "refunds", label: t("refunds.myRefunds") },
+    { id: "refunds", label: t("refunds.records") },
     { id: "entries", label: `${t("payments.accountingEntries.tab")}${entries.length ? ` (${entries.length})` : ""}` },
   ];
 
@@ -110,10 +112,8 @@ export function AccountingScreen({
       {saved && (tab === "new" || tab === "queue") ? (
         <Continuation saved={saved} refs={refs} onDone={startOver} />
       ) : tab === "new" ? (
+        // The tab names the form, so the card has no heading of its own.
         <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle>{t("payments.newTitle")}</CardTitle>
-          </CardHeader>
           <CardContent>
             <PaymentForm key={formKey} refs={refs} onSaved={afterSave} />
           </CardContent>
@@ -122,9 +122,6 @@ export function AccountingScreen({
         <ReviewQueue queue={queue} refs={refs} onSaved={afterSave} />
       ) : tab === "refund" ? (
         <Card className="max-w-2xl">
-          <CardHeader>
-            <CardTitle>{t("refunds.newTitle")}</CardTitle>
-          </CardHeader>
           <CardContent>
             <RefundForm
               key={formKey}
@@ -137,11 +134,11 @@ export function AccountingScreen({
           </CardContent>
         </Card>
       ) : tab === "refunds" ? (
-        <MyRefunds refunds={refunds} refs={refs} layout={refundsLayout} />
+        <RefundRecords refunds={refunds} refs={refs} layout={refundsLayout} currentUserId={currentUserId} />
       ) : tab === "entries" ? (
         <AccountingEntries bls={entries} layout={entriesLayout} />
       ) : (
-        <MyRecords payments={payments} refs={refs} layout={layout} />
+        <PaymentRecords payments={payments} refs={refs} layout={layout} currentUserId={currentUserId} />
       )}
     </div>
   );
@@ -254,11 +251,11 @@ const STATUS_LABEL: Record<Status, TranslationKey> = {
   voided: "payments.statuses.voided",
 };
 
-function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; refs: ReferenceData; layout: TableLayout | null }) {
+/** Every payment record; corrections, voids and a missing receipt stay with the one who entered it. */
+function PaymentRecords({ payments, refs, layout, currentUserId }: { payments: PaymentListItem[]; refs: ReferenceData; layout: TableLayout | null; currentUserId: number }) {
   const router = useRouter();
-  const [showVoided, setShowVoided] = useState(false);
   const [dialog, setDialog] = useState<RecordDialog>(null);
-  const shown = useMemo(() => (showVoided ? payments : payments.filter((p) => !p.voidedAt)), [payments, showVoided]);
+  const { shown, toolbar } = useRecordFilters(payments, currentUserId);
 
   const finish = (result: ActionResult<void>, success: TranslationKey) => {
     if (!result.ok) return void toast.error(t(result.error, result.params));
@@ -282,6 +279,7 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
         cell: ({ getValue }) => formatAmount(getValue()),
       }),
       col.accessor("currency", { meta: { label: "payments.currency", filter: "text" }, sortFn: "turkishText" }),
+      col.accessor("createdByName", { meta: { label: "payments.createdBy", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("kind", {
         meta: {
           label: "payments.kind",
@@ -324,6 +322,7 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
         enableHiding: false,
         cell: ({ row }) => {
           const payment = row.original;
+          const own = payment.createdBy === currentUserId;
           return (
             <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
               {payment.evidenceDocumentId !== null ? (
@@ -333,9 +332,9 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
                   </a>
                 </Button>
               ) : (
-                !payment.voidedAt && <EvidenceDrop paymentId={payment.id} kind={payment.kind} compact />
+                own && !payment.voidedAt && <EvidenceDrop paymentId={payment.id} kind={payment.kind} compact />
               )}
-              {!payment.voidedAt && (
+              {own && !payment.voidedAt && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="size-7" aria-label={t("common.actions")}>
@@ -355,7 +354,7 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
         },
       }),
     ]);
-  }, []);
+  }, [currentUserId]);
 
   return (
     <>
@@ -366,12 +365,7 @@ function MyRecords({ payments, refs, layout }: { payments: PaymentListItem[]; re
         getRowId={(p) => String(p.id)}
         initialLayout={layout}
         rowClassName={(p) => (p.voidedAt ? "text-muted-foreground line-through" : undefined)}
-        toolbar={
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
-            {t("payments.showVoided")}
-          </label>
-        }
+        toolbar={toolbar}
       />
       {dialog?.kind === "correct" && (
         <CorrectPaymentDialog

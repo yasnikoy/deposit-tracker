@@ -20,6 +20,7 @@ import {
   documents,
   ledgerEntries,
   receiptQueue,
+  users,
 } from "./db/schema";
 import { DomainError, ForbiddenError } from "./errors";
 import { attachDocument, nameBlDocuments, readDocument, type StoredDocument } from "./files";
@@ -647,6 +648,7 @@ export type PaymentListItem = {
   blId: number | null;
   blNo: string | null;
   createdBy: number;
+  createdByName: string;
   createdAt: string;
   voidedAt: string | null;
   voidReason: string | null;
@@ -668,19 +670,25 @@ function paymentListQuery(db: DbOrTx) {
       blId: billsOfLading.id,
       blNo: billsOfLading.blNo,
       createdBy: depositPayments.createdBy,
+      createdByName: users.displayName,
       createdAt: depositPayments.createdAt,
       voidedAt: depositPayments.voidedAt,
       voidReason: depositPayments.voidReason,
     })
     .from(depositPayments)
     .innerJoin(agencies, eq(agencies.id, depositPayments.agencyId))
+    .innerJoin(users, eq(users.id, depositPayments.createdBy))
     .leftJoin(billsOfLading, and(blOfPayment, isNull(billsOfLading.voidedAt)));
 }
 
-/** The accountant's own records, newest first; linked B/L numbers are shown read-only. */
-export function listOwnPayments(db: Db, actor: AuthUser): PaymentListItem[] {
-  authorize(actor, "payment.viewOwn");
-  return paymentListQuery(db).where(eq(depositPayments.createdBy, actor.id)).orderBy(desc(depositPayments.paidAt), desc(depositPayments.id)).all();
+/**
+ * Every payment record, newest first, with who entered it; linked B/L numbers are shown
+ * read-only. Accountants see each other's work; corrections and voids stay with the
+ * record's owner (rule 7).
+ */
+export function listPayments(db: Db, actor: AuthUser): PaymentListItem[] {
+  authorize(actor, "payment.list");
+  return paymentListQuery(db).orderBy(desc(depositPayments.paidAt), desc(depositPayments.id)).all();
 }
 
 /** Payments without an active B/L, oldest first (operations work list). */

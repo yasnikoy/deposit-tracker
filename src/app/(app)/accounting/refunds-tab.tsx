@@ -7,11 +7,11 @@ import { toast } from "sonner";
 import { AgencyCombobox } from "@/components/agency-combobox";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { DataTable } from "@/components/data-table/data-table";
+import { useRecordFilters } from "./record-filters";
 import { dataTableColumns } from "@/components/data-table/features";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -239,11 +239,11 @@ const STATUS_VARIANT: Record<RefundStatus, "outline" | "secondary"> = {
 type RecordDialog = { kind: "correct" | "void"; refund: RefundListItem } | null;
 
 /** The accountant's own refunds with their computed status; correct or void while unallocated. */
-export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]; refs: ReferenceData; layout: TableLayout | null }) {
+/** Every refund record; corrections, voids and a missing receipt stay with the one who entered it. */
+export function RefundRecords({ refunds, refs, layout, currentUserId }: { refunds: RefundListItem[]; refs: ReferenceData; layout: TableLayout | null; currentUserId: number }) {
   const router = useRouter();
-  const [showVoided, setShowVoided] = useState(false);
   const [dialog, setDialog] = useState<RecordDialog>(null);
-  const shown = useMemo(() => (showVoided ? refunds : refunds.filter((r) => !r.voidedAt)), [refunds, showVoided]);
+  const { shown, toolbar } = useRecordFilters(refunds, currentUserId);
 
   const finish = (result: ActionResult<void>, success: TranslationKey) => {
     if (!result.ok) return void toast.error(t(result.error, result.params));
@@ -273,6 +273,7 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
         cell: ({ getValue }) => formatAmount(getValue()),
       }),
       col.accessor("currency", { meta: { label: "payments.currency", filter: "text" }, sortFn: "turkishText" }),
+      col.accessor("createdByName", { meta: { label: "payments.createdBy", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("kind", {
         meta: { label: "payments.kind", toText: (v) => t(`refunds.kinds.${v as PaymentKind}`) },
         cell: ({ getValue }) => t(`refunds.kinds.${getValue()}`),
@@ -297,6 +298,7 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
         enableHiding: false,
         cell: ({ row }) => {
           const refund = row.original;
+          const own = refund.createdBy === currentUserId;
           return (
             <div className="flex items-center" onClick={(event) => event.stopPropagation()}>
               {refund.evidenceDocumentId !== null ? (
@@ -306,9 +308,9 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
                   </a>
                 </Button>
               ) : (
-                !refund.voidedAt && <EvidenceDrop refundId={refund.id} kind={refund.kind} compact />
+                own && !refund.voidedAt && <EvidenceDrop refundId={refund.id} kind={refund.kind} compact />
               )}
-              {!refund.voidedAt && refund.allocatedMinor === 0 && (
+              {own && !refund.voidedAt && refund.allocatedMinor === 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="size-7" aria-label={t("common.actions")}>
@@ -328,7 +330,7 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
         },
       }),
     ]);
-  }, []);
+  }, [currentUserId]);
 
   return (
     <>
@@ -339,12 +341,7 @@ export function MyRefunds({ refunds, refs, layout }: { refunds: RefundListItem[]
         getRowId={(r) => String(r.id)}
         initialLayout={layout}
         rowClassName={(r) => (r.voidedAt ? "text-muted-foreground line-through" : undefined)}
-        toolbar={
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox checked={showVoided} onCheckedChange={(checked) => setShowVoided(checked === true)} />
-            {t("payments.showVoided")}
-          </label>
-        }
+        toolbar={toolbar}
       />
       {dialog?.kind === "correct" && (
         <CorrectRefundDialog refund={dialog.refund} refs={refs} onCancel={() => setDialog(null)} onDone={(result) => finish(result, "refunds.corrected")} />

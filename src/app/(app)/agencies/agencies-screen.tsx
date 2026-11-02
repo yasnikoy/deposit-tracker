@@ -103,6 +103,11 @@ export function AgenciesScreen({
               save: (a: AgencyListItem, text: string) => updateAgencyContactAction({ id: a.id, field, value: splitList(text) }),
             },
           },
+          cell: ({ getValue }) => (
+            <span className="block max-w-56 truncate" title={getValue() || undefined}>
+              {getValue()}
+            </span>
+          ),
         }),
       ),
       col.accessor((a) => a.notes ?? "", {
@@ -116,7 +121,12 @@ export function AgenciesScreen({
             save: (a: AgencyListItem, text: string) => updateAgencyContactAction({ id: a.id, field: "notes", value: text }),
           },
         },
-        cell: ({ getValue }) => <span className="block max-w-64 truncate">{getValue()}</span>,
+        // One line in the table; the whole note on hover and in the card.
+        cell: ({ getValue }) => (
+          <span className="block max-w-48 truncate" title={getValue() || undefined}>
+            {getValue()}
+          </span>
+        ),
       }),
     ]);
   }, [permissions.update]);
@@ -134,6 +144,7 @@ export function AgenciesScreen({
           setSelected(a.id);
         }}
         rowClassName={(a) => (a.active ? undefined : "text-muted-foreground")}
+        hiddenByDefault={["recipients", "patterns"]}
         bulkActions={(rows) => <ExportAgenciesButton agencies={rows} />}
         toolbar={
           permissions.create && (

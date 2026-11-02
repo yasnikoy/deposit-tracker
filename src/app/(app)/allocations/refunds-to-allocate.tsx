@@ -48,8 +48,8 @@ export function RefundsToAllocate({ refunds, layout }: { refunds: RefundListItem
         getRowId={(r) => String(r.id)}
         initialLayout={layout}
         onOpenRow={(r) => router.push(`/allocations/${r.id}`)}
+        emptyText={t("allocations.empty")}
       />
-      {refunds.length === 0 && <p className="text-muted-foreground mt-2">{t("allocations.empty")}</p>}
     </>
   );
 }
