@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import type { BlStatus } from "@/domain/records";
 import { t } from "@/i18n";
 
-/** Status chip; labels and colours become configurable with the status list in settings. */
+/** Status chip of a B/L. */
 export function BlStatusBadge({ status, voided, voidReason }: { status: BlStatus; voided?: boolean; voidReason?: string | null }) {
   if (voided) {
     return (
@@ -11,5 +11,17 @@ export function BlStatusBadge({ status, voided, voidReason }: { status: BlStatus
       </Badge>
     );
   }
-  return <Badge variant="outline">{t(`bls.statuses.${status}`)}</Badge>;
+  return <Badge variant={STATUS_VARIANT[status] ?? "outline"}>{t(`bls.statuses.${status}`)}</Badge>;
 }
+
+/**
+ * One colour scheme for every status chip: outline for the normal course, amber where
+ * someone has to act, red for a problem, grey once closed.
+ */
+const STATUS_VARIANT: Partial<Record<BlStatus, "warning" | "destructive" | "secondary">> = {
+  DUE: "warning",
+  DEDUCTION_OPEN: "warning",
+  ACCOUNTING_PENDING: "warning",
+  DISPUTED: "destructive",
+  COLLECTED: "secondary",
+};

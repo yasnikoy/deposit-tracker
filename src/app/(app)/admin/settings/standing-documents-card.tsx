@@ -14,7 +14,7 @@ import { setStandingDocumentAction } from "./actions";
 export function StandingDocumentsCard({ documents }: { documents: StandingDocument[] }) {
   const router = useRouter();
   return (
-    <Card id="standing" className="scroll-mt-28">
+    <Card id="standing">
       <CardHeader>
         <CardTitle>{t("standing.title")}</CardTitle>
       </CardHeader>

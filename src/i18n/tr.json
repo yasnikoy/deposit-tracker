@@ -19,6 +19,7 @@
     "copy": "Kopyala",
     "copied": "Kopyalandı.",
     "reasonRequired": "Neden (zorunlu)",
+    "optional": "(isteğe bağlı)",
     "view": "Görüntüle",
     "none": "—",
     "continue": "Devam"
@@ -67,7 +68,7 @@
     "customerFilter": "Takip ettiğim müşteriler",
     "customerFilterHint": "Seçtiğiniz müşterilerle sınırlanır: B/L listeleri, arama, talepler, yanıtlar, iade dağıtımı, panel, raporlar ve bildirimleriniz. Müşterisi girilmemiş kayıtlar her zaman görünür. Bir kayda doğrudan bağlantıyla her zaman ulaşılır. Hiçbiri seçili değilse tüm müşteriler görünür. Yalnızca sizin görünümünüzü etkiler.",
     "search": "Müşteri ara…",
-    "none": "Henüz kayıtlı müşteri yok (Ayarlar → Listeler).",
+    "none": "Henüz kayıtlı müşteri yok (Ayarlar → Müşteriler).",
     "selected": "{count} müşteri seçili",
     "all": "Filtre yok: tüm müşteriler görünür",
     "clear": "Seçimi temizle",
@@ -547,8 +548,8 @@
     },
     "sending": "Gönderim",
     "batchSending": "Toplu gönderim (acente başına tek e-posta)",
-    "batch": "Toplu",
-    "single": "Tekil",
+    "batch": "Toplu e-posta",
+    "single": "B/L başına e-posta",
     "toRecipients": "Alıcılar (Kime)",
     "ccRecipients": "Bilgi (CC)",
     "recipientsHint": "Her satıra bir e-posta adresi. Tüm talep türleri için aynı liste kullanılır.",
@@ -700,7 +701,7 @@
     "currency": "Para birimi",
     "paidAt": "Ödeme tarihi",
     "kind": "Ödeme türü",
-    "blNoHint": "B/L numarası notu (isteğe bağlı)",
+    "blNoHint": "B/L numarası",
     "blNoHintHelp": "Operasyon B/L oluştururken ön doldurulur ve onaylanır.",
     "blCandidates": "Dekontta bulunan B/L numaraları: {list}",
     "save": "Ödemeyi kaydet",
@@ -711,6 +712,8 @@
     "duplicateConfirm": "Yine de kaydet",
     "newTitle": "Yeni depozito ödemesi",
     "queueTitle": "İnceleme kuyruğu",
+    "blankForm": "Boş form",
+    "recordsTitle": "Kayıtlı ödemeler",
     "queueEmpty": "Kuyrukta bekleyen dekont yok.",
     "queueCount": "{count} dekont inceleme bekliyor",
     "queueAdded": "{count} dekont kuyruğa eklendi.",
@@ -791,7 +794,7 @@
     "containers": "Konteynerler",
     "containersHint": "Virgül, boşluk veya satırla ayırın.",
     "pasteHint": "Excel'den B/L no ve konteyner sütunlarını ilk satıra yapıştırabilirsiniz; satırlar sırayla dolar.",
-    "saveAll": "Geçerli satırları kaydet",
+    "saveAll": "B/L numarası girilen satırları kaydet ({count})",
     "savedCount": "{count} B/L oluşturuldu.",
     "rowErrors": "{count} satır hatalı; düzeltip yeniden kaydedin.",
     "candidates": "Öneriler",
@@ -880,7 +883,7 @@
     "depositTotal": "Toplam depozito: {amount}"
   },
   "search": {
-    "placeholder": "B/L, konteyner, acente veya tutar ara…  ( / )",
+    "placeholder": "B/L, konteyner, tutar ara…  ( / )",
     "label": "B/L ara",
     "noResults": "Eşleşen B/L yok.",
     "notFound": "Bulunamadı: {list}",
@@ -987,7 +990,7 @@
     }
   },
   "requests": {
-    "title": "Zamanı gelen talepler",
+    "title": "Talepler",
     "tabs": {
       "DUE": "Zamanı gelen",
       "UPCOMING": "Yaklaşan",
@@ -998,21 +1001,15 @@
       "UPCOMING": "Yaklaşan talep yok.",
       "FAILED": "Gönderilemeyen talep yok."
     },
-    "kinds": {
-      "REFUND": {
-        "FIRST": "İlk talep",
-        "FOLLOW_UP": "Takip"
-      },
-      "DEDUCTION_STATEMENT": {
-        "FIRST": "Döküm talebi",
-        "FOLLOW_UP": "Döküm takibi"
-      }
+    "attemptOf": {
+      "REFUND": "{n}. iade talebi",
+      "DEDUCTION_STATEMENT": "{n}. döküm talebi"
     },
     "batch": "Toplu e-posta",
     "single": "B/L başına e-posta",
     "portal": "Portal",
     "blCount": "{count} B/L",
-    "attempt": "Talep no",
+    "attempt": "Talep",
     "dueDate": "Vade",
     "amount": "Tutar",
     "form": "Form",
@@ -1059,10 +1056,6 @@
     "failureReason": "Hata",
     "retry": "Yeniden hazırla",
     "selectHint": "Gönderilecek B/L'leri seçin; portal acentelerinde ilk talebi önce portalda oluşturun, belgeler e-postayla gider.",
-    "types": {
-      "REFUND": "İade talebi",
-      "DEDUCTION_STATEMENT": "Döküm talebi"
-    },
     "formNotNeeded": "Gerekmez",
     "evidenceMissing": "Dekont yok",
     "evidenceMissingHint": "Ödemenin dekontu veya faturası yüklenmemiş; e-posta onayla ve bu ek olmadan gider.",
@@ -1158,7 +1151,7 @@
       "messageGone": "İleti posta kutusunda artık bulunamadı; aramayı yenileyin.",
       "ownEmail": "Bu, uygulamanın gönderdiği bir e-posta; zaten ilgili B/L'lere bağlı."
     },
-    "title": "Acente yanıtları",
+    "title": "Yanıtlar",
     "tabs": {
       "TO_PROCESS": "İşlenecek",
       "MATCHES": "Olası eşleşmeler",
@@ -1251,6 +1244,7 @@
     },
     "newTitle": "Yeni iade",
     "records": "İadeler",
+    "recordsTitle": "Kayıtlı iadeler",
     "valueDate": "Valör tarihi",
     "remainder": "Dağıtılmamış",
     "save": "İadeyi kaydet",
@@ -1343,7 +1337,7 @@
     "reversedToast": "Dağıtım geri alındı."
   },
   "deductions": {
-    "sectionTitle": "Kesintiler",
+    "sectionTitle": "Kesintiler ve silme",
     "none": "Kesinti yok.",
     "type": "Kesinti türü",
     "amount": "Tutar",
@@ -1372,10 +1366,9 @@
       "total": "Toplam {amount}",
       "linesInvalid": "Her satır için bir tür ve geçerli bir tutar girin.",
       "statement": "Kesinti dökümü",
-      "statementOptional": "Kesinti dökümü (isteğe bağlı)",
-      "noStatement": "Döküm ekleme",
+            "noStatement": "Döküm ekleme",
       "uploadStatement": "Dökümü yükleyin (sürükleyin veya seçin)",
-      "note": "Not (isteğe bağlı)",
+      "note": "Not",
       "clearNote": "İtiraz kapatma notu"
     },
     "errors": {
@@ -1408,7 +1401,7 @@
     "rejectText": "{amount} için silme önerisi reddedilir; B/L olduğu gibi kalır. Gerekçeyi yazın.",
     "approved": "Silme onaylandı.",
     "rejected": "Silme reddedildi.",
-    "propose": "Silme öner",
+    "propose": "Kalanı silmeyi öner",
     "proposeTitle": "{bl} – silme önerisi",
     "proposeText": "Tahsil edilemeyecek {amount} için silme önerilir (açıklanmayan kesintiler dahil). Yönetici onaylayana kadar hiçbir şey değişmez. Gerekçeyi yazın.",
     "proposed": "Silme önerisi yöneticiye gönderildi.",
@@ -1442,7 +1435,8 @@
   },
   "openingBalances": {
     "title": "Açılış bakiyesi",
-    "hint": "Excel'de takip edilen açık depozitoları buradan art arda aktarın. B/L ödeme kaydı olmadan, açılış bakiyesiyle oluşur. Birden fazla dekontu birlikte bırakabilirsiniz: sırayla forma gelir, okunan alanlar doldurulur. Ödeme türü, acente, müşteri ve para birimi bir sonraki kayda taşınır. Dekont yoksa sonra B/L detayından eklenebilir. Talep zamanı diğer B/L'lerdeki gibi hesaplanır.",
+    "hint": "Excel'de takip edilen açık depozitoları art arda aktarın; her kayıt, ödeme kaydı olmadan açılış bakiyesiyle bir B/L oluşturur.",
+    "carryOver": "Ödeme türü, acente, müşteri ve para birimi bir sonraki kayda taşınır.",
     "receipt": {
       "BANK": "Orijinal depozito dekontu",
       "OFFSET": "Mahsup faturası"
@@ -1451,11 +1445,11 @@
     "pastAttempts": "Şimdiye kadarki talep sayısı",
     "lastRequestOn": "Son talep tarihi",
     "attemptsHelp": "Uygulama dışında yapılan iade talepleri. Hiç talep yapılmadıysa 0 bırakın: ilk talep, ödeme tarihinden ilk talep süresi kadar sonra gelir (süre dolmuşsa hemen). Talep yapıldıysa bir sonraki talep, son talepten takip aralığı kadar sonra gelir ve bir sonraki numarayı alır.",
-    "note": "Not (isteğe bağlı)",
+    "note": "Kaynak",
     "notePlaceholder": "ör. Excel satır 14",
     "save": "Açılış bakiyesini kaydet",
     "saveAndNext": "Kaydet ve sıradakine geç",
-    "dropReceipts": "Dekontları buraya bırakın (birden fazla seçilebilir); sırayla forma gelir",
+    "dropReceipts": "Dekontları buraya bırakın (birden fazla seçilebilir); sırayla forma gelir, okunan alanlar doldurulur",
     "queue": "Sırada bekleyen {count} dekont (forma almak için tıklayın):",
     "removeFromQueue": "{name} sıradan çıkar",
     "withoutReceipt": "Dekontsuz kaydet",
@@ -1631,6 +1625,8 @@
     "aliasesHint": "Havale açıklamalarında geçen adlar, her satıra bir tane (ör. ÖRNEK).",
     "status": "Durum",
     "readOnly": "Müşterileri yönetici düzenler.",
+    "empty": "Henüz müşteri yok.",
+    "emptyReadOnly": "Henüz müşteri yok. Müşterileri yönetici ekler.",
     "toast": {
       "created": "Müşteri eklendi.",
       "updated": "Müşteri güncellendi."

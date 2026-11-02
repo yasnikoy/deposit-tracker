@@ -100,7 +100,7 @@ export function UsersScreen({
           const status = statusOf(row.original);
           return (
             <div className="flex items-center gap-1">
-              <Badge variant={status === "active" ? "outline" : "destructive"}>{t(STATUS_LABEL[status])}</Badge>
+              <Badge variant={status === "active" ? "outline" : status === "locked" ? "destructive" : "secondary"}>{t(STATUS_LABEL[status])}</Badge>
               {row.original.mustChangePassword && status === "active" && (
                 <span className="text-muted-foreground text-xs">{t("users.mustChangePassword")}</span>
               )}

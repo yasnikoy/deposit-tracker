@@ -141,7 +141,8 @@ export function DeductionDialog({
           </div>
 
           <fieldset className="flex flex-col gap-1.5">
-            <legend className="mb-1.5 text-sm font-medium">{t(classify ? "deductions.dialog.statementOptional" : "deductions.dialog.statement")}</legend>
+            <legend className="mb-1.5 text-sm font-medium">{t("deductions.dialog.statement")}
+              {classify && <span className="text-muted-foreground font-normal">{" "}{t("common.optional")}</span>}</legend>
             {options.map((option) => (
               <label key={option.documentId} className="flex items-center gap-2 text-sm">
                 <input type="radio" name="statement" checked={documentId === option.documentId} onChange={() => setDocumentId(option.documentId)} />
@@ -170,7 +171,9 @@ export function DeductionDialog({
 
           {classify && (
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="deduction-note">{t(disputed ? "deductions.dialog.clearNote" : "deductions.dialog.note")}</Label>
+              <Label htmlFor="deduction-note">{t(disputed ? "deductions.dialog.clearNote" : "deductions.dialog.note")}
+                {!disputed && <span className="text-muted-foreground font-normal">{" "}{t("common.optional")}</span>}
+              </Label>
               <textarea
                 id="deduction-note"
                 rows={2}

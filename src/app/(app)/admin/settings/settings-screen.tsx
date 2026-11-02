@@ -22,7 +22,7 @@ import { updateSettingsAction } from "./actions";
 import { EmailTestCard } from "./email-test-card";
 import { describeBuckets, SettingEditor } from "./setting-editor";
 import { StandingDocumentsCard } from "./standing-documents-card";
-import { SectionNav } from "@/components/section-nav";
+import { cn } from "@/lib/utils";
 
 /** Settings that move B/Ls between the request lists; their changes show an impact preview. */
 const IMPACT_KEYS: SettingKey[] = [
@@ -37,24 +37,48 @@ const optionsOf = (key: SettingKey) => (settingDefinitions[key] as { options?: r
 const labelKey = (key: SettingKey) => `settings.keys.${key}.label` as TranslationKey;
 const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationKey;
 
+const SECTIONS = [...SETTING_GROUPS, "email-test", "standing"] as const;
+type Section = (typeof SECTIONS)[number];
+const sectionLabel = (section: Section) =>
+  section === "email-test" ? t("emailSettings.testTitle") : section === "standing" ? t("standing.title") : t(`settings.groups.${section}`);
+
+/**
+ * One section at a time, chosen from the tabs; each keeps its own Save. Hidden sections stay
+ * mounted, so unsaved changes survive switching tabs.
+ */
 export function SettingsScreen({ settings, standingDocuments }: { settings: SettingListItem[]; standingDocuments: StandingDocument[] }) {
+  const [active, setActive] = useState<Section>(SECTIONS[0]);
   return (
     <div className="flex max-w-4xl flex-col gap-4">
-      <SectionNav
-        label={t("settings.contents")}
-        sections={[
-          ...SETTING_GROUPS.map((group) => ({ id: group, label: t(`settings.groups.${group}`) })),
-          { id: "email-test", label: t("emailSettings.testTitle") },
-          { id: "standing", label: t("standing.title") },
-        ]}
-      />
-      <div className="flex flex-col gap-4">
-        {SETTING_GROUPS.map((group) => {
-          const items = settings.filter((s) => settingDefinitions[s.key].group === group);
-          // Remount after a save so the form starts from the stored values.
-          return <GroupForm key={`${group}:${JSON.stringify(items.map((i) => [i.value, i.secretSet]))}`} group={group} items={items} />;
-        })}
+      <nav aria-label={t("settings.contents")} className="flex flex-wrap gap-1 border-b text-sm">
+        {SECTIONS.map((section) => (
+          <button
+            key={section}
+            type="button"
+            aria-current={active === section ? "page" : undefined}
+            onClick={() => setActive(section)}
+            className={cn(
+              "-mb-px border-b-2 px-3 py-1.5 whitespace-nowrap",
+              active === section ? "border-primary font-medium" : "text-muted-foreground hover:text-foreground border-transparent",
+            )}
+          >
+            {sectionLabel(section)}
+          </button>
+        ))}
+      </nav>
+      {SETTING_GROUPS.map((group) => {
+        const items = settings.filter((s) => settingDefinitions[s.key].group === group);
+        return (
+          <div key={group} hidden={active !== group}>
+            {/* Remount after a save so the form starts from the stored values. */}
+            <GroupForm key={JSON.stringify(items.map((i) => [i.value, i.secretSet]))} group={group} items={items} />
+          </div>
+        );
+      })}
+      <div hidden={active !== "email-test"}>
         <EmailTestCard />
+      </div>
+      <div hidden={active !== "standing"}>
         <StandingDocumentsCard documents={standingDocuments} />
       </div>
     </div>
@@ -88,7 +112,7 @@ function GroupForm({ group, items }: { group: SettingGroup; items: SettingListIt
   };
 
   return (
-    <Card id={group} className="scroll-mt-28">
+    <Card id={group}>
       <CardHeader>
         <CardTitle>{t(`settings.groups.${group}`)}</CardTitle>
       </CardHeader>

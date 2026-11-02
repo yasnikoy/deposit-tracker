@@ -59,9 +59,9 @@ export function AgenciesScreen({
         },
         cell: ({ getValue }) => {
           const status = getValue();
-          if (status === "active") return t("agencies.active");
           return (
-            <Badge variant={status === "incomplete" ? "destructive" : "outline"} title={status === "incomplete" ? t("agencies.incompleteHint") : undefined}>
+            <Badge
+              variant={status === "incomplete" ? "destructive" : status === "inactive" ? "secondary" : "outline"} title={status === "incomplete" ? t("agencies.incompleteHint") : undefined}>
               {t(`agencies.${status}`)}
             </Badge>
           );

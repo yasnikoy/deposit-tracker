@@ -16,7 +16,7 @@ import { blCandidatesOf, blRowWarnings } from "../bl-warnings";
 
 type RowInput = { blNo: string; containers: string };
 
-/** Payments without a B/L in one editable grid; valid rows are saved together. Read-only for accountants. */
+/** Payments without a B/L in one editable grid; rows with a B/L number are saved together. Read-only for accountants. */
 export function CreateBlsScreen({
   payments,
   patterns,
@@ -58,9 +58,10 @@ export function CreateBlsScreen({
     });
   };
 
+  const filled = payments.filter((p) => input(p.id).blNo.trim() !== "");
+
   const save = async () => {
-    const rows = payments
-      .filter((p) => input(p.id).blNo.trim() !== "")
+    const rows = filled
       .map((p) => ({ paymentId: p.id, blNo: input(p.id).blNo, containers: parseContainerList(input(p.id).containers) }));
     if (rows.length === 0) return;
     setBusy(true);
@@ -105,7 +106,10 @@ export function CreateBlsScreen({
                   <td className="px-2 py-1 text-right whitespace-nowrap">{formatMoney(payment.amountMinor, payment.currency)}</td>
                   <td className="px-2 py-1">
                     <div className="flex flex-wrap gap-1">
-                      {blCandidatesOf(payment).map((candidate) =>
+                      {/* A candidate already in the B/L no field is not repeated as a chip. */}
+                      {blCandidatesOf(payment)
+                        .filter((candidate) => readOnly || candidate !== value.blNo.trim().toUpperCase())
+                        .map((candidate) =>
                         readOnly ? (
                           <span key={candidate} className="bg-muted rounded px-1.5 font-mono text-xs">
                             {candidate}
@@ -164,8 +168,8 @@ export function CreateBlsScreen({
       </div>
       {!readOnly && (
         <div className="flex justify-end">
-          <Button onClick={save} disabled={busy}>
-            {t("bls.saveAll")}
+          <Button onClick={save} disabled={busy || filled.length === 0}>
+            {t("bls.saveAll", { count: filled.length })}
           </Button>
         </div>
       )}

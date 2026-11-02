@@ -13,14 +13,23 @@ import { AccountingScreen, type AccountingTab } from "./accounting-screen";
 import { listCustomers } from "@/server/customers";
 import { listAwaitingAccounting } from "@/server/bl-overview";
 
-const TABS: AccountingTab[] = ["new", "queue", "records", "refund", "refunds", "entries"];
+// Older links name the tabs before payments and refunds were each merged into one.
+const TABS: Record<string, AccountingTab> = {
+  payments: "payments",
+  new: "payments",
+  queue: "payments",
+  records: "payments",
+  refunds: "refunds",
+  refund: "refunds",
+  entries: "entries",
+};
 
 export default async function AccountingPage({ searchParams }: PageProps<"/accounting">) {
   const { user } = await requireSession();
   if (!can(user, "payment.create").allowed) return <Forbidden />;
   const db = getDb();
   const requested = (await searchParams).tab;
-  const tab = TABS.find((x) => x === requested) ?? "new";
+  const tab = (typeof requested === "string" && Object.hasOwn(TABS, requested) ? TABS[requested] : undefined) ?? "payments";
 
   return (
     <>

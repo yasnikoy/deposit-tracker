@@ -388,11 +388,14 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="opening-note">{t("openingBalances.note")}</Label>
+              <Label htmlFor="opening-note">
+                {t("openingBalances.note")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+              </Label>
               <Input id="opening-note" placeholder={t("openingBalances.notePlaceholder")} {...form.register("note")} />
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-3">
+              <p className="text-muted-foreground text-xs">{t("openingBalances.carryOver")}</p>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {queue.length > 0 ? t("openingBalances.saveAndNext") : t("openingBalances.save")}
               </Button>

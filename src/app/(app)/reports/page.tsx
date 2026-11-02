@@ -82,10 +82,12 @@ export default async function ReportsPage() {
                   <td className={cell}>{row.currency}</td>
                   {row.buckets.map((tally, i) => (
                     <td key={i} className={`${cell} text-right whitespace-nowrap`}>
-                      {tally.count > 0 && (
+                      {tally.count > 0 ? (
                         <>
                           {formatAmount(tally.amountMinor)} <span className="text-muted-foreground text-xs">({tally.count})</span>
                         </>
+                      ) : (
+                        <Empty />
                       )}
                     </td>
                   ))}
@@ -124,9 +126,10 @@ export default async function ReportsPage() {
                   <td className={cell}>{row.agencyName}</td>
                   <td className={cell}>{row.currency}</td>
                   <td className={`${cell} text-right`}>{row.refundedCount}</td>
-                  <td className={`${cell} text-right`}>{decimal(row.avgDaysToRefund)}</td>
-                  <td className={`${cell} text-right`}>{decimal(row.avgAttempts)}</td>
+                  <td className={`${cell} text-right`}>{decimal(row.avgDaysToRefund) || <Empty />}</td>
+                  <td className={`${cell} text-right`}>{decimal(row.avgAttempts) || <Empty />}</td>
                   <td className={cell}>
+                    {row.deductions.length === 0 && <Empty />}
                     {row.deductions.map((d) => (
                       <div key={d.typeName} className="whitespace-nowrap">
                         {d.typeName}: {formatAmount(d.amountMinor)} <span className="text-muted-foreground text-xs">({percent(d.rate)})</span>
@@ -134,10 +137,12 @@ export default async function ReportsPage() {
                     ))}
                   </td>
                   <td className={`${cell} text-right whitespace-nowrap`}>
-                    {row.writeOff.amountMinor > 0 && (
+                    {row.writeOff.amountMinor > 0 ? (
                       <>
                         {formatAmount(row.writeOff.amountMinor)} <span className="text-muted-foreground text-xs">({percent(row.writeOff.rate)})</span>
                       </>
+                    ) : (
+                      <Empty />
                     )}
                   </td>
                   <td className={`${cell} text-right whitespace-nowrap`}>
@@ -175,4 +180,9 @@ export default async function ReportsPage() {
       </section>
     </>
   );
+}
+
+/** An empty report cell: the same "—" as elsewhere in the app. */
+function Empty() {
+  return <span className="text-muted-foreground">{t("common.none")}</span>;
 }

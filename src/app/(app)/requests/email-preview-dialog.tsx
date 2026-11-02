@@ -108,7 +108,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
         <span className="text-muted-foreground text-xs">{t("requests.covers")}:</span>
         {draft.items.map((item) => (
           <Badge key={item.blId} variant="outline" className="font-mono">
-            {item.blNo} · {t(`requests.kinds.${item.type}.${item.kind}`)} {item.attemptNo}
+            {item.blNo} · {t(`requests.attemptOf.${item.type}`, { n: item.attemptNo })}
           </Badge>
         ))}
       </div>

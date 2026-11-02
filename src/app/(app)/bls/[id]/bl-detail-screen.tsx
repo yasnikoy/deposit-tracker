@@ -158,7 +158,7 @@ export function BlDetailScreen({
             </Button>
           )}
           {can.void && !bl.voidedAt && (
-            <Button size="sm" variant="outline" onClick={() => setDialog("void")}>
+            <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDialog("void")}>
               {t("bls.void")}
             </Button>
           )}
@@ -341,6 +341,8 @@ export function BlDetailScreen({
           )}
         </Section>
 
+        {/* Read-only exceptions only matter when one is set; admins always see the editor. */}
+        {(can.overrides || Object.values(detail.overrides.values).some((value) => value !== null)) && (
         <section className="rounded-md border p-4">
           <OverridesEditor
             idPrefix="bl-override"
@@ -356,6 +358,7 @@ export function BlDetailScreen({
             savedMessage={t("overrides.saved")}
           />
         </section>
+        )}
 
         <Section title={t("bls.detail.timeline")}>
           {timeline.length === 0 ? (

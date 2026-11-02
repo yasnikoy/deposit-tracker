@@ -153,7 +153,7 @@ function FailedList({ failed, onRetry }: { failed: FailedRequest[]; onRetry?: (b
             </td>
             <td className="px-3 py-1.5">{item.agencyName}</td>
             <td className="px-3 py-1.5 whitespace-nowrap">
-              {t(`requests.types.${item.type}`)} {item.attemptNo}
+              {t(`requests.attemptOf.${item.type}`, { n: item.attemptNo })}
             </td>
             <td className="px-3 py-1.5">{formatTimestamp(item.queuedAt)}</td>
             <td className="text-destructive px-3 py-1.5 text-xs">{item.failureReason}</td>
@@ -201,10 +201,22 @@ function AgencyGroup({
           {group.totals.map((total) => formatMoney(total.amountMinor, total.currency)).join(" · ")}
         </span>
       </header>
-      <table className="tabular w-full">
+      {/* Fixed column widths, the same in every agency group, so the groups line up. */}
+      <table className="tabular w-full table-fixed">
+        <colgroup>
+          {selection && <col className="w-10" />}
+          <col className="w-64" />
+          <col className="w-36" />
+          <col className="w-28" />
+          <col className="w-28" />
+          <col className="w-32" />
+          <col className="w-44" />
+          <col className="w-36" />
+          <col />
+        </colgroup>
         <thead className="text-muted-foreground text-left text-xs">
           <tr>
-            {selection && <th className="w-8 px-3 py-1" />}
+            {selection && <th className="px-3 py-1" />}
             <th className="px-3 py-1 font-normal">{t("bls.blNo")}</th>
             <th className="px-3 py-1 font-normal">{t("requests.attempt")}</th>
             <th className="px-3 py-1 font-normal">{t("bls.paidAt")}</th>
@@ -250,10 +262,7 @@ function AgencyGroup({
                 )}
               </td>
               <td className="px-3 py-1.5 whitespace-nowrap">
-                <Badge variant={row.type === "DEDUCTION_STATEMENT" ? "destructive" : row.kind === "FIRST" ? "secondary" : "outline"}>
-                  {t(`requests.kinds.${row.type}.${row.kind}`)}
-                </Badge>{" "}
-                {row.attemptNo}
+                {t(`requests.attemptOf.${row.type}`, { n: row.attemptNo })}
               </td>
               <td className="px-3 py-1.5">{formatBusinessDate(row.paidAt)}</td>
               <td className="px-3 py-1.5">{formatBusinessDate(row.dueDate)}</td>

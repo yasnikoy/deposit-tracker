@@ -48,7 +48,8 @@ export function CustomersScreen({
             ],
           },
         },
-        cell: ({ getValue }) => (getValue() === "active" ? t("agencies.active") : <Badge variant="outline">{t("agencies.inactive")}</Badge>),
+        cell: ({ getValue }) =>
+          getValue() === "active" ? <Badge variant="outline">{t("agencies.active")}</Badge> : <Badge variant="secondary">{t("agencies.inactive")}</Badge>,
       }),
     ]);
   }, []);
@@ -66,6 +67,7 @@ export function CustomersScreen({
           setSelected(c.id);
         }}
         rowClassName={(c) => (c.active ? undefined : "text-muted-foreground")}
+        emptyText={t(canManage ? "customers.empty" : "customers.emptyReadOnly")}
         toolbar={
           canManage && (
             <Button size="sm" onClick={() => setSelected("new")}>

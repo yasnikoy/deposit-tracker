@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, MoreHorizontal } from "lucide-react";
+import { FileText, MoreHorizontal, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -39,7 +39,7 @@ import { PaymentForm, type ReferenceData, type SavedPayment } from "./payment-fo
 import type { BlOverview } from "@/server/bl-overview";
 import { AccountingEntries } from "./accounting-entries";
 
-export type AccountingTab = "new" | "queue" | "records" | "refund" | "refunds" | "entries";
+export type AccountingTab = "payments" | "refunds" | "entries";
 
 type Status = "awaitingBl" | "hasBl" | "voided";
 const statusOf = (p: PaymentListItem): Status => (p.voidedAt ? "voided" : p.blId ? "hasBl" : "awaitingBl");
@@ -85,11 +85,9 @@ export function AccountingScreen({
     setFormKey((k) => k + 1);
   };
 
+  // Each tab is one kind of money record: entering it and the list of entered records together.
   const tabs: { id: AccountingTab; label: string }[] = [
-    { id: "new", label: t("payments.newTitle") },
-    { id: "queue", label: `${t("payments.queueTitle")}${queue.length ? ` (${queue.length})` : ""}` },
-    { id: "records", label: t("payments.records") },
-    { id: "refund", label: t("refunds.newTitle") },
+    { id: "payments", label: `${t("payments.records")}${queue.length ? ` (${queue.length})` : ""}` },
     { id: "refunds", label: t("refunds.records") },
     { id: "entries", label: `${t("payments.accountingEntries.tab")}${entries.length ? ` (${entries.length})` : ""}` },
   ];
@@ -109,39 +107,45 @@ export function AccountingScreen({
         ))}
       </nav>
 
-      {saved && (tab === "new" || tab === "queue") ? (
-        <Continuation saved={saved} refs={refs} onDone={startOver} />
-      ) : tab === "new" ? (
-        // The tab names the form, so the card has no heading of its own.
-        <Card className="max-w-2xl">
-          <CardContent>
-            <PaymentForm key={formKey} refs={refs} onSaved={afterSave} />
-          </CardContent>
-        </Card>
-      ) : tab === "queue" ? (
-        <ReviewQueue queue={queue} refs={refs} onSaved={afterSave} />
-      ) : tab === "refund" ? (
-        <Card className="max-w-2xl">
-          <CardContent>
-            <RefundForm
-              key={formKey}
-              refs={refs}
-              onSaved={() => {
-                router.refresh();
-                setFormKey((k) => k + 1);
-              }}
-            />
-          </CardContent>
-        </Card>
+      {tab === "payments" ? (
+        <>
+          {saved ? (
+            <Continuation saved={saved} refs={refs} onDone={startOver} />
+          ) : (
+            <PaymentEntry key={formKey} queue={queue} refs={refs} onSaved={afterSave} />
+          )}
+          <RecordsHeading label={t("payments.recordsTitle")} />
+          <PaymentRecords payments={payments} refs={refs} layout={layout} currentUserId={currentUserId} />
+        </>
       ) : tab === "refunds" ? (
-        <RefundRecords refunds={refunds} refs={refs} layout={refundsLayout} currentUserId={currentUserId} />
-      ) : tab === "entries" ? (
-        <AccountingEntries bls={entries} layout={entriesLayout} />
+        <>
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>{t("refunds.newTitle")}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RefundForm
+                key={formKey}
+                refs={refs}
+                onSaved={() => {
+                  router.refresh();
+                  setFormKey((k) => k + 1);
+                }}
+              />
+            </CardContent>
+          </Card>
+          <RecordsHeading label={t("refunds.recordsTitle")} />
+          <RefundRecords refunds={refunds} refs={refs} layout={refundsLayout} currentUserId={currentUserId} />
+        </>
       ) : (
-        <PaymentRecords payments={payments} refs={refs} layout={layout} currentUserId={currentUserId} />
+        <AccountingEntries bls={entries} layout={entriesLayout} />
       )}
     </div>
   );
+}
+
+function RecordsHeading({ label }: { label: string }) {
+  return <h2 className="mt-4 font-semibold">{label}</h2>;
 }
 
 /** Dual-role users continue from the saved payment straight to its B/L. */
@@ -167,46 +171,19 @@ function Continuation({ saved, refs, onDone }: { saved: SavedPayment; refs: Refe
   );
 }
 
-function ReviewQueue({ queue, refs, onSaved }: { queue: QueueItem[]; refs: ReferenceData; onSaved: (payment: SavedPayment) => void }) {
+/**
+ * A new payment: the form, and beside it the review queue for receipts uploaded in bulk.
+ * While receipts wait, the form works through them (prefilled from each); "Boş form" enters a
+ * payment without one of them.
+ */
+function PaymentEntry({ queue, refs, onSaved }: { queue: QueueItem[]; refs: ReferenceData; onSaved: (payment: SavedPayment) => void }) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const selected = queue.find((q) => q.id === selectedId) ?? queue[0] ?? null;
+  const [selectedId, setSelectedId] = useState<number | "blank" | null>(null);
+  const selected = selectedId === "blank" ? null : (queue.find((q) => q.id === selectedId) ?? queue[0] ?? null);
 
   return (
     <div className="flex items-start gap-4">
-      {/* Empty, the drop zone takes the width of the forms; with receipts, it is the list beside the form. */}
-      <div className={cn("flex shrink-0 flex-col gap-3", queue.length ? "w-80" : "w-full max-w-2xl")}>
-        <FileDrop
-          kind="RECEIPT"
-          multiple
-          queue
-          label={t("files.dropMany")}
-          onUploaded={(results) => {
-            const ok = results.filter((r) => r.response.ok).length;
-            for (const r of results) if (!r.response.ok) toast.error(`${r.file.name}: ${uploadErrorText(r.response)}`);
-            if (ok) toast.success(t("payments.queueAdded", { count: ok }));
-            router.refresh();
-          }}
-        />
-        <p className={cn("text-muted-foreground", queue.length ? "text-xs" : "text-sm")}>
-          {queue.length ? t("payments.queueCount", { count: queue.length }) : t("payments.queueEmpty")}
-        </p>
-        <ul className="flex flex-col gap-1">
-          {queue.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setSelectedId(item.id)}
-                className={cn("hover:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1 text-left", selected?.id === item.id && "bg-muted font-medium")}
-              >
-                <FileText className="size-4 shrink-0" />
-                <span className="truncate">{item.originalName}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-      {selected && (
+      {selected ? (
         <Card className="max-w-2xl flex-1">
           <CardHeader className="flex flex-row items-center gap-2">
             <CardTitle className="truncate">{selected.originalName}</CardTitle>
@@ -239,7 +216,58 @@ function ReviewQueue({ queue, refs, onSaved }: { queue: QueueItem[]; refs: Refer
             />
           </CardContent>
         </Card>
+      ) : (
+        <Card className="max-w-2xl flex-1">
+          <CardHeader>
+            <CardTitle>{t("payments.newTitle")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PaymentForm refs={refs} onSaved={onSaved} />
+          </CardContent>
+        </Card>
       )}
+      <aside className="flex w-80 shrink-0 flex-col gap-3">
+        <h2 className="text-sm font-semibold">{t("payments.queueTitle")}</h2>
+        <FileDrop
+          kind="RECEIPT"
+          multiple
+          queue
+          label={t("files.dropMany")}
+          onUploaded={(results) => {
+            const ok = results.filter((r) => r.response.ok).length;
+            for (const r of results) if (!r.response.ok) toast.error(`${r.file.name}: ${uploadErrorText(r.response)}`);
+            if (ok) toast.success(t("payments.queueAdded", { count: ok }));
+            router.refresh();
+          }}
+        />
+        <p className="text-muted-foreground text-xs">{queue.length ? t("payments.queueCount", { count: queue.length }) : t("payments.queueEmpty")}</p>
+        {queue.length > 0 && (
+          <ul className="flex flex-col gap-1">
+            {queue.map((item) => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className={cn("hover:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1 text-left", selected?.id === item.id && "bg-muted font-medium")}
+                >
+                  <FileText className="size-4 shrink-0" />
+                  <span className="truncate">{item.originalName}</span>
+                </button>
+              </li>
+            ))}
+            <li>
+              <button
+                type="button"
+                onClick={() => setSelectedId("blank")}
+                className={cn("hover:bg-muted flex w-full items-center gap-2 rounded-md px-2 py-1 text-left", !selected && "bg-muted font-medium")}
+              >
+                <Plus className="size-4 shrink-0" />
+                {t("payments.blankForm")}
+              </button>
+            </li>
+          </ul>
+        )}
+      </aside>
     </div>
   );
 }

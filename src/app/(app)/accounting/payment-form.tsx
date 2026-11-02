@@ -247,7 +247,9 @@ export function PaymentForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="payment-hint">{t("payments.blNoHint")}</Label>
+        <Label htmlFor="payment-hint">
+          {t("payments.blNoHint")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+        </Label>
         <Input id="payment-hint" className="uppercase" {...form.register("blNoHint")} />
         <p className="text-muted-foreground text-xs">{t("payments.blNoHintHelp")}</p>
         {candidates.length > 0 && <p className="text-xs">{t("payments.blCandidates", { list: candidates.join(", ") })}</p>}

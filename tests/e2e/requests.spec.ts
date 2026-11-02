@@ -128,6 +128,7 @@ test("the due list groups B/Ls by agency; a portal B/L links its portal and is s
 test("an admin sees the impact of a timing change before saving it", async ({ page }) => {
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await page.goto("/admin/settings");
+  await page.getByRole("button", { name: tr.settings.groups.durations, exact: true }).click();
   const field = page.getByLabel(tr.settings.keys.durations.firstRequestDueDays.label);
   await field.fill("60");
   await expect(page.getByRole("status").filter({ hasText: tr.impact.title })).toContainText("çıkar");
@@ -138,6 +139,7 @@ test("an admin sees the impact of a timing change before saving it", async ({ pa
 test("an admin sets the sender address and uploads a standing document", async ({ page }) => {
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await page.goto("/admin/settings");
+  await page.getByRole("button", { name: tr.settings.groups.email, exact: true }).click();
   const email = page.locator("#email");
   await email.getByLabel(tr.settings.keys.email.fromAddress.label).fill("depozito@firma.example");
   await email.getByLabel(tr.settings.keys.email.password.label).fill("uygulama-sifresi");
@@ -146,12 +148,14 @@ test("an admin sets the sender address and uploads a standing document", async (
   await expect(email.getByText(tr.settings.secretSet)).toBeVisible();
   await expect(email.getByLabel(tr.settings.keys.email.password.label)).toHaveValue("");
 
+  await page.getByRole("button", { name: tr.standing.title, exact: true }).click();
   const standing = page.locator("#standing");
   await standing.getByLabel(`${tr.standing.slots.SIGNATURE_CIRCULAR} yükleyin`).setInputFiles(pdf("imza-sirkuleri.pdf"));
   await expect(page.getByText(tr.standing.saved)).toBeVisible();
   await expect(standing.getByRole("link", { name: "imza-sirkuleri.pdf" })).toBeVisible();
 
   // The test email goes through the same dry-run transport.
+  await page.getByRole("button", { name: tr.emailSettings.testTitle, exact: true }).click();
   await page.locator("#email-test").getByLabel(tr.emailSettings.testTo).fill("it@firma.example");
   await page.getByRole("button", { name: tr.emailSettings.testSend }).click();
   await expect(page.getByText(tr.emailSettings.testDryRun)).toBeVisible();
@@ -280,6 +284,8 @@ test("allocate refund: the accountant enters a short refund; operations confirms
   await expect(page.getByText(tr.refunds.saved)).toBeVisible();
 
   await page.getByRole("link", { name: tr.nav.allocations }).click();
+  // The refunds tab lists the same refund: wait for the allocation list before picking the row.
+  await page.waitForURL("**/allocations");
   await page.getByRole("row").filter({ hasText: AGENCY }).click();
   await expect(page.getByRole("heading", { name: `${AGENCY} · 2.400,00 USD` })).toBeVisible();
   // 2,500 expected on the B/L: FIFO puts 2,400 on it and leaves a 100 difference.
@@ -322,7 +328,8 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   const [tableCsv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: tr.table.downloadCsv }).click()]);
   expect(tableCsv.suggestedFilename()).toMatch(/^all-bls-\d{4}-\d{2}-\d{2}\.csv$/);
   const lines = fs.readFileSync(await tableCsv.path(), "utf8").split("\r\n");
-  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.expected};${tr.bls.collected};${tr.bls.attempts};${tr.bls.lastRequestOn};${tr.bls.lastReply};${tr.bls.daysWaiting};${tr.description.title};${tr.bls.containers}`);
+  // Visible columns only: Beklenen, Talep sayısı and Son yanıt are hidden by default.
+  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.collected};${tr.bls.lastRequestOn};${tr.bls.daysWaiting};${tr.description.title};${tr.bls.containers}`);
   expect(lines[1]).toContain(`${BL_NO};${AGENCY};Hapag Müşteri;;${tr.bls.statuses.COLLECTED};`);
   expect(lines[1]).toContain(";2.500,00;USD;");
   expect(lines).toHaveLength(3);

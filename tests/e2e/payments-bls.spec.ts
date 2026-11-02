@@ -111,8 +111,7 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   await expect(page.getByText(tr.payments.saved).last()).toBeVisible();
   await page.getByRole("button", { name: tr.payments.newTitle }).click();
 
-  // Bulk upload into the review queue: save one, discard the other.
-  await page.getByRole("link", { name: new RegExp(tr.payments.queueTitle) }).click();
+  // Bulk upload into the review queue beside the form: save one, discard the other.
   await page.getByLabel(tr.files.dropMany).setInputFiles([pdf("toplu-1.pdf"), pdf("toplu-2.pdf")]);
   await expect(page.getByText("2 dekont kuyruğa eklendi.")).toBeVisible();
   await expect(page.getByText("2 dekont inceleme bekliyor")).toBeVisible();
@@ -121,7 +120,6 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   await page.getByRole("button", { name: tr.payments.save }).click();
   await expect(page.getByText(tr.payments.saved).last()).toBeVisible();
   await page.getByRole("button", { name: tr.payments.newTitle }).click();
-  await page.getByRole("link", { name: new RegExp(tr.payments.queueTitle) }).click();
   await page.getByRole("button", { name: tr.payments.discard }).click();
   await expect(page.getByText(tr.payments.queueEmpty)).toBeVisible();
 });
@@ -135,14 +133,14 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   // Row 1 reuses an active B/L number, row 2 has a malformed container.
   await pasteInto(page, tr.bls.blNo, "245678901\tCSQU3054383\n299999999\tBAD1");
   await expect(page.getByLabel(tr.bls.blNo).nth(1)).toHaveValue("299999999");
-  await page.getByRole("button", { name: tr.bls.saveAll }).click();
+  await page.getByRole("button", { name: tr.bls.saveAll.replace("{count}", "2") }).click();
   await expect(page.getByText(tr.bls.errors.blNoTaken)).toBeVisible();
   await expect(page.getByText(`${tr.bls.errors.containerFormat} (1)`)).toBeVisible();
   await expect(rows).toHaveCount(2);
 
   await page.getByLabel(tr.bls.blNo).first().fill("211111111");
   await page.getByLabel(tr.bls.containers).nth(1).fill("");
-  await page.getByRole("button", { name: tr.bls.saveAll }).click();
+  await page.getByRole("button", { name: tr.bls.saveAll.replace("{count}", "2") }).click();
   await expect(page.getByText("2 B/L oluşturuldu.")).toBeVisible();
   await expect(page.getByText(tr.bls.awaitingEmpty)).toBeVisible();
 

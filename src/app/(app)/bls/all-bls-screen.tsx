@@ -179,6 +179,8 @@ export function AllBlsScreen({
         getRowId={(b) => String(b.id)}
         initialLayout={layout}
         initialFilters={status ? [{ id: "status", value: status }] : undefined}
+        // Beklenen equals Depozito until money comes in; request count and last reply are on the row panel.
+        hiddenByDefault={["expectedMinor", "attempts", "lastReply"]}
         onOpenRow={(b, visible) => {
           setOrder(visible.map((v) => String(v.id)));
           setOpenId(b.id);
@@ -241,6 +243,13 @@ export function AllBlsScreen({
               <dd>{formatBusinessDate(open.paidAt)}</dd>
               <dt className="text-muted-foreground">{t("bls.daysWaiting")}</dt>
               <dd>{open.daysWaiting ?? t("common.none")}</dd>
+              <dt className="text-muted-foreground">{t("bls.attempts")}</dt>
+              <dd>
+                {open.attempts}
+                {open.lastRequestOn && <span className="text-muted-foreground"> · {t("bls.lastRequestOn")}: {formatBusinessDate(open.lastRequestOn)}</span>}
+              </dd>
+              <dt className="text-muted-foreground">{t("bls.lastReply")}</dt>
+              <dd>{open.lastReply ? `${open.lastReply.typeName} · ${formatBusinessDate(open.lastReply.repliedOn)}` : t("common.none")}</dd>
               <dt className="text-muted-foreground">{t("bls.containers")}</dt>
               <dd className="font-mono text-xs">{open.containers.length ? open.containers.join(", ") : t("bls.noContainers")}</dd>
             </dl>
@@ -258,7 +267,7 @@ export function AllBlsScreen({
                 </Button>
               )}
               {canVoid && !open.voidedAt && (
-                <Button size="sm" variant="outline" onClick={() => setDialog({ kind: "void", bl: open })}>
+                <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDialog({ kind: "void", bl: open })}>
                   {t("bls.void")}
                 </Button>
               )}

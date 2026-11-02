@@ -20,15 +20,19 @@ test("admin changes a setting with a reason; invalid values cannot be saved", as
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password, E2E_ADMIN.displayName);
   await openSettingsPage(page, tr.nav.appSettings);
 
+  // One section at a time: each is chosen from the tabs.
+  await page.getByRole("button", { name: tr.settings.groups.durations, exact: true }).click();
   const durations = page.locator("#durations");
   await durations.getByLabel(tr.settings.keys.durations.firstRequestDueDays.label).fill("10");
   await durations.getByLabel(tr.common.reasonOptional).fill("Acenteler geç iade ediyor");
   await durations.getByRole("button", { name: tr.settings.save }).click();
   await expect(page.getByText("1 ayar kaydedildi.")).toBeVisible();
   await page.reload();
+  await page.getByRole("button", { name: tr.settings.groups.durations, exact: true }).click();
   await expect(durations.getByLabel(tr.settings.keys.durations.firstRequestDueDays.label)).toHaveValue("10");
   await expect(durations.getByText(`Son değişiklik: ${E2E_ADMIN.displayName}`)).toBeVisible();
 
+  await page.getByRole("button", { name: tr.settings.groups.calendar, exact: true }).click();
   const calendar = page.locator("#calendar");
   for (const day of ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma"]) await calendar.getByLabel(day, { exact: true }).check();
   await expect(calendar.getByText(tr.settings.invalid)).toBeVisible();

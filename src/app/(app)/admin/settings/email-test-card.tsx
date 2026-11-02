@@ -23,7 +23,7 @@ export function EmailTestCard() {
   };
 
   return (
-    <Card id="email-test" className="scroll-mt-28">
+    <Card id="email-test">
       <CardHeader>
         <CardTitle>{t("emailSettings.testTitle")}</CardTitle>
       </CardHeader>
