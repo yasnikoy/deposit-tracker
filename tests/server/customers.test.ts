@@ -67,7 +67,7 @@ describe("customers", () => {
 describe("customer and file number on a new B/L", () => {
   it("come from the payment's receipt when not given", () => {
     const paymentId = payment("MEDUTST10007 - ORNEK ENERJİ A.Ş.DEPO T26-90815", "T26-90815");
-    const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007", containers: [] }], NOW);
+    const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007" }], NOW);
     expect(blOf(created[0].blId)).toMatchObject({ customerId: ornek, fileNo: "26-90815" });
   });
 
@@ -79,8 +79,8 @@ describe("customer and file number on a new B/L", () => {
       db,
       ops,
       [
-        { paymentId: p1, blNo: "MEDUTST10007", containers: [], customerId: beta, fileNo: "t26-99999" },
-        { paymentId: p2, blNo: "MEDUTST10008", containers: [], customerId: null, fileNo: null },
+        { paymentId: p1, blNo: "MEDUTST10007", customerId: beta, fileNo: "t26-99999" },
+        { paymentId: p2, blNo: "MEDUTST10008", customerId: null, fileNo: null },
       ],
       NOW,
     );
@@ -91,7 +91,7 @@ describe("customer and file number on a new B/L", () => {
   it("no customer is filled in when the description fits none, or several", () => {
     createCustomer(db, admin, { name: "Ornek Lojistik", code: null, aliases: ["ORNEK"] }, NOW);
     const paymentId = payment("MEDUTST10007 - ORNEK DEPO");
-    const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007", containers: [] }], NOW);
+    const { created } = createBls(db, ops, [{ paymentId, blNo: "MEDUTST10007" }], NOW);
     expect(blOf(created[0].blId)).toMatchObject({ customerId: null, fileNo: null });
   });
 });
@@ -127,7 +127,7 @@ describe("customer cards", () => {
 
 describe("customer on the B/L detail", () => {
   it("is set or cleared by accounting, operations or an admin, audited; only active customers are newly assigned", () => {
-    const { created } = createBls(db, ops, [{ paymentId: payment("MEDUTST10099 DEPO"), blNo: "MEDUTST10099", containers: [], customerId: null }], NOW);
+    const { created } = createBls(db, ops, [{ paymentId: payment("MEDUTST10099 DEPO"), blNo: "MEDUTST10099", customerId: null }], NOW);
     const blId = created[0].blId;
     setBlCustomer(db, acc, { blId, customerId: ornek }, NOW);
     expect(blOf(blId).customerId).toBe(ornek);

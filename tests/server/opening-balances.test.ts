@@ -3,6 +3,7 @@ import { openingBalanceSchema, type OpeningBalanceInput } from "@/lib/schemas/op
 import { allocationProposal } from "@/server/allocations";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail } from "@/server/bl-overview";
+import { updateBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
 import { prepareRequestEmails } from "@/server/email/compose";
 import { ForbiddenError } from "@/server/errors";
@@ -36,7 +37,6 @@ const input = (overrides: Partial<OpeningBalanceInput> = {}): OpeningBalanceInpu
     currency: "USD",
     paidAt: "2026-07-01",
     blNo: "medu 9000001",
-    containers: ["MSCU1234565"],
     documentId: receipt(),
     pastAttempts: 2,
     lastRequestOn: "2026-10-12",
@@ -66,7 +66,7 @@ describe("opening balances", () => {
     expect(() => created(db, acc, input(), NOW)).toThrow(ForbiddenError);
     const blId = created(db, admin, input(), NOW);
     const detail = getBlDetail(db, ops, blId, NOW);
-    expect(detail.bl).toMatchObject({ blNo: "MEDU9000001", status: "REQUESTED", depositMinor: 250000, expectedMinor: 250000, attempts: 2, lastRequestOn: "2026-10-12", containers: ["MSCU1234565"] });
+    expect(detail.bl).toMatchObject({ blNo: "MEDU9000001", status: "REQUESTED", depositMinor: 250000, expectedMinor: 250000, attempts: 2, lastRequestOn: "2026-10-12", containers: [] });
     expect(detail.payment).toBeNull();
     expect(detail.openingBalance).toMatchObject({ entries: [{ amountMinor: 250000, entryDate: "2026-07-01" }], documents: [{ originalName: "Dekont MEDU9000001.pdf" }], missingEvidence: 0 });
     expect(detail.ledger.map((l) => l.type)).toEqual(["OPENING_BALANCE"]);
@@ -177,10 +177,11 @@ describe("opening balances", () => {
 
   describe("with the number of an active B/L", () => {
     const later = (overrides: Partial<OpeningBalanceInput> = {}) =>
-      input({ amountMinor: 50000, paidAt: "2026-07-15", containers: [], pastAttempts: 0, lastRequestOn: null, note: "Excel satır 15", ...overrides });
+      input({ amountMinor: 50000, paidAt: "2026-07-15", pastAttempts: 0, lastRequestOn: null, note: "Excel satır 15", ...overrides });
 
     it("add to that B/L as an additional deposit: own entry and receipt, the B/L's history stays", () => {
       const blId = created(db, admin, input(), NOW);
+      updateBl(db, ops, { id: blId, containers: ["MSCU1234565"] }, NOW); // entered on the B/L detail
       const result = createOpeningBalance(db, admin, later({ blNo: "medu9000001" }), NOW);
       expect(result).toEqual({ status: "created", blId, joined: true });
 
@@ -207,9 +208,9 @@ describe("opening balances", () => {
       expect(() => attachOpeningBalanceEvidence(db, ops, { blId, documentId: receipt(ops) }, NOW)).toThrow(expect.objectContaining({ messageKey: "payments.errors.evidenceExists" }));
     });
 
-    it("bring no request history, customer, file number or containers, and need the same agency and currency", () => {
+    it("bring no request history, customer or file number, and need the same agency and currency", () => {
       created(db, admin, input(), NOW);
-      for (const overrides of [{ pastAttempts: 1, lastRequestOn: "2026-10-01" }, { containers: ["CSQU3054383"] }, { fileNo: "T26-00001" }, { customerId: testCustomer(db) }]) {
+      for (const overrides of [{ pastAttempts: 1, lastRequestOn: "2026-10-01" }, { fileNo: "T26-00001" }, { customerId: testCustomer(db) }]) {
         expect(() => created(db, admin, later({ blNo: "MEDU9000001", ...overrides }), NOW)).toThrow(expect.objectContaining({ messageKey: "openingBalances.errors.joinFields" }));
       }
       expect(() => created(db, admin, later({ blNo: "MEDU9000001", currency: "EUR" }), NOW)).toThrow(expect.objectContaining({ messageKey: "payments.errors.additionalMismatch" }));

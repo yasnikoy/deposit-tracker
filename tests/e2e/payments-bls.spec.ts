@@ -151,13 +151,19 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
   await expect(page.getByRole("heading", { name: "245678901" })).toBeVisible();
   await expect(page.getByText(tr.timeline.actions.bl.create, { exact: true })).toBeVisible();
-  // Containers are added on the detail, with the check-digit hint.
+  // The edit dialog holds the B/L number and file number only.
   await page.getByRole("button", { name: tr.bls.edit }).click();
   const edit = page.getByRole("dialog", { name: tr.bls.edit });
-  await edit.getByLabel(tr.bls.containers).fill("CSQU3054384");
-  await expect(edit.getByText(tr.bls.checkDigitWarning.replace("{list}", "CSQU3054384"))).toBeVisible();
-  await edit.getByLabel(tr.bls.containers).fill("CSQU3054383");
-  await edit.getByRole("button", { name: tr.common.save }).click();
+  await expect(edit.getByLabel(tr.bls.fileNo)).toBeVisible();
+  await expect(edit.getByLabel(tr.bls.containers)).toHaveCount(0);
+  await edit.getByRole("button", { name: tr.common.cancel }).click();
+  // Containers are added in place in the summary, with the check-digit hint.
+  await page.getByRole("button", { name: tr.bls.containersEdit }).click();
+  await page.getByLabel(tr.bls.containers).fill("CSQU3054384");
+  await expect(page.getByText(tr.bls.checkDigitWarning.replace("{list}", "CSQU3054384"))).toBeVisible();
+  await page.getByLabel(tr.bls.containers).fill("CSQU3054383");
+  await page.getByLabel(tr.bls.containers).locator("..").getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(tr.bls.updated)).toBeVisible();
   await expect(page.getByText("CSQU3054383")).toBeVisible();
 
   // Voiding a B/L from its detail dialog returns its payment to the work list.

@@ -9,7 +9,7 @@ import type { AuthUser } from "./auth/types";
 import { customerForNewName } from "./customers";
 import type { Db } from "./db/client";
 import { eq } from "drizzle-orm";
-import { billsOfLading, containers, customers, documents, requests } from "./db/schema";
+import { billsOfLading, customers, documents, requests } from "./db/schema";
 import { DomainError } from "./errors";
 import { attachDocument, nameBlDocuments } from "./files";
 import { addLedgerEntry } from "./ledger";
@@ -48,7 +48,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
 
     const existing = existingBlFor(tx, input.blNo, { agencyId, currency: input.currency });
     if (existing) {
-      if (input.pastAttempts > 0 || input.containers.length > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName) {
+      if (input.pastAttempts > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName) {
         throw new DomainError("openingBalances.errors.joinFields", { bl: existing.blNo });
       }
       if (input.documentId !== null) {
@@ -94,9 +94,6 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
       })
       .returning()
       .get();
-    if (input.containers.length > 0) {
-      tx.insert(containers).values(input.containers.map((containerNo) => ({ blId: bl.id, containerNo }))).run();
-    }
     if (input.documentId !== null) {
       attachDocument(tx, actor, { documentId: input.documentId, kind: EVIDENCE_KIND[input.kind], ownerType: "bill_of_lading", ownerId: bl.id });
     }
@@ -136,7 +133,6 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
           paidAt: input.paidAt,
           kind: input.kind,
           customerId,
-          containers: input.containers,
           documentId: input.documentId,
           pastAttempts: input.pastAttempts,
           lastRequestOn: input.lastRequestOn,

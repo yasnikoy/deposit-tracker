@@ -17,10 +17,8 @@ import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domai
 
 export type BlRowError = {
   index: number;
-  field: "blNo" | "containers" | "payment";
+  field: "blNo" | "payment";
   message: TranslationKey;
-  /** 1-based position in the container list, for container errors. */
-  item?: number;
 };
 
 export type CreateBlsResult = {
@@ -78,9 +76,6 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
     })
     .returning()
     .get();
-  if (row.containers.length > 0) {
-    tx.insert(containers).values(row.containers.map((containerNo) => ({ blId: bl.id, containerNo }))).run();
-  }
   addLedgerEntry(
     tx,
     {
@@ -107,7 +102,6 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
         depositPaymentId: payment.id,
         customerId,
         fileNo,
-        containers: row.containers,
         status: bl.status,
         renamed: nameBlDocuments(tx, bl),
       },
@@ -131,14 +125,13 @@ export function createBls(db: Db, actor: AuthUser, rows: unknown[], now: Date = 
     if (result.success) return void parsed.push({ index, row: result.data });
     const seen = new Set<string>();
     for (const issue of result.error.issues) {
-      const field = issue.path[0] === "containers" ? "containers" : issue.path[0] === "blNo" ? "blNo" : "payment";
+      const field = issue.path[0] === "blNo" ? "blNo" : "payment";
       if (seen.has(field)) continue;
       seen.add(field);
       errors.push({
         index,
         field,
         message: isTranslationKey(issue.message) ? issue.message : "errors.validation",
-        item: field === "containers" && typeof issue.path[1] === "number" ? issue.path[1] + 1 : undefined,
       });
     }
   });

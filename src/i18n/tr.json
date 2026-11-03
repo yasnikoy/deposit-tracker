@@ -793,6 +793,7 @@
     "blNo": "B/L no",
     "containers": "Konteynerler",
     "containersHint": "Virgül, boşluk veya satırla ayırın.",
+    "containersEdit": "Konteynerleri düzenle",
     "pasteHint": "Excel'den B/L no sütununu ilk satıra yapıştırabilirsiniz; satırlar sırayla dolar.",
     "saveAll": "B/L numarası girilen satırları kaydet ({count})",
     "savedCount": "{count} B/L oluşturuldu.",

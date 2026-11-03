@@ -285,7 +285,7 @@ describe("a payment without its receipt", () => {
       NOW,
     );
     if (payment.status !== "created") throw new Error("payment not created");
-    const a = createBls(db, ops, [{ paymentId: payment.id, blNo: "MEDU1000009", containers: [] }], NOW).created[0].blId;
+    const a = createBls(db, ops, [{ paymentId: payment.id, blNo: "MEDU1000009" }], NOW).created[0].blId;
     attachForm(a);
     expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blId: a, evidenceMissing: true });
 

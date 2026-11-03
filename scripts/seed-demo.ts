@@ -17,7 +17,7 @@ import { checkContainerNumber } from "@/domain/containers";
 import type { Role } from "@/domain/roles";
 import type { AuthUser } from "@/server/auth/types";
 import { createAgency } from "@/server/agencies";
-import { createBls, voidBl } from "@/server/bls";
+import { createBls, updateBl, voidBl } from "@/server/bls";
 import { loadCalendar } from "@/server/calendar";
 import { getDb, type Db } from "@/server/db/client";
 import { emails, users } from "@/server/db/schema";
@@ -292,9 +292,11 @@ async function seed(db: Db) {
     );
     if (result.status !== "created") throw new Error("payment not created");
     if (!spec.blNo) return { paymentId: result.id, blId: null, paidAt };
-    const created = createBls(db, ops, [{ paymentId: result.id, blNo: spec.blNo, containers: spec.containers ?? [] }], now);
+    const created = createBls(db, ops, [{ paymentId: result.id, blNo: spec.blNo }], now);
     if (created.errors.length) throw new Error(`B/L ${spec.blNo}: ${JSON.stringify(created.errors)}`);
     const blId = created.created[0].blId;
+    // Containers are entered on the B/L detail, after creation.
+    if (spec.containers?.length) updateBl(db, ops, { id: blId, containers: spec.containers }, now);
     if (spec.form) {
       const form = storeUpload(db, ops, { originalName: `imzali-form-${spec.blNo}.pdf`, content: pdf([`IADE TALEP FORMU - ${spec.blNo}`, "Kase / imza: (taranmis)"]), kind: "FORM" }, now);
       uploadBlForm(db, ops, { blId, documentId: form.id }, now);

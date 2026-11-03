@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { agencyDetailsMissing } from "@/domain/agency";
 import { agencyInputSchema } from "@/lib/schemas/agencies";
+import { updateBlSchema } from "@/lib/schemas/bls";
 import { createPaymentSchema } from "@/lib/schemas/payments";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
@@ -206,42 +207,49 @@ describe("B/L creation", () => {
       db,
       ops,
       [
-        { paymentId: p1, blNo: " medu1234567 ", containers: ["csqu 305438-3"] },
-        { paymentId: p2, blNo: "MEDU1234567", containers: [] }, // same number twice in the batch
-        { paymentId: p3, blNo: "MEDU7654321", containers: ["BAD1"] },
-        { paymentId: p4, blNo: "X", containers: [] },
+        // A container list is not part of creation (entered on the B/L detail) and is ignored.
+        { paymentId: p1, blNo: " medu1234567 ", containers: ["CSQU3054383"] },
+        { paymentId: p2, blNo: "MEDU1234567" }, // same number twice in the batch
+        { paymentId: p3, blNo: "X" },
       ],
       NOW,
     );
     expect(result.created).toEqual([{ index: 0, paymentId: p1, blId: expect.any(Number), blNo: "MEDU1234567" }]);
     expect(result.errors).toEqual([
       { index: 1, field: "blNo", message: "bls.errors.blNoDuplicateInBatch" },
-      { index: 2, field: "containers", message: "bls.errors.containerFormat", item: 1 },
-      { index: 3, field: "blNo", message: "bls.errors.blNo" },
+      { index: 2, field: "blNo", message: "bls.errors.blNo" },
     ]);
 
     const bl = listAllBls(db, ops, NOW)[0];
-    expect(bl).toMatchObject({ blNo: "MEDU1234567", status: "DUE", containers: ["CSQU3054383"], depositMinor: 300000 });
+    expect(bl).toMatchObject({ blNo: "MEDU1234567", status: "DUE", containers: [], depositMinor: 300000 });
     expect(ledgerDeposit(db, bl.id)).toBe(300000);
     expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p2, p3, p4]);
-    expect(() => createBls(db, acc, [{ paymentId: p2, blNo: "MEDU0000001", containers: [] }])).toThrow(ForbiddenError);
+    expect(() => createBls(db, acc, [{ paymentId: p2, blNo: "MEDU0000001" }])).toThrow(ForbiddenError);
   });
 
   it("allows one active B/L per payment; voiding frees the payment and the number", () => {
     const p1 = created(pay());
-    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]).created).toHaveLength(1);
-    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU9999999", containers: [] }]).errors[0].message).toBe(
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]).created).toHaveLength(1);
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU9999999" }]).errors[0].message).toBe(
       "bls.errors.paymentUnavailable",
     );
     const [bl] = listAllBls(db, ops, NOW);
     voidBl(db, ops, { id: bl.id, reason: "Yanlış B/L numarası" });
     expect(listPaymentsAwaitingBl(db, ops).map((p) => p.id)).toEqual([p1]);
-    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]).created).toHaveLength(1);
+    expect(createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]).created).toHaveLength(1);
+  });
+
+  it("validates containers on the edit: normalized, ISO 6346 form, no duplicates", () => {
+    expect(updateBlSchema.parse({ id: 1, containers: ["csqu 305438-3"] }).containers).toEqual(["CSQU3054383"]);
+    const bad = updateBlSchema.safeParse({ id: 1, containers: ["CSQU3054383", "BAD1"] });
+    expect(bad.success || bad.error.issues[0]).toMatchObject({ path: ["containers", 1], message: "bls.errors.containerFormat" });
+    const twice = updateBlSchema.safeParse({ id: 1, containers: ["CSQU3054383", "csqu3054383"] });
+    expect(twice.success || twice.error.issues[0]).toMatchObject({ message: "bls.errors.containerDuplicate" });
   });
 
   it("edits number and containers while no request has been sent", () => {
     const p1 = created(pay());
-    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]);
     const [bl] = listAllBls(db, ops, NOW);
     updateBl(db, ops, { id: bl.id, blNo: "MEDU1234568", containers: ["CSQU3054383"] });
     expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ blNo: "MEDU1234568", containers: ["CSQU3054383"] });
@@ -255,7 +263,7 @@ describe("B/L creation", () => {
 describe("corrections and voiding", () => {
   it("lets only the creating accountant correct, with a reason; the B/L and ledger follow", () => {
     const p1 = created(pay());
-    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]);
     const [bl] = listAllBls(db, ops, NOW);
     const correction = { id: p1, agencyId, amountMinor: 250000, currency: "USD", paidAt: "2026-10-19", reason: "Dekont tutarı hatalı girildi" };
 
@@ -274,7 +282,7 @@ describe("corrections and voiding", () => {
 
   it("moves the whole B/L to the new currency on a currency correction", () => {
     const p1 = created(pay());
-    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]);
     const [bl] = listAllBls(db, ops, NOW);
     correctPayment(db, acc, { id: p1, agencyId, amountMinor: 280000, currency: "EUR", paidAt: "2026-10-20", reason: "Para birimi EUR" }, NOW);
     expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ currency: "EUR", depositMinor: 280000 });
@@ -283,7 +291,7 @@ describe("corrections and voiding", () => {
 
   it("voids a payment only after its B/L is voided, and freezes records with a confirmed allocation", () => {
     const p1 = created(pay());
-    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]);
     const [bl] = listAllBls(db, ops, NOW);
     expect(() => voidPayment(db, acc, { id: p1, reason: "Mükerrer" })).toThrow(
       expect.objectContaining({ messageKey: "payments.errors.voidBlFirst" }),
@@ -299,7 +307,7 @@ describe("corrections and voiding", () => {
 
   it("voids after the B/L is voided; voided payments leave the work lists", () => {
     const p1 = created(pay());
-    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567", containers: [] }]);
+    createBls(db, ops, [{ paymentId: p1, blNo: "MEDU1234567" }]);
     voidBl(db, ops, { id: listAllBls(db, ops, NOW)[0].id, reason: "Yanlış kayıt" });
     voidPayment(db, acc, { id: p1, reason: "Mükerrer kayıt" });
     expect(listPaymentsAwaitingBl(db, ops)).toEqual([]);

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { isValidIsoDate } from "@/domain/business-days";
 import { PAYMENT_KINDS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
-import { blNumberSchema, containerListSchema, fileNoSchema } from "./bls";
+import { blNumberSchema, fileNoSchema } from "./bls";
 import { agencyChoiceFields, agencyChoiceIssue, isAgencyChoice, paymentFields } from "./payments";
 
 const msg = (key: TranslationKey) => key;
@@ -22,8 +22,6 @@ export const openingBalanceSchema = z
     ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNo: blNumberSchema,
-    // Entered on the B/L detail afterwards; the form sends none.
-    containers: containerListSchema.default([]),
     customerId: z.number().int().positive().nullable().default(null),
     // A customer not registered yet, by name (registered with the record).
     newCustomerName: z

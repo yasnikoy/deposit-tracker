@@ -28,6 +28,7 @@ import { DeductionsSection } from "./deductions-section";
 import { ReplySection } from "./reply-section";
 import { DescriptionEditor } from "../description-editor";
 import type { CustomerOption } from "@/components/customer-combobox";
+import { ContainersField } from "./containers-field";
 import { CustomerField } from "./customer-field";
 import { recordAccountingEntryAction } from "../../accounting/actions";
 import { toastWithUndo } from "@/components/undo-toast";
@@ -193,7 +194,9 @@ export function BlDetailScreen({
             <dt className="text-muted-foreground">{t("bls.lastReply")}</dt>
             <dd>{bl.lastReply ? `${bl.lastReply.typeName} · ${formatBusinessDate(bl.lastReply.repliedOn)}` : t("common.none")}</dd>
             <dt className="text-muted-foreground">{t("bls.containers")}</dt>
-            <dd className="font-mono text-xs">{bl.containers.length ? bl.containers.join(", ") : t("bls.noContainers")}</dd>
+            <dd>
+              <ContainersField key={bl.containers.join(",")} blId={bl.id} containers={bl.containers} editable={can.edit && !bl.voidedAt} />
+            </dd>
             <dt className="text-muted-foreground">{t("bls.sourcePayment")}</dt>
             <dd>
               {payment ? (
