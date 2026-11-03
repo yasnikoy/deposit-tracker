@@ -476,6 +476,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Idea, not scheduled — learned B/L number patterns:** from the B/Ls users create or correct under an agency, the app proposes a pattern per agency that keeps the shared prefix plus the shape (e.g. `AKK[A-Z]{3}\d{8}`, `MEDU[A-Z0-9]{8}`), never a purely numeric one. It is shown on the agency screen with the B/Ls it came from and what it would cover; an admin accepts (audited, like any agency change) or dismisses it. Only B/L patterns are learned (not bank names or customer aliases). Whether and when to build it is decided later.
 
+**Idea, not scheduled — partial deposit transfers:** moving only part of a B/L's deposit to another B/L (e.g. 13,000 of 15,000 USD), the rest staying open on the original. Noted on Nov 3, 2026 while deposit transfers were planned as full transfers only; built if such a case actually comes up.
+
 **Not planned:** accounting software export, deposit tariff tables, container-level return tracking, phone/WhatsApp follow-up logging, Excel import for migration.
 
 **Removed after review:** escalation, snooze, auto-confirm of allocations, bank-fee tolerance.
