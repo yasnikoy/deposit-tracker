@@ -12,6 +12,7 @@ import { parseContainerList } from "@/domain/containers";
 import type { BlStatus } from "@/domain/records";
 import { t } from "@/i18n";
 import { updateBlAction, voidBlAction } from "./actions";
+import { containerWarnings } from "./bl-warnings";
 
 export type EditableBl = { id: number; blNo: string; containers: string[]; fileNo: string | null; status: BlStatus };
 
@@ -67,6 +68,11 @@ export function EditBlDialog({ bl, onCancel, onSaved }: { bl: EditableBl; onCanc
               className="border-input bg-background rounded-md border px-2 py-1 font-mono text-xs uppercase"
             />
             <p className="text-muted-foreground text-xs">{t("bls.containersHint")}</p>
+            {containerWarnings(containers).map((warning) => (
+              <p key={warning} className="text-xs text-amber-700 dark:text-amber-400">
+                {warning}
+              </p>
+            ))}
           </div>
           {error && (
             <p role="alert" className="text-destructive text-sm">

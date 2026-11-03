@@ -95,7 +95,8 @@ test("a dual-role user records payments and continues straight to the B/L", asyn
   // Continuous flow: the B/L form is prefilled with the hint.
   await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
   await expect(page.getByLabel(tr.bls.blNo)).toHaveValue("245678901");
-  await page.getByLabel(tr.bls.containers).fill("CSQU3054383");
+  // Containers are entered on the B/L detail only.
+  await expect(page.getByLabel(tr.bls.containers)).toHaveCount(0);
   await page.getByRole("button", { name: tr.bls.createOne }).click();
   await expect(page.getByText("B/L oluşturuldu: 245678901")).toBeVisible();
 
@@ -130,26 +131,33 @@ test("operations creates B/Ls in bulk by pasting from Excel; invalid rows stay w
   const rows = page.locator("tbody tr");
   await expect(rows).toHaveCount(2);
 
-  // Row 1 reuses an active B/L number, row 2 has a malformed container.
+  // Row 1 reuses an active B/L number. A pasted container column is ignored: containers go on the B/L detail.
+  await expect(page.getByLabel(tr.bls.containers)).toHaveCount(0);
   await pasteInto(page, tr.bls.blNo, "245678901\tCSQU3054383\n299999999\tBAD1");
   await expect(page.getByLabel(tr.bls.blNo).nth(1)).toHaveValue("299999999");
   await page.getByRole("button", { name: tr.bls.saveAll.replace("{count}", "2") }).click();
   await expect(page.getByText(tr.bls.errors.blNoTaken)).toBeVisible();
-  await expect(page.getByText(`${tr.bls.errors.containerFormat} (1)`)).toBeVisible();
-  await expect(rows).toHaveCount(2);
+  await expect(page.getByText("1 B/L oluşturuldu.")).toBeVisible();
+  await expect(rows).toHaveCount(1);
 
   await page.getByLabel(tr.bls.blNo).first().fill("211111111");
-  await page.getByLabel(tr.bls.containers).nth(1).fill("");
-  await page.getByRole("button", { name: tr.bls.saveAll.replace("{count}", "2") }).click();
-  await expect(page.getByText("2 B/L oluşturuldu.")).toBeVisible();
+  await page.getByRole("button", { name: tr.bls.saveAll.replace("{count}", "1") }).click();
+  await expect(page.getByText("1 B/L oluşturuldu.").last()).toBeVisible();
   await expect(page.getByText(tr.bls.awaitingEmpty)).toBeVisible();
 
-  // All B/Ls: the global search finds a B/L by container, Enter opens its detail.
+  // The global search finds a B/L, Enter opens its detail.
   await page.getByRole("combobox", { name: tr.search.label }).fill("2456789");
   await expect(page.getByRole("option").filter({ hasText: "245678901" })).toBeVisible();
   await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
   await expect(page.getByRole("heading", { name: "245678901" })).toBeVisible();
   await expect(page.getByText(tr.timeline.actions.bl.create, { exact: true })).toBeVisible();
+  // Containers are added on the detail, with the check-digit hint.
+  await page.getByRole("button", { name: tr.bls.edit }).click();
+  const edit = page.getByRole("dialog", { name: tr.bls.edit });
+  await edit.getByLabel(tr.bls.containers).fill("CSQU3054384");
+  await expect(edit.getByText(tr.bls.checkDigitWarning.replace("{list}", "CSQU3054384"))).toBeVisible();
+  await edit.getByLabel(tr.bls.containers).fill("CSQU3054383");
+  await edit.getByRole("button", { name: tr.common.save }).click();
   await expect(page.getByText("CSQU3054383")).toBeVisible();
 
   // Voiding a B/L from its detail dialog returns its payment to the work list.

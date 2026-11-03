@@ -328,8 +328,8 @@ test("exports: a table's current view as CSV, selected rows copied for Excel, re
   const [tableCsv] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: tr.table.downloadCsv }).click()]);
   expect(tableCsv.suggestedFilename()).toMatch(/^all-bls-\d{4}-\d{2}-\d{2}\.csv$/);
   const lines = fs.readFileSync(await tableCsv.path(), "utf8").split("\r\n");
-  // Visible columns only: Beklenen, Talep sayısı and Son yanıt are hidden by default.
-  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.collected};${tr.bls.lastRequestOn};${tr.bls.daysWaiting};${tr.description.title};${tr.bls.containers}`);
+  // Visible columns only: Beklenen, Talep sayısı, Son yanıt and Konteynerler are hidden by default.
+  expect(lines[0]).toBe(`﻿${tr.bls.blNo};${tr.bls.agency};${tr.bls.customer};${tr.bls.fileNo};${tr.bls.status};${tr.bls.paidAt};${tr.bls.deposit};${tr.bls.currency};${tr.bls.collected};${tr.bls.lastRequestOn};${tr.bls.daysWaiting};${tr.description.title}`);
   expect(lines[1]).toContain(`${BL_NO};${AGENCY};Hapag Müşteri;;${tr.bls.statuses.COLLECTED};`);
   expect(lines[1]).toContain(";2.500,00;USD;");
   expect(lines).toHaveLength(3);
@@ -414,21 +414,23 @@ test("description: kept on the B/L detail (not on the timeline), a line added to
   await expect(page.getByRole("dialog").getByLabel(d.label)).toHaveValue("Portal kontrol edilecek.\nHaftalık kontrol yapıldı.");
 });
 
-test("inline editing: containers on All B/Ls (undone from the toast), an agency's CC list; R and N on the B/L detail", async ({ page }) => {
+test("inline editing: file number on All B/Ls (undone from the toast), an agency's CC list; R and N on the B/L detail", async ({ page }) => {
   await login(page, OPS.username, OPS.final);
   await page.goto("/bls");
+  // Containers are entered on the B/L detail; the column is hidden by default.
+  await expect(page.getByRole("columnheader", { name: tr.bls.containers })).toHaveCount(0);
   await page.getByPlaceholder(tr.table.search).fill(PORTAL_BL_NO);
   const row = page.getByRole("row").filter({ hasText: PORTAL_BL_NO });
-  // Requested already: the B/L number is locked, containers are not.
+  // Requested already: the B/L number is locked, the file number is not.
   await expect(row.getByRole("button", { name: `${tr.table.editCell}: ${tr.bls.blNo}` })).toHaveCount(0);
-  await row.getByRole("button", { name: `${tr.table.editCell}: ${tr.bls.containers}` }).click();
-  const editor = page.getByLabel(`${tr.bls.containers} — ${tr.table.editCell}`);
-  await editor.fill("CSQU 305438-3");
+  await row.getByRole("button", { name: `${tr.table.editCell}: ${tr.bls.fileNo}` }).click();
+  const editor = page.getByLabel(`${tr.bls.fileNo} — ${tr.table.editCell}`);
+  await editor.fill("T26-54321");
   await editor.press("Enter");
   await expect(page.getByText(tr.table.edited)).toBeVisible();
-  await expect(row).toContainText("CSQU3054383");
+  await expect(row).toContainText("26-54321");
   await page.getByRole("button", { name: tr.undo.action }).click();
-  await expect(row).not.toContainText("CSQU3054383");
+  await expect(row).not.toContainText("26-54321");
 
   // F2 edits the first editable cell of the active row; Esc leaves it unchanged.
   await row.click();

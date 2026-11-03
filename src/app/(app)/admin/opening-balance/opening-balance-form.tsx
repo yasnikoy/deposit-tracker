@@ -13,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { parseContainerList } from "@/domain/containers";
 import { PAYMENT_KINDS, type PaymentKind } from "@/domain/records";
 import { isTranslationKey, t } from "@/i18n";
 import { formatAmount, formatMoney, parseAmountInput } from "@/lib/money";
@@ -21,7 +20,7 @@ import { openingBalanceSchema } from "@/lib/schemas/opening-balances";
 import { cn } from "@/lib/utils";
 import { BlJoinNotice, ReceiptMismatchHint, useBlJoinPreview, useDepositConfirmations } from "../../accounting/deposit-checks";
 import type { ReferenceData } from "../../accounting/payment-form";
-import { blRowWarnings } from "../../bls/bl-warnings";
+import { blNoWarnings } from "../../bls/bl-warnings";
 import { createOpeningBalanceAction } from "./actions";
 
 type FormValues = {
@@ -35,7 +34,6 @@ type FormValues = {
   paidAt: string;
   blNo: string;
   fileNo: string;
-  containersText: string;
   pastAttempts: string;
   lastRequestOn: string;
   note: string;
@@ -46,7 +44,7 @@ type Prefill = NonNullable<Extract<UploadResponse, { ok: true }>["prefill"]>;
 type QueuedReceipt = { id: number; originalName: string; prefill: Prefill | null; read: boolean };
 
 /** Schema fields shown under another form field. */
-const FIELD_OF: Record<string, keyof FormValues> = { amountMinor: "amountText", containers: "containersText", newAgencyName: "agencyId", newCustomerName: "customerId" };
+const FIELD_OF: Record<string, keyof FormValues> = { amountMinor: "amountText", newAgencyName: "agencyId", newCustomerName: "customerId" };
 
 /**
  * Open Excel records moved into the app one after another. Receipts dropped together wait in a
@@ -64,7 +62,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
 
   const confirmations = useDepositConfirmations();
   // While the typed B/L number belongs to an active B/L the deposit joins (`joining`, below), that
-  // B/L keeps its request history, customer, file number and containers, so the record sends none.
+  // B/L keeps its request history, customer and file number, so the record sends none.
   // Called only from events, after render has set `joining`.
   const toInput = (values: FormValues, confirmDuplicate = false) => {
     return {
@@ -78,7 +76,6 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
       paidAt: values.paidAt,
       blNo: values.blNo,
       fileNo: joining ? "" : values.fileNo,
-      containers: joining ? [] : parseContainerList(values.containersText),
       documentId: receipt?.id ?? null,
       pastAttempts: joining ? 0 : Number(values.pastAttempts),
       lastRequestOn: joining ? null : values.lastRequestOn || null,
@@ -110,22 +107,21 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     paidAt: "",
     blNo: "",
     fileNo: "",
-    containersText: "",
     pastAttempts: "0",
     lastRequestOn: "",
     note: "",
   };
   const form = useForm<FormValues>({ resolver, defaultValues: blank });
   const errors = form.formState.errors;
-  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts, blNo, containersText] = useWatch({
+  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts, blNo] = useWatch({
     control: form.control,
-    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts", "blNo", "containersText"],
+    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts", "blNo"],
   });
   const amount = parseAmountInput(amountText);
   const joinPreview = useBlJoinPreview(blNo, agencyId, currency);
   const joining = joinPreview !== null && joinPreview.problem === null;
   const patterns = refs.agencies.find((a) => a.id === agencyId)?.blNumberPatterns ?? [];
-  const blWarnings = blRowWarnings(blNo, joining ? "" : containersText, patterns);
+  const blWarnings = blNoWarnings(blNo, patterns);
   const isKnownAgency = (name: string) => refs.agencies.some((a) => a.name.toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
 
   /** Puts a receipt on the form: what it reads overrides, the rest stays as carried over. */
@@ -333,7 +329,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
               </div>
             </div>
 
-            {/* Tab order follows daily use: B/L number and request history first, then file number and containers. */}
+            {/* Tab order follows daily use: B/L number and request history first, then the file number. */}
             <div className="grid grid-cols-[14rem_14rem_14rem] gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="opening-bl-no">{t("bls.blNo")}</Label>
@@ -374,17 +370,10 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
               {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
             </div>
 
-            <div className="grid grid-cols-[14rem_1fr] gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
-                <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
-                {message(errors.fileNo?.message)}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="opening-containers">{t("bls.containers")}</Label>
-                <Input id="opening-containers" className="font-mono uppercase" placeholder="MSCU1234565, CSQU3054383" disabled={joining} {...form.register("containersText")} />
-                {message(errors.containersText?.message)}
-              </div>
+            <div className="flex w-56 flex-col gap-1.5">
+              <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
+              <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
+              {message(errors.fileNo?.message)}
             </div>
 
             <div className="flex flex-col gap-1.5">

@@ -5,16 +5,14 @@ import { useState, type ClipboardEvent } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { parseContainerList } from "@/domain/containers";
 import { t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import type { BlRowError } from "@/server/bls";
 import type { PaymentListItem } from "@/server/payments";
 import { createBlsAction } from "../actions";
-import { blCandidatesOf, blRowWarnings } from "../bl-warnings";
+import { blCandidatesOf, blNoWarnings } from "../bl-warnings";
 
-type RowInput = { blNo: string; containers: string };
 
 /** Payments without a B/L in one editable grid; rows with a B/L number are saved together. Read-only for accountants. */
 export function CreateBlsScreen({
@@ -27,20 +25,20 @@ export function CreateBlsScreen({
   readOnly: boolean;
 }) {
   const router = useRouter();
-  const [inputs, setInputs] = useState<Record<number, RowInput>>(() =>
+  const [inputs, setInputs] = useState<Record<number, string>>(() =>
     Object.fromEntries(
       payments.map((p) => {
         const candidates = blCandidatesOf(p);
-        return [p.id, { blNo: candidates.length === 1 ? candidates[0] : "", containers: "" }];
+        return [p.id, candidates.length === 1 ? candidates[0] : ""];
       }),
     ),
   );
   const [errors, setErrors] = useState<Record<number, BlRowError[]>>({});
   const [busy, setBusy] = useState(false);
-  const input = (id: number): RowInput => inputs[id] ?? { blNo: "", containers: "" };
-  const update = (id: number, patch: Partial<RowInput>) => setInputs((all) => ({ ...all, [id]: { ...input(id), ...patch } }));
+  const input = (id: number): string => inputs[id] ?? "";
+  const update = (id: number, blNo: string) => setInputs((all) => ({ ...all, [id]: blNo }));
 
-  /** Pasting several lines (or tab-separated columns) from Excel fills this row and the ones below. */
+  /** Pasting several lines from Excel fills this row and the ones below; only the first column is taken. */
   const onPaste = (index: number, event: ClipboardEvent<HTMLInputElement>) => {
     const text = event.clipboardData.getData("text");
     if (!/[\t\n]/.test(text.trim())) return;
@@ -51,18 +49,16 @@ export function CreateBlsScreen({
       lines.forEach((line, offset) => {
         const payment = payments[index + offset];
         if (!payment) return;
-        const [blNo = "", ...rest] = line.split("\t");
-        next[payment.id] = { blNo: blNo.trim(), containers: rest.join(" ").trim() || (next[payment.id]?.containers ?? "") };
+        next[payment.id] = (line.split("\t")[0] ?? "").trim();
       });
       return next;
     });
   };
 
-  const filled = payments.filter((p) => input(p.id).blNo.trim() !== "");
+  const filled = payments.filter((p) => input(p.id).trim() !== "");
 
   const save = async () => {
-    const rows = filled
-      .map((p) => ({ paymentId: p.id, blNo: input(p.id).blNo, containers: parseContainerList(input(p.id).containers) }));
+    const rows = filled.map((p) => ({ paymentId: p.id, blNo: input(p.id) }));
     if (rows.length === 0) return;
     setBusy(true);
     const result = await createBlsAction({ rows });
@@ -91,14 +87,13 @@ export function CreateBlsScreen({
               <th className="px-2 py-1 text-right font-medium">{t("bls.deposit")}</th>
               <th className="px-2 py-1 font-medium">{t("bls.candidates")}</th>
               {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.blNo")}</th>}
-              {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.containers")}</th>}
             </tr>
           </thead>
           <tbody>
             {payments.map((payment, index) => {
-              const value = input(payment.id);
+              const blNo = input(payment.id);
               const rowErrors = errors[payment.id] ?? [];
-              const warnings = blRowWarnings(value.blNo, value.containers, patterns[payment.agencyId] ?? []);
+              const warnings = blNoWarnings(blNo, patterns[payment.agencyId] ?? []);
               return (
                 <tr key={payment.id} data-testid={`bl-row-${payment.id}`} className="border-t align-top">
                   <td className="px-2 py-1 whitespace-nowrap">{formatBusinessDate(payment.paidAt)}</td>
@@ -108,7 +103,7 @@ export function CreateBlsScreen({
                     <div className="flex flex-wrap gap-1">
                       {/* A candidate already in the B/L no field is not repeated as a chip. */}
                       {blCandidatesOf(payment)
-                        .filter((candidate) => readOnly || candidate !== value.blNo.trim().toUpperCase())
+                        .filter((candidate) => readOnly || candidate !== blNo.trim().toUpperCase())
                         .map((candidate) =>
                         readOnly ? (
                           <span key={candidate} className="bg-muted rounded px-1.5 font-mono text-xs">
@@ -119,7 +114,7 @@ export function CreateBlsScreen({
                           key={candidate}
                           type="button"
                           className="bg-muted hover:bg-accent rounded px-1.5 font-mono text-xs"
-                          onClick={() => update(payment.id, { blNo: candidate })}
+                          onClick={() => update(payment.id, candidate)}
                           title={t("bls.useCandidate", { bl: candidate })}
                         >
                           {candidate}
@@ -129,28 +124,17 @@ export function CreateBlsScreen({
                     </div>
                   </td>
                   {!readOnly && (
-                  <td className="w-48 px-2 py-1">
+                  <td className="w-72 px-2 py-1">
                     <Input
                       aria-label={`${t("bls.blNo")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
                       className="h-8 font-mono uppercase"
-                      value={value.blNo}
-                      onChange={(event) => update(payment.id, { blNo: event.target.value })}
+                      value={blNo}
+                      onChange={(event) => update(payment.id, event.target.value)}
                       onPaste={(event) => onPaste(index, event)}
-                    />
-                  </td>
-                  )}
-                  {!readOnly && (
-                  <td className="w-80 px-2 py-1">
-                    <Input
-                      aria-label={`${t("bls.containers")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
-                      className="h-8 font-mono uppercase"
-                      value={value.containers}
-                      onChange={(event) => update(payment.id, { containers: event.target.value })}
                     />
                     {rowErrors.map((error) => (
                       <p key={error.field} role="alert" className="text-destructive text-xs">
                         {t(error.message)}
-                        {error.item ? ` (${error.item})` : ""}
                       </p>
                     ))}
                     {warnings.map((warning) => (

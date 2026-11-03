@@ -11,7 +11,6 @@ import { DetailDialog, detailNavigation } from "@/components/detail-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { parseContainerList } from "@/domain/containers";
 import { BL_STATUSES } from "@/domain/records";
 import { t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
@@ -27,7 +26,7 @@ import { DescriptionEditor } from "./description-editor";
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
 const col = dataTableColumns<BlOverview>();
-/** Inline editing (rule 11: never money or status): the B/L number while still PAID, file number and containers. */
+/** Inline editing (rule 11: never money or status): the B/L number while still PAID and the file number. */
 const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor("blNo", {
     meta: {
@@ -124,15 +123,8 @@ const buildColumns = (canEdit: boolean) => col.columns([
   }),
   col.accessor((b) => b.containers.join(", "), {
     id: "containers",
-    meta: {
-      label: "bls.containers",
-      filter: "text",
-      edit: {
-        editable: (b: BlOverview) => canEdit && !b.voidedAt,
-        text: (b: BlOverview) => b.containers.join(", "),
-        save: (b: BlOverview, text: string) => updateBlAction({ id: b.id, containers: parseContainerList(text) }),
-      },
-    },
+    // Entered on the B/L detail only; shown here read-only.
+    meta: { label: "bls.containers", filter: "text" },
   }),
 ]);
 
@@ -180,7 +172,7 @@ export function AllBlsScreen({
         initialLayout={layout}
         initialFilters={status ? [{ id: "status", value: status }] : undefined}
         // Beklenen equals Depozito until money comes in; request count and last reply are on the row panel.
-        hiddenByDefault={["expectedMinor", "attempts", "lastReply"]}
+        hiddenByDefault={["expectedMinor", "attempts", "lastReply", "containers"]}
         onOpenRow={(b, visible) => {
           setOrder(visible.map((v) => String(v.id)));
           setOpenId(b.id);

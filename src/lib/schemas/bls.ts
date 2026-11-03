@@ -40,7 +40,8 @@ export const fileNoSchema = z
 export const blRowSchema = z.object({
   paymentId: z.number().int().positive(),
   blNo: blNumberSchema,
-  containers: containerListSchema,
+  // Containers are entered on the B/L detail; creation takes them only from scripts and tests.
+  containers: containerListSchema.default([]),
   // Optional: without them, the payment's receipt suggests both (file number, customer alias).
   customerId: z.number().int().positive().nullable().optional(),
   fileNo: fileNoSchema.nullable().optional(),

@@ -22,7 +22,8 @@ export const openingBalanceSchema = z
     ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNo: blNumberSchema,
-    containers: containerListSchema,
+    // Entered on the B/L detail afterwards; the form sends none.
+    containers: containerListSchema.default([]),
     customerId: z.number().int().positive().nullable().default(null),
     // A customer not registered yet, by name (registered with the record).
     newCustomerName: z
