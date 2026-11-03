@@ -15,6 +15,9 @@ export const reportRequestSchema = z.object({
   filters: z.object({
     agencyIds: z.array(z.number().int().positive()).max(500),
     currency: z.string().regex(/^[A-Z]{3}$/).nullable(),
+    // The period of the requested section (requests sent then); required when it is chosen.
+    requestedFrom: isoDate.nullable().default(null),
+    requestedTo: isoDate.nullable().default(null),
     collectedFrom: isoDate.nullable(),
     collectedTo: isoDate.nullable(),
   }),

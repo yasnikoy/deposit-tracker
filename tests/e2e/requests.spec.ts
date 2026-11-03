@@ -368,7 +368,9 @@ test("report email: operations previews a status report; agency addresses are re
   await expect(dialog.getByLabel(tr.reports.email.subject)).toHaveValue(/^Depozito durum raporu – \d{2}\.\d{2}\.\d{4}$/);
   const summary = dialog.getByTestId("report-summary");
   // Other specs share the database, so only this spec's agencies are checked.
-  await expect(summary).toContainText(`• ${PORTAL_AGENCY} · USD: 1 B/L, tahsil edilecek 1.000,00 USD`);
+  // Requested refunds: the requests sent today, by default.
+  await expect(summary).toContainText(/Talep edilen iadeler \(\d{2}\.\d{2}\.\d{4}\)/);
+  await expect(summary).toContainText(`• ${PORTAL_AGENCY} · USD: 1 talep, depozito 1.000,00 USD`);
   await expect(summary).toContainText(`• ${PORTAL_AGENCY} · USD: 1 B/L, 1.000,00 USD`);
   await expect(summary).toContainText(`• ${AGENCY} · USD: 1 B/L, tahsil 2.400,00 USD, kesinti 100,00 USD, silinen 0,00 USD`);
   await expect(dialog.getByText(/^Sorunlar \d{4}-\d{2}-\d{2}\.csv/)).toBeVisible();

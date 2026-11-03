@@ -26,6 +26,9 @@ export type ReportFilters = {
   agencyIds: number[];
   /** Null: every currency. */
   currency: string | null;
+  /** The period of the requested section (requests sent then); required when it is chosen. */
+  requestedFrom: IsoDate | null;
+  requestedTo: IsoDate | null;
   /** The period of the collected section; required when it is chosen. */
   collectedFrom: IsoDate | null;
   collectedTo: IsoDate | null;
@@ -58,44 +61,52 @@ function inScope(filters: ReportFilters) {
     (filters.agencyIds.length === 0 || filters.agencyIds.includes(item.agencyId)) && (filters.currency === null || item.currency === filters.currency);
 }
 
-/** First and last refund request date (sent or recorded on a portal) per B/L. */
-function requestDates(db: DbOrTx, blIds: number[]): Map<number, { first: string; last: string }> {
-  const dates = new Map<number, { first: string; last: string }>();
-  if (blIds.length === 0) return dates;
-  const rows = db
-    .select({ blId: requests.blId, requestedOn: requests.requestedOn })
-    .from(requests)
-    .where(and(inArray(requests.blId, blIds), eq(requests.type, "REFUND"), eq(requests.sendStatus, "SENT")))
-    .all();
-  for (const { blId, requestedOn } of rows) {
-    if (!requestedOn) continue;
-    const current = dates.get(blId);
-    dates.set(blId, current ? { first: requestedOn < current.first ? requestedOn : current.first, last: requestedOn > current.last ? requestedOn : current.last } : { first: requestedOn, last: requestedOn });
-  }
-  return dates;
-}
+const periodLabel = (from: string, to: string) => (from === to ? formatBusinessDate(from) : `${formatBusinessDate(from)} – ${formatBusinessDate(to)}`);
 
-function requestedSection(db: DbOrTx, open: Position[]): Omit<BuiltSection, "section" | "fileName"> {
-  const items = open.filter((p) => p.attempts > 0);
-  const dates = requestDates(db, items.map((p) => p.id));
+/**
+ * Refund requests sent in the period (first requests and follow-ups alike, one row each), with
+ * each B/L's state now. A resend is no request, so it is not listed; nor are failed sends.
+ */
+function requestedSection(db: DbOrTx, all: Position[], filters: ReportFilters): Omit<BuiltSection, "section" | "fileName"> {
+  const from = filters.requestedFrom!;
+  const to = filters.requestedTo!;
+  const scoped = new Map(all.map((p) => [p.id, p]));
+  const sent = scoped.size
+    ? db
+        .select({ blId: requests.blId, attemptNo: requests.attemptNo, requestedOn: requests.requestedOn })
+        .from(requests)
+        .where(
+          and(
+            inArray(requests.blId, [...scoped.keys()]),
+            eq(requests.type, "REFUND"),
+            eq(requests.sendStatus, "SENT"),
+            gte(requests.requestedOn, from),
+            lte(requests.requestedOn, to),
+          ),
+        )
+        .all()
+    : [];
+  const items = sent
+    .map((r) => ({ ...r, bl: scoped.get(r.blId)! }))
+    .map((r) => ({ ...r, agencyName: r.bl.agencyName, currency: r.bl.currency }))
+    .sort((a, b) => a.requestedOn!.localeCompare(b.requestedOn!) || a.agencyName.localeCompare(b.agencyName, "tr") || a.bl.blNo.localeCompare(b.bl.blNo));
   return {
-    title: t("reports.email.sections.REQUESTED"),
-    summary: groupBy(items, (p) => [p.outstandingMinor]).map((g) =>
+    title: `${t("reports.email.sections.REQUESTED")} (${periodLabel(from, to)})`,
+    summary: groupBy(items, (r) => [r.bl.depositMinor]).map((g) =>
       t("reports.email.lines.requested", { agency: g.agencyName, currency: g.currency, count: g.count, amount: money(g.amounts[0], g.currency) }),
     ),
     grid: {
-      headers: [t("bls.blNo"), t("bls.agency"), t("bls.status"), t("bls.deposit"), t("bls.currency"), t("reports.email.columns.outstanding"), t("reports.email.columns.firstRequest"), t("bls.lastRequestOn"), t("bls.attempts"), t("bls.lastReply")],
-      rows: items.map((p) => [
-        p.blNo,
-        p.agencyName,
-        t(`bls.statuses.${p.status}`),
-        formatAmount(p.depositMinor),
-        p.currency,
-        formatAmount(p.outstandingMinor),
-        date(dates.get(p.id)?.first ?? null),
-        date(dates.get(p.id)?.last ?? null),
-        String(p.attempts),
-        p.lastReply ? `${p.lastReply.typeName} · ${formatBusinessDate(p.lastReply.repliedOn)}` : "",
+      headers: [t("bls.blNo"), t("bls.agency"), t("reports.email.columns.request"), t("reports.email.columns.requestedOn"), t("bls.status"), t("bls.deposit"), t("bls.currency"), t("reports.email.columns.outstanding"), t("bls.lastReply")],
+      rows: items.map(({ bl, attemptNo, requestedOn }) => [
+        bl.blNo,
+        bl.agencyName,
+        t("requests.attemptOf.REFUND", { n: attemptNo }),
+        date(requestedOn),
+        t(`bls.statuses.${bl.status}`),
+        formatAmount(bl.depositMinor),
+        bl.currency,
+        formatAmount(bl.outstandingMinor),
+        bl.lastReply ? `${bl.lastReply.typeName} · ${formatBusinessDate(bl.lastReply.repliedOn)}` : "",
       ]),
     },
   };
@@ -221,15 +232,15 @@ function problemsSection(db: DbOrTx, open: Position[]): Omit<BuiltSection, "sect
 function buildSections(db: DbOrTx, actor: AuthUser, request: ReportRequest, now: Date): BuiltSection[] {
   const { sections, filters } = request;
   if (sections.length === 0) throw new DomainError("reports.email.errors.noSections");
-  if (sections.includes("COLLECTED") && (!filters.collectedFrom || !filters.collectedTo || filters.collectedFrom > filters.collectedTo)) {
-    throw new DomainError("reports.email.errors.period");
-  }
+  const badPeriod = (from: string | null, to: string | null) => !from || !to || from > to;
+  if (sections.includes("COLLECTED") && badPeriod(filters.collectedFrom, filters.collectedTo)) throw new DomainError("reports.email.errors.period");
+  if (sections.includes("REQUESTED") && badPeriod(filters.requestedFrom, filters.requestedTo)) throw new DomainError("reports.email.errors.period");
   const all = positions(db, actor, now).filter(inScope(filters));
   const open = all.filter((p) => p.open);
   const today = istanbulToday(now);
   return REPORT_SECTIONS.filter((s) => sections.includes(s)).map((section) => {
     const built =
-      section === "REQUESTED" ? requestedSection(db, open) : section === "REMAINING" ? remainingSection(open) : section === "COLLECTED" ? collectedSection(db, all, filters) : problemsSection(db, open);
+      section === "REQUESTED" ? requestedSection(db, all, filters) : section === "REMAINING" ? remainingSection(open) : section === "COLLECTED" ? collectedSection(db, all, filters) : problemsSection(db, open);
     return { ...built, section, summary: built.summary.length > 0 ? built.summary : [t("reports.email.empty")], fileName: `${t(`reports.email.sections.${section}`)} ${today}.csv` };
   });
 }

@@ -28,6 +28,7 @@ let ops: AuthUser;
 let line: number;
 let other: number;
 let c: number;
+let d: number;
 
 function requestedBl(blNo: string, amount: number, currency = "USD"): number {
   const { blId } = makeBl(db, { acc, ops }, { agencyId: line, blNo, paidAt: "2026-08-03", amountMinor: usd(amount), currency }, NOW);
@@ -38,7 +39,7 @@ function requestedBl(blNo: string, amount: number, currency = "USD"): number {
 
 const ALL: ReportRequest = {
   sections: ["REQUESTED", "REMAINING", "COLLECTED", "PROBLEMS"],
-  filters: { agencyIds: [], currency: null, collectedFrom: "2026-10-01", collectedTo: "2026-10-31" },
+  filters: { agencyIds: [], currency: null, requestedFrom: "2026-09-01", requestedTo: "2026-10-22", collectedFrom: "2026-10-01", collectedTo: "2026-10-31" },
 };
 
 function fakeTransport() {
@@ -77,7 +78,7 @@ beforeEach(async () => {
   const a = requestedBl("HATU1000001", 3000);
   const b = requestedBl("HATU1000002", 2500);
   c = requestedBl("HATU1000003", 1500);
-  requestedBl("HATU1000004", 1000);
+  d = requestedBl("HATU1000004", 1000);
   requestedBl("HATU1000005", 400, "EUR");
   // Refund 6,300 for A + B + C, value date 21 Oct: C bears an unexplained 700.
   const unexplained = db.select().from(deductionTypes).where(eq(deductionTypes.code, "UNEXPLAINED")).get()!.id;
@@ -96,9 +97,9 @@ describe("report email preview", () => {
     expect(draft.intro).toContain("22.10.2026 itibarıyla");
     expect(draft.summary).toBe(
       [
-        "Talep edilen iadeler",
-        "• Hat Lojistik · EUR: 1 B/L, tahsil edilecek 400,00 EUR",
-        "• Hat Lojistik · USD: 2 B/L, tahsil edilecek 1.700,00 USD",
+        "Talep edilen iadeler (01.09.2026 – 22.10.2026)",
+        "• Hat Lojistik · EUR: 1 talep, depozito 400,00 EUR",
+        "• Hat Lojistik · USD: 4 talep, depozito 8.000,00 USD",
         "",
         "Kalan depozitolar",
         "• Hat Lojistik · EUR: 1 B/L, 400,00 EUR",
@@ -117,7 +118,7 @@ describe("report email preview", () => {
       ].join("\n"),
     );
     expect(draft.attachments).toEqual([
-      { fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 3 },
+      { fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 5 },
       { fileName: "Kalan depozitolar 2026-10-22.csv", rows: 3 },
       { fileName: "Tahsil edilenler 2026-10-22.csv", rows: 3 },
       { fileName: "Sorunlar 2026-10-22.csv", rows: 1 },
@@ -132,12 +133,31 @@ describe("report email preview", () => {
     expect(elsewhere.summary).toBe("Kalan depozitolar\n• Kayıt yok.");
   });
 
+  it("lists the refund requests sent in the period, each request a row; a period with none says so", () => {
+    const requestedOn = (from: string, to: string) =>
+      reportEmailDraft(db, ops, { sections: ["REQUESTED"], filters: { ...ALL.filters, requestedFrom: from, requestedTo: to } }, NOW);
+    expect(requestedOn("2026-10-22", "2026-10-22").summary).toBe("Talep edilen iadeler (22.10.2026)\n• Kayıt yok.");
+    // A follow-up of HATU1000004 on 15 Oct is its own row, next to the first request of 1 Sep.
+    db.insert(requests)
+      .values({ blId: d, type: "REFUND", channel: "EMAIL", attemptNo: 2, sendStatus: "SENT", requestedOn: "2026-10-15", sentAt: "2026-10-15T09:00:00.000Z", createdBy: ops.id, createdAt: "2026-10-15T09:00:00.000Z" })
+      .run();
+    // A failed send is no request that went out.
+    db.insert(requests)
+      .values({ blId: d, type: "REFUND", channel: "EMAIL", attemptNo: 3, sendStatus: "FAILED", requestedOn: "2026-10-16", createdBy: ops.id, createdAt: "2026-10-16T09:00:00.000Z" })
+      .run();
+    const october = requestedOn("2026-10-01", "2026-10-22");
+    expect(october.summary).toBe("Talep edilen iadeler (01.10.2026 – 22.10.2026)\n• Hat Lojistik · USD: 1 talep, depozito 1.000,00 USD");
+    expect(october.attachments).toEqual([{ fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 1 }]);
+    expect(requestedOn("2026-09-01", "2026-10-22").attachments[0].rows).toBe(6);
+  });
+
   it("needs a section, and a valid period for the collected section", () => {
     expect(() => reportEmailDraft(db, ops, { ...ALL, sections: [] }, NOW)).toThrow(DomainError);
     const noPeriod = { ...ALL.filters, collectedFrom: null };
     expect(() => reportEmailDraft(db, ops, { sections: ["COLLECTED"], filters: noPeriod }, NOW)).toThrow(/period/);
     const reversed = { ...ALL.filters, collectedFrom: "2026-10-31", collectedTo: "2026-10-01" };
     expect(() => reportEmailDraft(db, ops, { sections: ["COLLECTED"], filters: reversed }, NOW)).toThrow(/period/);
+    expect(() => reportEmailDraft(db, ops, { sections: ["REQUESTED"], filters: { ...ALL.filters, requestedFrom: null } }, NOW)).toThrow(/period/);
     // Without the collected section, the period does not matter.
     expect(reportEmailDraft(db, ops, { sections: ["REMAINING"], filters: noPeriod }, NOW).attachments).toHaveLength(1);
   });
@@ -162,7 +182,7 @@ describe("report email sending", () => {
     const emailId = send(["mudur@firma.com.tr"], ["ekip@firmagrup.com"]);
     const email = db.select().from(emails).where(eq(emails.id, emailId)).get()!;
     expect(email).toMatchObject({ direction: "OUT", agencyId: null, sendStatus: "QUEUED", to: ["mudur@firma.com.tr"], cc: ["ekip@firmagrup.com"] });
-    expect(email.bodyText).toMatch(/^Merhaba,\n\nÖzet aşağıda\.\n\nTalep edilen iadeler\n• Hat Lojistik · EUR/);
+    expect(email.bodyText).toMatch(/^Merhaba,\n\nÖzet aşağıda\.\n\nTalep edilen iadeler \(01\.09\.2026 – 22\.10\.2026\)\n• Hat Lojistik · EUR/);
     expect(email.bodyText.endsWith("\n\nFirma A.Ş. Operasyon")).toBe(true);
 
     const files = db.select({ doc: documents }).from(emailAttachments).innerJoin(documents, eq(documents.id, emailAttachments.documentId)).where(eq(emailAttachments.emailId, emailId)).all();

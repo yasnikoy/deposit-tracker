@@ -1545,7 +1545,7 @@
         "PROBLEMS": "Sorunlar"
       },
       "sectionHints": {
-        "REQUESTED": "İade talep edilmiş, henüz kapanmamış B/L'ler.",
+        "REQUESTED": "Seçilen tarihlerde gönderilen iade talepleri (ilk talepler ve takipler), B/L'lerin bugünkü durumuyla.",
         "REMAINING": "Acente ve para birimine göre açık bakiye.",
         "COLLECTED": "Tarih aralığında (iade valörü) dağıtılan iadeler, kesinti ve silmelerle.",
         "PROBLEMS": "Açık ve itirazlı kesintiler, gönderilemeyen talepler, en uzun bekleyen B/L'ler."
@@ -1557,7 +1557,9 @@
       "allCurrencies": "Tümü",
       "from": "Başlangıç",
       "to": "Bitiş",
-      "periodHint": "Yalnızca \"Tahsil edilenler\" için; diğer bölümler bugünkü durumu gösterir.",
+      "periodHint": "Diğer bölümler bugünkü durumu gösterir.",
+      "requestedPeriod": "Talep tarihi",
+      "collectedPeriod": "İade valörü",
       "preview": "Önizle",
       "back": "Geri",
       "recipients": "Kime",
@@ -1573,6 +1575,8 @@
       "waitingDays": "{days} iş günü",
       "columns": {
         "outstanding": "Tahsil edilecek",
+        "request": "Talep",
+        "requestedOn": "Talep tarihi",
         "firstRequest": "İlk talep",
         "collected": "Tahsil edilen",
         "refundDate": "İade valörü",
@@ -1583,7 +1587,7 @@
         "detail": "Ayrıntı"
       },
       "lines": {
-        "requested": "{agency} · {currency}: {count} B/L, tahsil edilecek {amount}",
+        "requested": "{agency} · {currency}: {count} talep, depozito {amount}",
         "remaining": "{agency} · {currency}: {count} B/L, {amount}",
         "total": "Toplam {currency}: {count} B/L, {amount}",
         "collected": "{agency} · {currency}: {count} B/L, tahsil {amount}, kesinti {deductions}, silinen {writeOff}",

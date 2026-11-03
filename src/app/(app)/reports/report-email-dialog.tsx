@@ -47,6 +47,9 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
   const [currency, setCurrency] = useState("");
   const [from, setFrom] = useState(period.from);
   const [to, setTo] = useState(period.to);
+  // Requests sent today, by default: what went out from the office that day.
+  const [requestedFrom, setRequestedFrom] = useState(period.to);
+  const [requestedTo, setRequestedTo] = useState(period.to);
   const [draft, setDraft] = useState<ReportDraft | null>(null);
   const [recipients, setRecipients] = useState("");
   const [cc, setCc] = useState("");
@@ -56,9 +59,17 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
   const [error, setError] = useState<string | null>(null);
 
   const collected = sections.includes("COLLECTED");
+  const requested = sections.includes("REQUESTED");
   const request = () => ({
     sections,
-    filters: { agencyIds, currency: currency || null, collectedFrom: collected ? from || null : null, collectedTo: collected ? to || null : null },
+    filters: {
+      agencyIds,
+      currency: currency || null,
+      requestedFrom: requested ? requestedFrom || null : null,
+      requestedTo: requested ? requestedTo || null : null,
+      collectedFrom: collected ? from || null : null,
+      collectedTo: collected ? to || null : null,
+    },
   });
   const toggle = <T,>(list: T[], item: T, on: boolean) => (on ? [...list, item] : list.filter((x) => x !== item));
 
@@ -111,14 +122,14 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
               ))}
             </fieldset>
 
-            {collected && (
+            {(requested || collected) && (
               <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="report-from">{t("reports.email.from")}</Label>
-                  <Input id="report-from" type="date" className="h-8 w-40" value={from} onChange={(e) => setFrom(e.target.value)} />
-                  <Label htmlFor="report-to">{t("reports.email.to")}</Label>
-                  <Input id="report-to" type="date" className="h-8 w-40" value={to} onChange={(e) => setTo(e.target.value)} />
-                </div>
+                {requested && (
+                  <PeriodFields id="report-requested" label={`${t("reports.email.sections.REQUESTED")} · ${t("reports.email.requestedPeriod")}`} from={requestedFrom} to={requestedTo} onFrom={setRequestedFrom} onTo={setRequestedTo} />
+                )}
+                {collected && (
+                  <PeriodFields id="report" label={`${t("reports.email.sections.COLLECTED")} · ${t("reports.email.collectedPeriod")}`} from={from} to={to} onFrom={setFrom} onTo={setTo} />
+                )}
                 <span className="text-muted-foreground text-xs">{t("reports.email.periodHint")}</span>
               </div>
             )}
@@ -203,5 +214,18 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A from–to date pair of one section. */
+function PeriodFields({ id, label, from, to, onFrom, onTo }: { id: string; label: string; from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void }) {
+  return (
+    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-2">
+      <span className="w-64 text-sm">{label}</span>
+      <Label htmlFor={`${id}-from`}>{t("reports.email.from")}</Label>
+      <Input id={`${id}-from`} type="date" className="h-8 w-40" value={from} onChange={(e) => onFrom(e.target.value)} />
+      <Label htmlFor={`${id}-to`}>{t("reports.email.to")}</Label>
+      <Input id={`${id}-to`} type="date" className="h-8 w-40" value={to} onChange={(e) => onTo(e.target.value)} />
+    </div>
   );
 }
