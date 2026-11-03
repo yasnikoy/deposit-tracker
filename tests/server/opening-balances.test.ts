@@ -17,7 +17,7 @@ import { createPayment, prefillFromExtraction, previewBlJoin } from "@/server/pa
 import { createRefund } from "@/server/refunds";
 import { listDueRequests } from "@/server/requests";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF, testCustomer } from "../support/records";
+import { makeAgency, makeBl, PDF, testCustomer, giveStandingDocuments } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -37,6 +37,8 @@ const input = (overrides: Partial<OpeningBalanceInput> = {}): OpeningBalanceInpu
     currency: "USD",
     paidAt: "2026-07-01",
     blNo: "medu 9000001",
+    // Requests attach the customer's documents, so the B/L needs one.
+    customerId: testCustomer(db),
     documentId: receipt(),
     pastAttempts: 2,
     lastRequestOn: "2026-10-12",
@@ -57,6 +59,7 @@ beforeEach(async () => {
   admin = await makeUser(db, "admin", ["ADMIN"]);
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   msc = makeAgency(db, ops, "MSC", { toRecipients: ["iade@msc.example"] });
 });
 
@@ -85,6 +88,8 @@ describe("opening balances", () => {
     expect(draft.attachments.map((a) => [a.kind, a.originalName])).toEqual([
       ["FORM", "İade formu MEDU9000001.pdf"],
       ["RECEIPT", "Dekont MEDU9000001.pdf"],
+      ["STANDING", "İmza sirküleri.pdf"],
+      ["STANDING", "Vekaletname.pdf"],
     ]);
   });
 
@@ -131,16 +136,16 @@ describe("opening balances", () => {
   });
 
   it("name a customer: an existing one by name, or a new one registered with the record", () => {
-    const first = created(db, admin, input({ documentId: null, newCustomerName: " Örnek İthalat " }), NOW);
-    const registered = db.select().from(customers).all();
+    const first = created(db, admin, input({ documentId: null, customerId: null, newCustomerName: " Örnek İthalat " }), NOW);
+    const registered = db.select().from(customers).where(eq(customers.name, "Örnek İthalat")).all();
     expect(registered).toMatchObject([{ name: "Örnek İthalat", aliases: [], active: true }]);
     const customerOf = (id: number) => db.select().from(billsOfLading).where(eq(billsOfLading.id, id)).get()!.customerId;
     expect(customerOf(first)).toBe(registered[0].id);
     expect(db.select().from(auditLog).all().find((a) => a.action === "customer.create")).toMatchObject({ roleUsed: "ADMIN" });
 
     // The next record carries the same name over: no second customer.
-    const second = created(db, admin, input({ blNo: "MEDU9000002", documentId: null, newCustomerName: "örnek ithalat" }), NOW);
-    expect(db.select().from(customers).all()).toHaveLength(1);
+    const second = created(db, admin, input({ blNo: "MEDU9000002", documentId: null, customerId: null, newCustomerName: "örnek ithalat" }), NOW);
+    expect(db.select().from(customers).all()).toHaveLength(2); // the test customer and this one
     expect(customerOf(second)).toBe(registered[0].id);
     expect(openingBalanceSchema.safeParse({ ...input(), customerId: registered[0].id, newCustomerName: "Başka" }).success).toBe(false);
   });
@@ -177,7 +182,7 @@ describe("opening balances", () => {
 
   describe("with the number of an active B/L", () => {
     const later = (overrides: Partial<OpeningBalanceInput> = {}) =>
-      input({ amountMinor: 50000, paidAt: "2026-07-15", pastAttempts: 0, lastRequestOn: null, note: "Excel satır 15", ...overrides });
+      input({ amountMinor: 50000, paidAt: "2026-07-15", customerId: null, pastAttempts: 0, lastRequestOn: null, note: "Excel satır 15", ...overrides });
 
     it("add to that B/L as an additional deposit: own entry and receipt, the B/L's history stays", () => {
       const blId = created(db, admin, input(), NOW);

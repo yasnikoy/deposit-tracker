@@ -20,7 +20,7 @@ import { updateSettings } from "@/server/settings";
 import { approveWriteOff, listWriteOffs, proposeWriteOff, rejectWriteOff } from "@/server/write-offs";
 import { createTestDb, makeUser } from "../support/db";
 import { agencyInputSchema } from "@/lib/schemas/agencies";
-import { PDF, makeAgency, makeBl, markRequested, testCustomer } from "../support/records";
+import { PDF, makeAgency, makeBl, markRequested, testCustomer, giveStandingDocuments } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -79,6 +79,7 @@ beforeEach(async () => {
   admin = await makeUser(db, "admin", ["ADMIN"]);
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   line = makeAgency(db, ops, "Hat Lojistik", { requestChannel: "PORTAL", portalUrl: "https://portal.example", toRecipients: ["iade@hat.example"] });
   a = requestedBl("HATU1000001", 3000, "2026-09-01");
   b = requestedBl("HATU1000002", 2500, "2026-09-05");

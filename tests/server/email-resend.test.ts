@@ -16,7 +16,7 @@ import { uploadBlForm } from "@/server/forms";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, giveStandingDocuments } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -75,6 +75,7 @@ beforeEach(async () => {
   admin = await makeUser(db, "admin", ["ADMIN"]);
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   updateSettings(
     db,
     admin,
@@ -117,7 +118,7 @@ describe("resending a request email", () => {
       thread: null,
       items: [{ blNo: "MEDU1000001", attemptNo: 1, kind: "FIRST" }],
     });
-    expect(draft.attachments.map((x) => x.originalName)).toEqual(["İade formu MEDU1000001.pdf", "Dekont MEDU1000001.pdf"]);
+    expect(draft.attachments.map((x) => x.originalName)).toEqual(["İade formu MEDU1000001.pdf", "Dekont MEDU1000001.pdf", "İmza sirküleri.pdf", "Vekaletname.pdf"]);
   });
 
   it("sends a new email, not a reply; the request keeps its attempt, date and status", async () => {

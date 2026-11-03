@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { DomainError } from "./errors";
 
 /** Records that name an agency or customer, by kind; a kind with zero is not listed. */
-export type RecordLinks = Partial<Record<"bls" | "payments" | "refunds" | "emails" | "reportEmails" | "formTemplate", number>>;
+export type RecordLinks = Partial<Record<"bls" | "payments" | "refunds" | "emails" | "reportEmails" | "formTemplate" | "standingDocuments", number>>;
 
 /**
  * Refuses deleting a record that other records name: nothing is deleted from history

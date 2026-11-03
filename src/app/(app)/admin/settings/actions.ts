@@ -7,12 +7,11 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
 import { updateSettings } from "@/server/settings";
-import { sendTestEmailSchema, setStandingDocumentSchema, updateEmailTemplateSchema } from "@/lib/schemas/email-settings";
+import { sendTestEmailSchema, updateEmailTemplateSchema } from "@/lib/schemas/email-settings";
 import { sendTestEmail } from "@/server/email/send";
 import { updateEmailTemplate } from "@/server/email/templates";
 import { mailTransport } from "@/server/email/transport";
 import { scheduleDailyBackup, scheduleDailyEmail, scheduleWeeklySummary } from "@/server/recurring-jobs";
-import { setStandingDocument } from "@/server/standing-documents";
 
 // Each value is validated against its own schema in the setting registry by updateSettings.
 const updateSettingsSchema = z.object({
@@ -42,9 +41,4 @@ export async function sendTestEmailAction(input: unknown): Promise<ActionResult<
 export async function updateEmailTemplateAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(updateEmailTemplateSchema, input, (data) => updateEmailTemplate(getDb(), user, data));
-}
-
-export async function setStandingDocumentAction(input: unknown): Promise<ActionResult<void>> {
-  const { user } = await requireSession();
-  return runAction(setStandingDocumentSchema, input, (data) => setStandingDocument(getDb(), user, data));
 }

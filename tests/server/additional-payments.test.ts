@@ -11,7 +11,7 @@ import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
 import { correctPayment, createPayment, lacksPaymentEvidence, listPaymentsAwaitingBl, voidPayment } from "@/server/payments";
 import { createTestDb, makeUser } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, giveStandingDocuments } from "../support/records";
 
 const NOW = new Date("2026-10-22T09:00:00Z");
 
@@ -51,6 +51,7 @@ beforeEach(async () => {
   db = createTestDb();
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   one = makeAgency(db, ops, "Ocean Network", { toRecipients: ["iade@one.example"] });
   other = makeAgency(db, ops, "Hapag", { toRecipients: ["iade@hapag.example"] });
   // The first transfer: 500 USD on 8 Sep, its B/L created by operations.

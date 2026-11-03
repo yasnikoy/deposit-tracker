@@ -5,6 +5,7 @@ import { requireSession } from "@/server/auth/current-user";
 import { listCustomers } from "@/server/customers";
 import { getDb } from "@/server/db/client";
 import { getTableLayout } from "@/server/preferences";
+import { listCustomerStandingDocuments } from "@/server/standing-documents";
 import { CustomersScreen } from "./customers-screen";
 
 export default async function CustomersPage() {
@@ -17,8 +18,9 @@ export default async function CustomersPage() {
       <p className="text-muted-foreground max-w-3xl text-sm">{t("customers.hint")}</p>
       <CustomersScreen
         customers={listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
+        documents={listCustomerStandingDocuments(db, user)}
         layout={getTableLayout(db, user.id, "customers")}
-        permissions={{ manage: can(user, "customer.manage").allowed, delete: can(user, "customer.delete").allowed }}
+        permissions={{ manage: can(user, "customer.manage").allowed, delete: can(user, "customer.delete").allowed, documents: can(user, "standingDocument.manage").allowed }}
       />
     </>
   );

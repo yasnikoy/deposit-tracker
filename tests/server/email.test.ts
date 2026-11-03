@@ -20,9 +20,8 @@ import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { listDueRequests } from "@/server/requests";
 import { mailOutages } from "@/server/service-status";
 import { updateSettings } from "@/server/settings";
-import { setStandingDocument } from "@/server/standing-documents";
 import { createTestDb, makeUser, SEED_FILE } from "../support/db";
-import { makeAgency, makeBl, PDF } from "../support/records";
+import { makeAgency, makeBl, PDF, giveStandingDocuments, testCustomer } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -84,6 +83,7 @@ beforeEach(async () => {
   admin = await makeUser(db, "admin", ["ADMIN"]);
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   ops2 = await makeUser(db, "ops2", ["OPERATIONS"]);
   updateSettings(
     db,
@@ -106,7 +106,6 @@ describe("preparing request emails", () => {
   it("fills the template, recipients and attachments: form, deposit receipt and standing documents", () => {
     const a = bl(msc, "MEDU1000001", "2026-10-01", ["MSCU1234565"]);
     attachForm(a);
-    setStandingDocument(db, admin, { slot: "SIGNATURE_CIRCULAR", documentId: storeUpload(db, admin, { originalName: "imza-sirkuleri.pdf", content: PDF, kind: "STANDING" }, NOW).id }, NOW);
 
     expect(() => prepareRequestEmails(db, acc, { blIds: [a] }, NOW)).toThrow(ForbiddenError);
     const [draft] = prepareRequestEmails(db, ops, { blIds: [a] }, NOW);
@@ -125,7 +124,9 @@ describe("preparing request emails", () => {
     expect(draft.attachments.map((x) => [x.kind, x.originalName])).toEqual([
       ["FORM", "İade formu MEDU1000001.pdf"],
       ["RECEIPT", "Dekont MEDU1000001.pdf"],
-      ["STANDING", "imza-sirkuleri.pdf"],
+      // The customer's documents, named after their slot.
+      ["STANDING", "İmza sirküleri.pdf"],
+      ["STANDING", "Vekaletname.pdf"],
     ]);
   });
 
@@ -174,6 +175,8 @@ describe("preparing request emails", () => {
       "Dekont MAEU1000001.pdf",
       "İade formu MAEU1000002.pdf",
       "Dekont MAEU1000002.pdf",
+      "İmza sirküleri.pdf",
+      "Vekaletname.pdf",
     ]);
     // A non-batch agency gets one email per B/L.
     const c = bl(msc, "MEDU1000003");
@@ -285,13 +288,13 @@ describe("a payment without its receipt", () => {
       NOW,
     );
     if (payment.status !== "created") throw new Error("payment not created");
-    const a = createBls(db, ops, [{ paymentId: payment.id, blNo: "MEDU1000009" }], NOW).created[0].blId;
+    const a = createBls(db, ops, [{ paymentId: payment.id, blNo: "MEDU1000009", customerId: testCustomer(db) }], NOW).created[0].blId;
     attachForm(a);
     expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blId: a, evidenceMissing: true });
 
     const [draft] = prepareRequestEmails(db, ops, { blIds: [a] }, NOW);
     expect(draft.missingEvidence).toEqual(["MEDU1000009"]);
-    expect(draft.attachments.map((x) => x.kind)).toEqual(["FORM"]);
+    expect(draft.attachments.map((x) => x.kind)).toEqual(["FORM", "STANDING", "STANDING"]);
     expect(() => send(draft)).toThrow(expect.objectContaining({ messageKey: "requests.errors.evidenceMissing", params: { bls: "MEDU1000009" } }));
     send(draft, ops, { confirmMissingEvidence: true });
     const { transport } = fakeTransport();
@@ -393,7 +396,7 @@ describe("portal agencies", () => {
     expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blNo: "PRTL1000001", kind: "FIRST", channel: "PORTAL" });
     const [draft] = prepareRequestEmails(db, ops, { blIds: [p] }, NOW);
     expect(draft).toMatchObject({ subject: "Depozito İade Talebi – PRTL1000001", thread: null, portalFiling: ["PRTL1000001"], portalUrl: "https://p.example" });
-    expect(draft.attachments.map((a) => a.kind)).toEqual(["FORM", "RECEIPT"]);
+    expect(draft.attachments.map((a) => a.kind)).toEqual(["FORM", "RECEIPT", "STANDING", "STANDING"]);
 
     // Not sent before the user confirms the portal filing (checked on the server).
     expect(() => send(draft)).toThrow(expect.objectContaining({ messageKey: "requests.errors.portalNotFiled" }));

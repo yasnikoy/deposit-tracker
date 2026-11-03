@@ -11,13 +11,14 @@ import { unitsByAgency } from "../agencies";
 import { authorize } from "../auth/can";
 import type { AuthUser } from "../auth/types";
 import type { Db, DbOrTx } from "../db/client";
-import { billsOfLading, containers, emailBlLinks, emails, ledgerEntries, requests } from "../db/schema";
+import { billsOfLading, containers, customers, emailBlLinks, emails, ledgerEntries, requests } from "../db/schema";
 import { DomainError } from "../errors";
 import { currentBlForm } from "../forms";
 import { dueEntries, type DueEntry } from "../requests";
 import { depositEvidences, lacksPaymentEvidence } from "../payments";
 import { getSetting } from "../settings";
-import { currentStandingDocuments } from "../standing-documents";
+import { customerStandingDocuments, missingStandingSlots } from "../standing-documents";
+import { t } from "@/i18n";
 import { lockForDraft, releaseDraftLocks } from "../draft-locks";
 import { getEmailTemplate } from "./templates";
 
@@ -129,6 +130,10 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   const entries = dueEntries(tx, now, {}, unique);
   const formRequired = getSetting("rules.blockSendingWithoutForm", {}, tx);
   const units = unitsByAgency(tx, [...new Set(entries.map((e) => e.agency.id))]);
+  // The customer's signature circular and power of attorney go with every request (rule setting).
+  const attachStanding = getSetting("rules.attachStandingDocuments", {}, tx);
+  const customerIds = [...new Set(entries.map((e) => e.bl.customerId).filter((id): id is number => id !== null))];
+  const standing = attachStanding ? customerStandingDocuments(tx, customerIds) : new Map();
   // Where each B/L's request goes: its unit's recipients, or the agency's own list.
   const routes = new Map<number, Extract<RequestRecipients, { ok: true }>>();
   for (const id of unique) {
@@ -145,6 +150,14 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       throw new DomainError("requests.errors.noRecipients", { agency: unit ? `${entry.agency.name} – ${unit.name}` : entry.agency.name });
     }
     routes.set(id, route);
+    if (attachStanding) {
+      if (entry.bl.customerId === null) throw new DomainError("requests.errors.customerMissing", { bl: blNo });
+      const missing = missingStandingSlots(standing.get(entry.bl.customerId));
+      if (missing.length > 0) {
+        const customer = tx.select({ name: customers.name }).from(customers).where(eq(customers.id, entry.bl.customerId)).get()!.name;
+        throw new DomainError("requests.errors.customerDocumentsMissing", { bl: blNo, customer, documents: missing.map((slot) => t(`standing.slots.${slot}`)).join(", ") });
+      }
+    }
   }
 
   // Group: agency → (first requests | thread of the follow-up), or one group per B/L.
@@ -152,8 +165,8 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   for (const entry of entries.sort((a, b) => a.bl.paidAt.localeCompare(b.bl.paidAt) || a.bl.id - b.bl.id)) {
     // A portal agency's first request goes as a reply when the agency already wrote about the B/L.
     const thread = entry.state.kind === "FOLLOW_UP" || isPortalFirst(entry) ? lastThread(tx, entry.bl.id, entry.state.type) : null;
-    // Batch emails never mix units: each unit has its own recipients.
-    const target = `${entry.agency.id}:${routes.get(entry.bl.id)!.unitId ?? "agency"}`;
+    // Batch emails never mix units (each has its own recipients) nor customers (each sends its own documents).
+    const target = `${entry.agency.id}:${routes.get(entry.bl.id)!.unitId ?? "agency"}:${attachStanding ? entry.bl.customerId : "-"}`;
     const key = entry.agency.batchSending
       ? `${target}:${entry.state.kind === "FIRST" && !thread ? "first" : `thread-${thread?.emailId ?? "none"}`}`
       : `${target}:bl-${entry.bl.id}`;
@@ -165,8 +178,6 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   const signature = getSetting("email.signature", {}, tx);
   const defaultCc = getSetting("email.defaultCc", {}, tx);
   const defaultBcc = getSetting("email.defaultBcc", {}, tx);
-  const attachStanding = getSetting("rules.attachStandingDocuments", {}, tx);
-  const standing = attachStanding ? currentStandingDocuments(tx) : [];
   const maxAttachmentBytes = getSetting("email.maxAttachmentMb", {}, tx) * 1024 * 1024;
 
   return [...groups.values()].map(({ entries: group, thread }) => {
@@ -201,7 +212,7 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       : { ...lines[0], agency_name: agency.name, signature };
 
     const attachments: DraftAttachment[] = group.flatMap((entry) => blAttachments(tx, entry));
-    for (const doc of standing) {
+    for (const doc of attachStanding ? (standing.get(group[0].bl.customerId!) ?? []) : []) {
       attachments.push({ documentId: doc.documentId, originalName: doc.originalName, sizeBytes: doc.sizeBytes, kind: "STANDING", blNo: null });
     }
 

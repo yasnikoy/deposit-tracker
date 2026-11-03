@@ -18,6 +18,7 @@ import type { Role } from "@/domain/roles";
 import type { AuthUser } from "@/server/auth/types";
 import { createAgency } from "@/server/agencies";
 import { createBls, updateBl, voidBl } from "@/server/bls";
+import { createCustomer } from "@/server/customers";
 import { loadCalendar } from "@/server/calendar";
 import { getDb, type Db } from "@/server/db/client";
 import { emails, users } from "@/server/db/schema";
@@ -234,12 +235,14 @@ async function seed(db: Db) {
     setAgencyFormTemplate(db, admin, { agencyId: id, documentId: doc.id }, now);
   }
 
+  // The demo B/Ls belong to one customer, whose documents go with every request.
+  const customerId = createCustomer(db, admin, { name: "Örnek İthalat", code: "1001", aliases: ["ORNEK ITHALAT"] }, now);
   for (const [slot, name, title] of [
-    ["SIGNATURE_CIRCULAR", "imza-sirkuleri.pdf", "IMZA SIRKULERI - Ornek Lojistik A.S."],
-    ["POWER_OF_ATTORNEY", "vekaletname.pdf", "VEKALETNAME - Ornek Lojistik A.S."],
+    ["SIGNATURE_CIRCULAR", "imza-sirkuleri.pdf", "IMZA SIRKULERI - Ornek Ithalat A.S."],
+    ["POWER_OF_ATTORNEY", "vekaletname.pdf", "VEKALETNAME - Ornek Ithalat A.S."],
   ] as const) {
     const doc = storeUpload(db, admin, { originalName: name, content: pdf([title, "Demo belge"]), kind: "STANDING" }, now);
-    setStandingDocument(db, admin, { slot, documentId: doc.id }, now);
+    setStandingDocument(db, admin, { customerId, slot, documentId: doc.id }, now);
   }
 
   type Spec = {
@@ -292,7 +295,7 @@ async function seed(db: Db) {
     );
     if (result.status !== "created") throw new Error("payment not created");
     if (!spec.blNo) return { paymentId: result.id, blId: null, paidAt };
-    const created = createBls(db, ops, [{ paymentId: result.id, blNo: spec.blNo }], now);
+    const created = createBls(db, ops, [{ paymentId: result.id, blNo: spec.blNo, customerId }], now);
     if (created.errors.length) throw new Error(`B/L ${spec.blNo}: ${JSON.stringify(created.errors)}`);
     const blId = created.created[0].blId;
     // Containers are entered on the B/L detail, after creation.

@@ -6,7 +6,7 @@ import { authorize } from "./auth/can";
 import type { Role } from "@/domain/roles";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { billsOfLading, customers, refunds } from "./db/schema";
+import { billsOfLading, customers, refunds, standingDocuments } from "./db/schema";
 import { DomainError } from "./errors";
 import { assertUnlinked } from "./record-links";
 
@@ -111,7 +111,8 @@ export function deleteCustomer(db: Db, actor: AuthUser, input: { id: number; rea
     if (!customer) throw new DomainError("errors.notFound");
     const count = (table: typeof billsOfLading | typeof refunds) =>
       tx.select({ n: sql<number>`count(*)` }).from(table).where(eq(table.customerId, customer.id)).get()?.n ?? 0;
-    assertUnlinked({ bls: count(billsOfLading), refunds: count(refunds) }, "customers.errors.inUse");
+    const documentCount = tx.select({ n: sql<number>`count(*)` }).from(standingDocuments).where(eq(standingDocuments.customerId, customer.id)).get()?.n ?? 0;
+    assertUnlinked({ bls: count(billsOfLading), refunds: count(refunds), standingDocuments: documentCount }, "customers.errors.inUse");
     tx.delete(customers).where(eq(customers.id, customer.id)).run();
     const card = { name: customer.name, code: customer.code, aliases: customer.aliases, active: customer.active };
     writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "customer.delete", entityType: "customer", entityId: customer.id, before: card, reason: input.reason }, now);

@@ -136,7 +136,7 @@ test("an admin sees the impact of a timing change before saving it", async ({ pa
   await expect(page.getByRole("status").filter({ hasText: tr.impact.title })).toHaveCount(0);
 });
 
-test("an admin sets the sender address and uploads a standing document", async ({ page }) => {
+test("an admin sets the sender address; the B/Ls' customer gets its standing documents on its card", async ({ page }) => {
   await login(page, E2E_ADMIN.username, E2E_ADMIN.password);
   await page.goto("/admin/settings");
   await page.getByRole("button", { name: tr.settings.groups.email, exact: true }).click();
@@ -148,11 +148,26 @@ test("an admin sets the sender address and uploads a standing document", async (
   await expect(email.getByText(tr.settings.secretSet)).toBeVisible();
   await expect(email.getByLabel(tr.settings.keys.email.password.label)).toHaveValue("");
 
-  await page.getByRole("button", { name: tr.standing.title, exact: true }).click();
-  const standing = page.locator("#standing");
-  await standing.getByLabel(`${tr.standing.slots.SIGNATURE_CIRCULAR} yükleyin`).setInputFiles(pdf("imza-sirkuleri.pdf"));
-  await expect(page.getByText(tr.standing.saved)).toBeVisible();
-  await expect(standing.getByRole("link", { name: "imza-sirkuleri.pdf" })).toBeVisible();
+  // The customer whose B/Ls these are, with its signature circular and power of attorney.
+  await page.goto("/customers");
+  await page.getByRole("button", { name: tr.customers.new }).click();
+  const card = page.getByRole("dialog");
+  await card.getByLabel(tr.customers.name).fill("Hapag Müşteri");
+  await card.getByRole("button", { name: tr.common.save }).click();
+  for (const [slot, file] of [["SIGNATURE_CIRCULAR", "hapag imza 2026.pdf"], ["POWER_OF_ATTORNEY", "hapag vekalet.pdf"]] as const) {
+    await card.getByLabel(`${tr.standing.slots[slot]} yükleyin`).setInputFiles(pdf(file));
+    await expect(page.getByText(tr.standing.saved).last()).toBeVisible();
+    // Agencies receive it under its slot's name.
+    await expect(card.getByRole("link", { name: `${tr.standing.slots[slot]}.pdf` })).toBeVisible();
+  }
+  // The B/Ls' customer (read from receipts in real use; set here since the test receipts name none).
+  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"));
+  try {
+    db.prepare("UPDATE bills_of_lading SET customer_id = (SELECT id FROM customers WHERE name = 'Hapag Müşteri') WHERE bl_no IN (?, ?)").run(BL_NO, PORTAL_BL_NO);
+  } finally {
+    db.close();
+  }
+  await page.goto("/admin/settings");
 
   // The test email goes through the same dry-run transport.
   await page.getByRole("button", { name: tr.emailSettings.testTitle, exact: true }).click();
@@ -174,7 +189,7 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   expect(await dialog.getByLabel(tr.requests.to).evaluate((el: HTMLInputElement) => el.selectionStart === el.selectionEnd)).toBe(true);
   await expect(dialog.getByLabel(tr.requests.to)).toHaveValue("iade@example.com");
   await expect(dialog.getByLabel(tr.requests.body)).toHaveValue(/2\.500,00 USD tutarındaki depozitonun iadesini/);
-  for (const name of [`İade formu ${BL_NO}.pdf`, `Dekont ${BL_NO}.pdf`, "imza-sirkuleri.pdf"]) {
+  for (const name of [`İade formu ${BL_NO}.pdf`, `Dekont ${BL_NO}.pdf`, "İmza sirküleri.pdf", "Vekaletname.pdf"]) {
     await expect(dialog.getByRole("link", { name })).toBeVisible();
   }
   await dialog.getByLabel(tr.requests.cc).fill("bilgi@firma.example");
@@ -261,15 +276,6 @@ test("bulk reply: two agency replies get 'container not yet returned' in one con
 });
 
 test("allocate refund: the accountant enters a short refund; operations confirms FIFO with the difference as demurrage", async ({ page }) => {
-  // The B/L's customer (read from receipts in real use; set here since the test receipt names none).
-  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"));
-  try {
-    const at = new Date().toISOString();
-    const customer = db.prepare("INSERT INTO customers (name, aliases, active, created_at, updated_at) VALUES ('Hapag Müşteri', '[]', 1, ?, ?) RETURNING id").get(at, at) as { id: number };
-    db.prepare("UPDATE bills_of_lading SET customer_id = ? WHERE bl_no = ?").run(customer.id, BL_NO);
-  } finally {
-    db.close();
-  }
   await login(page, OPS.username, OPS.final);
   await page.goto("/accounting?tab=refund");
   await page.getByLabel(tr.files.drop).setInputFiles(pdf("iade-dekontu.pdf"));

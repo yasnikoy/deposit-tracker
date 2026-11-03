@@ -33,7 +33,7 @@ import {
 import { blDueState } from "@/server/requests";
 import { updateSettings } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
-import { PDF, makeAgency, makeBl, markRequested } from "../support/records";
+import { PDF, makeAgency, makeBl, markRequested, giveStandingDocuments } from "../support/records";
 
 // Thursday 22 Oct 2026, 12:00 Istanbul.
 const NOW = new Date("2026-10-22T09:00:00Z");
@@ -149,6 +149,7 @@ beforeEach(async () => {
   admin = await makeUser(db, "admin", ["ADMIN"]);
   acc = await makeUser(db, "acc", ["ACCOUNTANT"]);
   ops = await makeUser(db, "ops", ["OPERATIONS"]);
+  giveStandingDocuments(db, ops);
   updateSettings(db, admin, { changes: [{ key: "email.fromAddress", value: "depozito@firma.com.tr" }] }, NOW);
   maersk = makeAgency(db, ops, "Maersk", { toRecipients: ["refund@maersk.example"], batchSending: true });
   msc = makeAgency(db, ops, "MSC", { toRecipients: ["iade@msc.example"] });

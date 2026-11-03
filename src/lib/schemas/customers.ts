@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { STANDING_DOCUMENT_SLOTS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
 
 const msg = (key: TranslationKey) => key;
@@ -20,3 +21,10 @@ export type CustomerCardInput = z.infer<typeof customerInputSchema>;
 
 export const createCustomerSchema = customerInputSchema;
 export const updateCustomerSchema = z.object({ id: z.number().int().positive(), customer: customerInputSchema });
+
+/** A customer's signature circular or power of attorney, uploaded on its card. */
+export const setStandingDocumentSchema = z.object({
+  customerId: z.number().int().positive(),
+  slot: z.enum(STANDING_DOCUMENT_SLOTS),
+  documentId: z.number().int().positive(),
+});

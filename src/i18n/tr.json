@@ -1049,6 +1049,8 @@
       "notDueBl": "{bl} için şu anda talep gönderilemez.",
       "portalNotFiled": "Önce portalda talebi oluşturun ve bunu onaylayın: {bls}",
       "noRecipients": "{agency} için alıcı adresi girilmemiş (acente kartı).",
+      "customerMissing": "{bl}: müşteri seçilmemiş. Sabit belgeler müşteriden gelir; B/L ayrıntısından müşteriyi seçin.",
+      "customerDocumentsMissing": "{bl}: {customer} müşterisinin {documents} belgesi yüklenmemiş. Müşteri kartından yükleyin.",
       "resendNotSent": "Yalnızca gönderilmiş bir talep e-postası yeniden gönderilebilir.",
       "resendClosed": "Bu e-postanın B/L'leri kapanmış veya iptal edilmiş; yeniden gönderilemez.",
       "unitMissing": "{bl}: birim seçilmedi. Göndermeden önce B/L ayrıntısından birimi seçin.",
@@ -1154,7 +1156,7 @@
   },
   "standing": {
     "title": "Sabit belgeler",
-    "hint": "Her talep e-postasına eklenir. Yeni yüklenen belge, sonraki e-postalarda eskisinin yerine geçer.",
+    "hint": "Müşterinin B/L'leri için gönderilen her talep e-postasına eklenir; ikisi de yüklenmeden talep gönderilemez. Belge, acenteye bu adla gider. Yeni yüklenen belge, sonraki e-postalarda eskisinin yerine geçer.",
     "slots": {
       "SIGNATURE_CIRCULAR": "İmza sirküleri",
       "POWER_OF_ATTORNEY": "Vekaletname"
@@ -1682,7 +1684,8 @@
     "refunds": "{count} iade",
     "emails": "{count} e-posta",
     "reportEmails": "{count} rapor e-postası filtresi",
-    "formTemplate": "form şablonu"
+    "formTemplate": "form şablonu",
+    "standingDocuments": "{count} sabit belge"
   },
   "recordDelete": {
     "button": "Kaydı sil",

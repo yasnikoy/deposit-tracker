@@ -12,17 +12,23 @@ import { t } from "@/i18n";
 import type { TableLayout } from "@/lib/schemas/table-layout";
 import { DeleteRecord } from "@/components/delete-record";
 import { deleteCustomerAction } from "./actions";
+import { CustomerDocuments } from "./customer-documents";
 import { CustomerForm } from "./customer-form";
+import type { StandingDocument } from "@/server/standing-documents";
 
 /** Registered customers: searchable list, card in a dialog (an admin edits, and deletes one no record names). */
 export function CustomersScreen({
   customers,
+  documents,
   layout,
   permissions,
 }: {
   customers: CustomerOption[];
+  /** Each customer's signature circular and power of attorney. */
+  documents: Record<number, StandingDocument[]>;
   layout: TableLayout | null;
-  permissions: { manage: boolean; delete: boolean };
+  /** `documents`: upload the customer's standing documents (operations and admin). */
+  permissions: { manage: boolean; delete: boolean; documents: boolean };
 }) {
   const canManage = permissions.manage;
   const [selected, setSelected] = useState<number | "new" | null>(null);
@@ -84,6 +90,7 @@ export function CustomersScreen({
         >
           <div className="flex flex-col gap-6">
             <CustomerForm key={selected} customer={customer ?? null} readOnly={!canManage} onCreated={(id) => setSelected(id)} />
+            {customer && <CustomerDocuments customerId={customer.id} documents={documents[customer.id] ?? []} editable={permissions.documents} />}
             {customer && permissions.delete && (
               <DeleteRecord name={customer.name} onDelete={(reason) => deleteCustomerAction({ id: customer.id, reason })} onDeleted={close} />
             )}

@@ -112,7 +112,8 @@ const rules = {
   // Accepting or dismissing a match suggestion, and linking a mailbox message by hand.
   "email.link": only("OPERATIONS"),
   "standingDocument.view": ALL_ROLES,
-  "standingDocument.manage": only("ADMIN"),
+  // A customer's signature circular and power of attorney, on its card.
+  "standingDocument.manage": only("OPERATIONS", "ADMIN"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",
   "preferences.saveOwn": "ANY_AUTHENTICATED",
 } satisfies Record<string, Rule>;

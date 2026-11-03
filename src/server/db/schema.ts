@@ -623,6 +623,9 @@ export const standingDocuments = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     slot: text("slot", { enum: STANDING_DOCUMENT_SLOTS }).notNull(),
+    // The customer the documents are for (its signature circular and power of attorney).
+    // Rows without one are the global documents of before; they are kept but no longer used.
+    customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
     documentId: integer("document_id")
       .notNull()
       .references(() => documents.id),
@@ -634,6 +637,7 @@ export const standingDocuments = sqliteTable(
   (t) => [
     check("standing_documents_slot", sql`${t.slot} IN (${sqlList(STANDING_DOCUMENT_SLOTS)})`),
     uniqueIndex("standing_documents_document_unique").on(t.documentId),
+    index("standing_documents_customer").on(t.customerId, t.slot),
   ],
 );
 

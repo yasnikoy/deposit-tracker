@@ -9,6 +9,7 @@ import { billsOfLading, customers, refundAllocations, refunds, requests } from "
 import { storeUpload } from "@/server/files";
 import { addLedgerEntry } from "@/server/ledger";
 import { createPayment } from "@/server/payments";
+import { setStandingDocument } from "@/server/standing-documents";
 
 export const PDF = Buffer.from("%PDF-1.4\n% test receipt\n");
 
@@ -122,4 +123,15 @@ export function markRequested(db: Db, user: AuthUser, input: { blId: number; req
       .where(eq(billsOfLading.id, bl.id))
       .run();
   });
+}
+
+/**
+ * Gives a customer (the test customer by default) its signature circular and power of
+ * attorney, which every request email of its B/Ls attaches.
+ */
+export function giveStandingDocuments(db: Db, user: AuthUser, customerId: number = testCustomer(db), now: Date = new Date("2026-01-01T09:00:00Z")): void {
+  for (const slot of ["SIGNATURE_CIRCULAR", "POWER_OF_ATTORNEY"] as const) {
+    const documentId = storeUpload(db, user, { originalName: `${slot.toLowerCase()}.pdf`, content: PDF, kind: "STANDING" }, now).id;
+    setStandingDocument(db, user, { customerId, slot, documentId }, now);
+  }
 }

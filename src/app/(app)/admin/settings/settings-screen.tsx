@@ -17,11 +17,9 @@ import {
 import { t, type TranslationKey } from "@/i18n";
 import { formatTimestamp } from "@/lib/format";
 import type { SettingListItem } from "@/server/settings";
-import type { StandingDocument } from "@/server/standing-documents";
 import { updateSettingsAction } from "./actions";
 import { EmailTestCard } from "./email-test-card";
 import { describeBuckets, SettingEditor } from "./setting-editor";
-import { StandingDocumentsCard } from "./standing-documents-card";
 import { cn } from "@/lib/utils";
 
 /** Settings that move B/Ls between the request lists; their changes show an impact preview. */
@@ -37,16 +35,16 @@ const optionsOf = (key: SettingKey) => (settingDefinitions[key] as { options?: r
 const labelKey = (key: SettingKey) => `settings.keys.${key}.label` as TranslationKey;
 const helpKey = (key: SettingKey) => `settings.keys.${key}.help` as TranslationKey;
 
-const SECTIONS = [...SETTING_GROUPS, "email-test", "standing"] as const;
+const SECTIONS = [...SETTING_GROUPS, "email-test"] as const;
 type Section = (typeof SECTIONS)[number];
 const sectionLabel = (section: Section) =>
-  section === "email-test" ? t("emailSettings.testTitle") : section === "standing" ? t("standing.title") : t(`settings.groups.${section}`);
+  section === "email-test" ? t("emailSettings.testTitle") : t(`settings.groups.${section}`);
 
 /**
  * One section at a time, chosen from the tabs; each keeps its own Save. Hidden sections stay
  * mounted, so unsaved changes survive switching tabs.
  */
-export function SettingsScreen({ settings, standingDocuments }: { settings: SettingListItem[]; standingDocuments: StandingDocument[] }) {
+export function SettingsScreen({ settings }: { settings: SettingListItem[] }) {
   const [active, setActive] = useState<Section>(SECTIONS[0]);
   return (
     <div className="flex max-w-4xl flex-col gap-4">
@@ -77,9 +75,6 @@ export function SettingsScreen({ settings, standingDocuments }: { settings: Sett
       })}
       <div hidden={active !== "email-test"}>
         <EmailTestCard />
-      </div>
-      <div hidden={active !== "standing"}>
-        <StandingDocumentsCard documents={standingDocuments} />
       </div>
     </div>
   );
