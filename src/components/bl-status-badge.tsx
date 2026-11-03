@@ -24,4 +24,5 @@ const STATUS_VARIANT: Partial<Record<BlStatus, "warning" | "destructive" | "seco
   ACCOUNTING_PENDING: "warning",
   DISPUTED: "destructive",
   COLLECTED: "secondary",
+  TRANSFERRED: "secondary",
 };

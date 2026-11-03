@@ -22,7 +22,7 @@ import { requestStats, timingResolver } from "./requests";
 import { deductionTarget, type DeductionTarget } from "./deductions";
 import { DESCRIPTION_AUDIT_ACTION } from "./bl-description";
 import { blPayments, missingOpeningEvidence, openingEvidences } from "./payments";
-import { activeOpeningEntries } from "./ledger";
+import { activeLedgerEntries, activeOpeningEntries } from "./ledger";
 import { getSetting } from "./settings";
 import { undoableAuditIds } from "./undo";
 import { blWriteOffs, writeOffAmount, type WriteOffRow } from "./write-offs";
@@ -287,6 +287,11 @@ export type BlDetail = {
     documents: { id: number; originalName: string }[];
     missingEvidence: number;
   } | null;
+  /** Deposit transfers not reversed: where this B/L's deposit went, and what came in from other B/Ls. */
+  transfers: {
+    out: { blId: number; blNo: string; amountMinor: number; currency: string; transferredOn: string } | null;
+    in: { blId: number; blNo: string; amountMinor: number; currency: string; transferredOn: string }[];
+  };
   /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
   additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null; description: string | null }[];
   ledger: BlLedgerLine[];
@@ -477,6 +482,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     payment,
     openingBalance,
     additionalPayments,
+    transfers: blTransfers(db, id),
     ledger,
     allocations,
     documents: blDocuments,
@@ -540,6 +546,24 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
       attachments: email.direction === "IN" ? files.filter((f) => f.emailId === email.id).map(({ id, originalName }) => ({ id, originalName })) : [],
     }))
     .sort((a, b) => b.at.localeCompare(a.at) || b.id - a.id);
+}
+
+/** The B/L's deposit transfers in effect, with the B/L on the other side. */
+function blTransfers(db: DbOrTx, blId: number): BlDetail["transfers"] {
+  const entries = activeLedgerEntries(db, blId, ["TRANSFER_IN", "TRANSFER_OUT"]);
+  const others = entries.length
+    ? new Map(
+        db
+          .select({ id: billsOfLading.id, blNo: billsOfLading.blNo })
+          .from(billsOfLading)
+          .where(inArray(billsOfLading.id, entries.map((e) => e.transferBlId!)))
+          .all()
+          .map((b) => [b.id, b.blNo]),
+      )
+    : new Map<number, string>();
+  const view = (e: (typeof entries)[number]) => ({ blId: e.transferBlId!, blNo: others.get(e.transferBlId!) ?? "", amountMinor: e.amountMinor, currency: e.currency, transferredOn: e.entryDate });
+  const out = entries.find((e) => e.type === "TRANSFER_OUT");
+  return { out: out ? view(out) : null, in: entries.filter((e) => e.type === "TRANSFER_IN").map(view) };
 }
 
 function blReplies(db: DbOrTx, blId: number): BlReply[] {

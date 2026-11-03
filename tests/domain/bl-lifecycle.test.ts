@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closingStatus, InvalidTransitionError, isSettled, nextStatus, statusAfterReversal, statusAfterUndo } from "@/domain/bl-lifecycle";
+import { closingStatus, InvalidTransitionError, isSettled, nextStatus, statusAfterReversal, statusAfterTransferReversal, statusAfterUndo } from "@/domain/bl-lifecycle";
 
 describe("refund request sent (email sent or portal request recorded)", () => {
   it("moves a paid B/L to REQUESTED and brings an awaiting-return B/L back to REQUESTED", () => {
@@ -166,5 +166,28 @@ describe("accounting entry for closures with deductions or offsets", () => {
     expect(statusAfterUndo({ current: "ACCOUNTING_PENDING", before: "REQUESTED", after: "ACCOUNTING_PENDING" })).toBe("REQUESTED");
     // Moved on since (the entry was recorded): the statement can no longer be undone this way.
     expect(() => statusAfterUndo({ current: "COLLECTED", before: "REQUESTED", after: "ACCOUNTING_PENDING" })).toThrow(InvalidTransitionError);
+  });
+});
+
+describe("deposit transferred to another B/L (full transfer)", () => {
+  it("settles an open B/L before any deduction or allocation, waiting for the accounting entry", () => {
+    for (const from of ["PAID", "REQUESTED", "AWAITING_RETURN"] as const) expect(nextStatus(from, "DEPOSIT_TRANSFERRED")).toBe("ACCOUNTING_PENDING");
+    for (const from of ["DEDUCTION_OPEN", "DISPUTED", "ACCOUNTING_PENDING", "COLLECTED", "TRANSFERRED"] as const) {
+      expect(() => nextStatus(from, "DEPOSIT_TRANSFERRED")).toThrow(InvalidTransitionError);
+    }
+  });
+
+  it("closes as TRANSFERRED, not COLLECTED, once the accountant records it (rule 1)", () => {
+    expect(nextStatus("ACCOUNTING_PENDING", "TRANSFER_RECORDED")).toBe("TRANSFERRED");
+    expect(() => nextStatus("TRANSFERRED", "ACCOUNTING_RECORDED")).toThrow(InvalidTransitionError);
+    expect(isSettled("TRANSFERRED")).toBe(true);
+    // The accountant's entry can be undone within the window like any accounting entry.
+    expect(statusAfterUndo({ current: "TRANSFERRED", before: "ACCOUNTING_PENDING", after: "TRANSFERRED" })).toBe("ACCOUNTING_PENDING");
+  });
+
+  it("is reversed by an admin back to the status before, only while the accounting entry is not recorded", () => {
+    expect(statusAfterTransferReversal("ACCOUNTING_PENDING", "AWAITING_RETURN")).toBe("AWAITING_RETURN");
+    expect(() => statusAfterTransferReversal("TRANSFERRED", "REQUESTED")).toThrow(InvalidTransitionError);
+    expect(() => statusAfterTransferReversal("ACCOUNTING_PENDING", "DISPUTED")).toThrow(InvalidTransitionError);
   });
 });

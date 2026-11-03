@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — UI structure and conventions
 
-Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units, resend, shared deposit forms)
+Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units, resend, shared deposit forms, deposit transfers)
 
 This document fixes how the interface is put together: where things live, which page
 patterns exist, which shared components build them, and the visual and wording rules.
@@ -220,7 +220,7 @@ One scheme everywhere; add a new status to this table before using it.
 | outline | normal course | *Depozito yatırıldı*, *Talep edildi*, *Konteyner dönüşü bekleniyor*, *Aktif*, open refunds, *B/L bekliyor* (payment), send-mode badges |
 | warning (amber) | someone has to act | *Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*, write-off *Onay bekliyor*, missing receipt on a due request, *Birim seçilmedi* (a B/L of an agency with units names none) |
 | destructive (red) | problem or voided | *İtirazlı*, *İptal*, locked user, agency *Bilgi eksik*, overdue reply (*Gecikmiş*), backup problems |
-| secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
+| secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Aktarıldı*, *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
 
 Variants live in `components/ui/badge.tsx`; B/L statuses map in `bl-status-badge.tsx`.
 Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings under a field).
@@ -272,6 +272,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Free text on a deposit (payment or opening balance); it starts the B/L's description | *Açıklama* | *Kaynak*, *Not* |
 | An agency's office with its own recipients (e.g. per port) | *Birim*, *Mersin birimi* | *Liman*, *Şube* |
 | Sending a sent request email again (not a new request) | *Yeniden gönder*; the copy is a *Yeniden gönderim* (grey badge) | *Tekrar talep*, *Takip* |
+| Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 
 ## 11. Checklist for a UI change

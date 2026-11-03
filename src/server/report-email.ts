@@ -19,6 +19,7 @@ import { storeGeneratedDocument } from "./files";
 import { enqueueJob } from "./jobs";
 import { positions, type Position } from "./reports";
 import { failedRequests } from "./requests";
+import { transfersInPeriod } from "./transfers";
 import { getSetting } from "./settings";
 
 export type ReportFilters = {
@@ -32,6 +33,9 @@ export type ReportFilters = {
   /** The period of the collected section; required when it is chosen. */
   collectedFrom: IsoDate | null;
   collectedTo: IsoDate | null;
+  /** The period of the transferred section (by transfer date); required when it is chosen. */
+  transferredFrom?: IsoDate | null;
+  transferredTo?: IsoDate | null;
 };
 
 export type ReportRequest = { sections: ReportSection[]; filters: ReportFilters };
@@ -108,6 +112,28 @@ function requestedSection(db: DbOrTx, all: Position[], filters: ReportFilters): 
         formatAmount(bl.outstandingMinor),
         bl.lastReply ? `${bl.lastReply.typeName} · ${formatBusinessDate(bl.lastReply.repliedOn)}` : "",
       ]),
+    },
+  };
+}
+
+/** Deposits the agency applied to another B/L instead of refunding them, by transfer date. */
+function transferredSection(db: DbOrTx, all: Position[], filters: ReportFilters): Omit<BuiltSection, "section" | "fileName"> {
+  const from = filters.transferredFrom!;
+  const to = filters.transferredTo!;
+  const scoped = new Map(all.map((p) => [p.id, p]));
+  // Settled sources are still positions (not voided), so the agency and currency filters apply.
+  const items = transfersInPeriod(db, from, to)
+    .filter((tr) => scoped.has(tr.sourceBlId))
+    .map((tr) => ({ ...tr, agencyName: scoped.get(tr.sourceBlId)!.agencyName }))
+    .sort((a, b) => a.transferredOn.localeCompare(b.transferredOn) || a.sourceBlNo.localeCompare(b.sourceBlNo));
+  return {
+    title: `${t("reports.email.sections.TRANSFERRED")} (${periodLabel(from, to)})`,
+    summary: items.map((tr) =>
+      t("reports.email.lines.transferred", { from: tr.sourceBlNo, to: tr.targetBlNo, agency: tr.agencyName, amount: money(tr.amountMinor, tr.currency), date: formatBusinessDate(tr.transferredOn) }),
+    ),
+    grid: {
+      headers: [t("reports.email.columns.transferredOn"), t("bls.agency"), t("reports.email.columns.fromBl"), t("reports.email.columns.toBl"), t("reports.email.columns.amount"), t("bls.currency"), t("reports.email.columns.by")],
+      rows: items.map((tr) => [formatBusinessDate(tr.transferredOn), tr.agencyName, tr.sourceBlNo, tr.targetBlNo, formatAmount(tr.amountMinor), tr.currency, tr.byName ?? ""]),
     },
   };
 }
@@ -235,12 +261,13 @@ function buildSections(db: DbOrTx, actor: AuthUser, request: ReportRequest, now:
   const badPeriod = (from: string | null, to: string | null) => !from || !to || from > to;
   if (sections.includes("COLLECTED") && badPeriod(filters.collectedFrom, filters.collectedTo)) throw new DomainError("reports.email.errors.period");
   if (sections.includes("REQUESTED") && badPeriod(filters.requestedFrom, filters.requestedTo)) throw new DomainError("reports.email.errors.period");
+  if (sections.includes("TRANSFERRED") && badPeriod(filters.transferredFrom ?? null, filters.transferredTo ?? null)) throw new DomainError("reports.email.errors.period");
   const all = positions(db, actor, now).filter(inScope(filters));
   const open = all.filter((p) => p.open);
   const today = istanbulToday(now);
   return REPORT_SECTIONS.filter((s) => sections.includes(s)).map((section) => {
     const built =
-      section === "REQUESTED" ? requestedSection(db, all, filters) : section === "REMAINING" ? remainingSection(open) : section === "COLLECTED" ? collectedSection(db, all, filters) : problemsSection(db, open);
+      section === "REQUESTED" ? requestedSection(db, all, filters) : section === "REMAINING" ? remainingSection(open) : section === "COLLECTED" ? collectedSection(db, all, filters) : section === "TRANSFERRED" ? transferredSection(db, all, filters) : problemsSection(db, open);
     return { ...built, section, summary: built.summary.length > 0 ? built.summary : [t("reports.email.empty")], fileName: `${t(`reports.email.sections.${section}`)} ${today}.csv` };
   });
 }

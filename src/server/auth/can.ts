@@ -105,6 +105,10 @@ const rules = {
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),
   "request.sendEmail": only("OPERATIONS"),
+  // Moving a B/L's whole deposit to another B/L (accounting or operations); accounting then books it.
+  "bl.transferDeposit": only("ACCOUNTANT", "OPERATIONS"),
+  // Taking a transfer back while accounting has not booked it yet.
+  "bl.reverseTransfer": only("ADMIN"),
   // Sending a sent request email again (wrong recipients, or redirected by a reply); not a new request.
   "request.resend": only("OPERATIONS"),
   "email.sendTest": only("ADMIN"),

@@ -56,6 +56,12 @@ export function AccountingEntries({ bls, layout }: { bls: BlOverview[]; layout: 
         sortFn: "basic",
         cell: ({ row }) => formatMoney(row.original.deductionsMinor, row.original.currency),
       }),
+      // A deposit the agency applied to another B/L: booked as a transfer, not as a refund.
+      col.accessor("transferredMinor", {
+        meta: { label: "payments.accountingEntries.transferred", align: "end", searchable: false },
+        sortFn: "basic",
+        cell: ({ row }) => formatMoney(row.original.transferredMinor, row.original.currency),
+      }),
       col.display({
         id: "record",
         meta: { label: "common.actions", searchable: false },

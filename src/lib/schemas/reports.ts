@@ -20,6 +20,9 @@ export const reportRequestSchema = z.object({
     requestedTo: isoDate.nullable().default(null),
     collectedFrom: isoDate.nullable(),
     collectedTo: isoDate.nullable(),
+    // The period of the transferred section (by transfer date); required when it is chosen.
+    transferredFrom: isoDate.nullable().default(null),
+    transferredTo: isoDate.nullable().default(null),
   }),
 });
 

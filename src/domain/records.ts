@@ -29,11 +29,19 @@ export const BL_STATUSES = [
   // Settled with a deduction or an offset: closed once an accountant books it (ACCOUNTING_RECORDED).
   "ACCOUNTING_PENDING",
   "COLLECTED",
+  // The whole deposit moved to another B/L (TRANSFER_OUT) and the accountant booked it; never collected.
+  "TRANSFERRED",
 ] as const;
 export type BlStatus = (typeof BL_STATUSES)[number];
 
-export const LEDGER_TYPES = ["PAYMENT", "OFFSET", "DEDUCTION", "REFUND_ALLOCATION", "OPENING_BALANCE"] as const;
+export const LEDGER_TYPES = ["PAYMENT", "OFFSET", "DEDUCTION", "REFUND_ALLOCATION", "OPENING_BALANCE", "TRANSFER_IN", "TRANSFER_OUT"] as const;
 export type LedgerType = (typeof LEDGER_TYPES)[number];
+
+/**
+ * Entries that make up a B/L's deposit: what we paid (payment, offset), what came over from
+ * Excel (opening balance) and a deposit transferred in from another B/L.
+ */
+export const DEPOSIT_LEDGER_TYPES = ["PAYMENT", "OFFSET", "OPENING_BALANCE", "TRANSFER_IN"] as const satisfies readonly LedgerType[];
 
 /** REFUND: refund request chain; DEDUCTION_STATEMENT: asking for a deduction breakdown (build step 6). */
 export const REQUEST_TYPES = ["REFUND", "DEDUCTION_STATEMENT"] as const;

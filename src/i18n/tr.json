@@ -698,7 +698,8 @@
       "confirmTitle": "Muhasebe kaydı yapıldı mı?",
       "confirmText": "Bu B/L'lerin kesinti veya mahsup kaydını muhasebe programına girdiğinizi onaylıyorsunuz. B/L'ler \"Tahsil edildi\" olur.",
       "recorded": "{count} B/L tahsil edildi olarak kapandı.",
-      "deductions": "Kesintiler"
+      "deductions": "Kesintiler",
+      "transferred": "Aktarılan"
     },
     "kinds": {
       "BANK": "Banka havalesi",
@@ -773,6 +774,7 @@
       "voided": "Bu kayıt iptal edilmiş.",
       "voidBlFirst": "Önce bu ödemeye bağlı B/L iptal edilmeli.",
       "allocated": "Onaylanmış iade dağıtımı olan kayıt değiştirilemez.",
+      "transferred": "B/L {bl} depozitosu başka bir B/L'ye aktarılmış; ödeme düzeltilemez. Önce yönetici aktarımı geri almalı.",
       "noChange": "Değişiklik yok.",
       "queueItem": "Bu dekont artık kuyrukta değil.",
       "evidenceExists": "Bu ödemenin dekontu veya faturası zaten var; değiştirmek için ödemeyi düzeltin.",
@@ -837,7 +839,8 @@
       "DEDUCTION_OPEN": "Kesinti açık",
       "DISPUTED": "İtirazlı",
       "ACCOUNTING_PENDING": "Muhasebe kaydı bekliyor",
-      "COLLECTED": "Tahsil edildi"
+      "COLLECTED": "Tahsil edildi",
+      "TRANSFERRED": "Aktarıldı"
     },
     "voidedBadge": "İptal",
     "edit": "B/L'yi düzenle",
@@ -862,6 +865,7 @@
       "containerDuplicate": "Aynı konteyner iki kez yazılmış.",
       "voided": "Bu B/L iptal edilmiş.",
       "allocated": "Onaylanmış iade dağıtımı olan B/L iptal edilemez.",
+      "transferred": "Depozito aktarımı olan B/L iptal edilemez; yanlış aktarımı yönetici geri alır.",
       "fileNo": "Dosya numarası 26-12345 biçiminde olmalı (yıl, tire, 5 rakam).",
       "notAwaitingAccounting": "B/L {bl} muhasebe kaydı beklemiyor."
     },
@@ -898,7 +902,9 @@
       "OFFSET": "Fatura mahsubu",
       "DEDUCTION": "Kesinti",
       "REFUND_ALLOCATION": "İade dağıtımı",
-      "OPENING_BALANCE": "Açılış bakiyesi"
+      "OPENING_BALANCE": "Açılış bakiyesi",
+      "TRANSFER_IN": "Aktarılan depozito (gelen)",
+      "TRANSFER_OUT": "Aktarılan depozito (giden)"
     },
     "attempts": "Talep sayısı",
     "lastRequestOn": "Son talep",
@@ -931,6 +937,11 @@
         "update": "B/L düzenlendi",
         "setCustomer": "B/L müşterisi değişti",
         "setUnit": "B/L birimi değişti",
+        "transferOut": "Depozito başka B/L'ye aktarıldı",
+        "transferIn": "Başka B/L'den depozito aktarıldı",
+        "createFromTransfer": "B/L depozito aktarımıyla oluşturuldu",
+        "transferReversed": "Depozito aktarımı geri alındı",
+        "transferInReversed": "Gelen depozito aktarımı geri alındı",
         "accountingRecorded": "Muhasebe kaydı yapıldı",
         "void": "B/L iptal edildi",
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
@@ -1554,12 +1565,14 @@
         "REQUESTED": "Talep edilen iadeler",
         "REMAINING": "Kalan depozitolar",
         "COLLECTED": "Tahsil edilenler",
+        "TRANSFERRED": "Aktarılan depozitolar",
         "PROBLEMS": "Sorunlar"
       },
       "sectionHints": {
         "REQUESTED": "Seçilen tarihlerde gönderilen iade talepleri (ilk talepler ve takipler), B/L'lerin bugünkü durumuyla.",
         "REMAINING": "Acente ve para birimine göre açık bakiye.",
         "COLLECTED": "Tarih aralığında (iade valörü) dağıtılan iadeler, kesinti ve silmelerle.",
+        "TRANSFERRED": "Acentenin iade yerine başka bir B/L'ye saydığı depozitolar (aktarım tarihine göre).",
         "PROBLEMS": "Açık ve itirazlı kesintiler, gönderilemeyen talepler, en uzun bekleyen B/L'ler."
       },
       "collectedTitle": "Tahsil edilenler ({from} – {to})",
@@ -1572,6 +1585,7 @@
       "periodHint": "Diğer bölümler bugünkü durumu gösterir.",
       "requestedPeriod": "Talep tarihi",
       "collectedPeriod": "İade valörü",
+      "transferredPeriod": "Aktarım tarihi",
       "preview": "Önizle",
       "back": "Geri",
       "recipients": "Kime",
@@ -1588,6 +1602,10 @@
       "columns": {
         "outstanding": "Tahsil edilecek",
         "request": "Talep",
+        "transferredOn": "Aktarım tarihi",
+        "fromBl": "Aktarılan B/L",
+        "toBl": "Hedef B/L",
+        "by": "Kaydeden",
         "requestedOn": "Talep tarihi",
         "firstRequest": "İlk talep",
         "collected": "Tahsil edilen",
@@ -1600,6 +1618,7 @@
       },
       "lines": {
         "requested": "{agency} · {currency}: {count} talep, depozito {amount}",
+        "transferred": "{agency}: B/L {from} → B/L {to}, {amount} ({date})",
         "remaining": "{agency} · {currency}: {count} B/L, {amount}",
         "total": "Toplam {currency}: {count} B/L, {amount}",
         "collected": "{agency} · {currency}: {count} B/L, tahsil {amount}, kesinti {deductions}, silinen {writeOff}",
@@ -1780,6 +1799,38 @@
       "noPackage": "Bu sürümde Windows paketi veya imzası yok.",
       "download": "Güncelleme indirilemedi; internet bağlantısını kontrol edip tekrar deneyin.",
       "signature": "Güncellemenin imzası geçersiz; kurulmadı. Bu durumu geliştiriciye bildirin."
+    }
+  },
+  "transfers": {
+    "action": "Depozitoyu aktar",
+    "label": "Depozito aktarımı",
+    "from": "Gelen:",
+    "to": "Giden:",
+    "title": "Depozitoyu başka B/L'ye aktar",
+    "hint": "Acente bu B/L için ödenen depozitoyu iade etmek yerine başka bir B/L'ye saydığında kullanılır. Depozitonun tamamı aktarılır; bu B/L kapanır ve muhasebe kaydını bekler.",
+    "amount": "Aktarılacak tutar",
+    "targetBlNo": "Hedef B/L no",
+    "targetNew": "Yeni B/L oluşturulur; ilk iade talebi aktarım tarihinden sayılır ve bu B/L'nin dekontu eklenir.",
+    "targetExisting": "Mevcut B/L'ye eklenir: {bl} ({before} → {after}).",
+    "transferredOn": "Aktarım tarihi",
+    "note": "Not",
+    "save": "Aktar",
+    "saved": "Depozito aktarıldı: {bl}",
+    "reverse": "Aktarımı geri al",
+    "reverseHint": "Muhasebe kaydı yapılmadan önce, yanlış aktarım için. Aktarımla oluşturulan B/L iptal edilir.",
+    "reversed": "Aktarım geri alındı.",
+    "descriptionOut": "{date}: {amount} depozito B/L {bl} kaydına aktarıldı.",
+    "descriptionIn": "{date}: B/L {bl} için ödenen {amount} depozito bu B/L'ye aktarıldı.",
+    "errors": {
+      "notOpen": "B/L {bl} açık değil veya kesintisi var; depozitosu aktarılamaz.",
+      "allocated": "B/L {bl} için iade dağıtılmış; depozitosu aktarılamaz.",
+      "nothing": "B/L {bl} üzerinde aktarılacak depozito kalmamış.",
+      "same": "Depozito aynı B/L'ye aktarılamaz.",
+      "beforePayment": "Aktarım tarihi ödeme tarihinden önce olamaz.",
+      "joinFields": "Depozito mevcut B/L {bl} kaydına eklenir; müşteri, dosya no ve birim o B/L'de kalır.",
+      "noTransfer": "B/L {bl} için geri alınacak bir aktarım yok.",
+      "targetMovedOn": "Hedef B/L {bl} için talep gönderilmiş veya iade dağıtılmış; aktarım geri alınamaz.",
+      "booked": "B/L {bl} aktarımının muhasebe kaydı yapılmış; aktarım geri alınamaz."
     }
   }
 }

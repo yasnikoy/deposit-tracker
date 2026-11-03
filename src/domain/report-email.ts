@@ -3,7 +3,7 @@
  * can carry and who may receive it. Internal figures never reach an agency.
  */
 
-export const REPORT_SECTIONS = ["REQUESTED", "REMAINING", "COLLECTED", "PROBLEMS"] as const;
+export const REPORT_SECTIONS = ["REQUESTED", "REMAINING", "COLLECTED", "TRANSFERRED", "PROBLEMS"] as const;
 export type ReportSection = (typeof REPORT_SECTIONS)[number];
 
 const domainOf = (address: string) => address.slice(address.lastIndexOf("@") + 1).toLowerCase();

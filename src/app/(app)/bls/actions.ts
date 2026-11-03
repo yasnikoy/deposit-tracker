@@ -1,6 +1,6 @@
 "use server";
 
-import { blSearchSchema, createBlsSchema, generateFormSchema, setBlCustomerSchema, setBlUnitSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
+import { blSearchSchema, createBlsSchema, generateFormSchema, previewTransferSchema, reverseTransferSchema, setBlCustomerSchema, setBlUnitSchema, transferDepositSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
 import { appendBlDescriptionSchema, updateBlDescriptionSchema } from "@/lib/schemas/descriptions";
 import { voidSchema } from "@/lib/schemas/payments";
@@ -14,6 +14,7 @@ import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
 import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
 import { proposeWriteOff } from "@/server/write-offs";
+import { previewTransfer, reverseTransfer, transferDeposit, type TransferPreview } from "@/server/transfers";
 
 /** Each row is validated by createBls with the shared row schema; invalid rows come back with errors. */
 export async function createBlsAction(input: unknown): Promise<ActionResult<CreateBlsResult>> {
@@ -29,6 +30,21 @@ export async function updateBlAction(input: unknown): Promise<ActionResult<numbe
 export async function setBlCustomerAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(setBlCustomerSchema, input, (data) => setBlCustomer(getDb(), user, data));
+}
+
+export async function previewTransferAction(input: unknown): Promise<ActionResult<TransferPreview>> {
+  const { user } = await requireSession();
+  return runAction(previewTransferSchema, input, (data) => previewTransfer(getDb(), user, data));
+}
+
+export async function transferDepositAction(input: unknown): Promise<ActionResult<{ targetBlId: number; created: boolean }>> {
+  const { user } = await requireSession();
+  return runAction(transferDepositSchema, input, (data) => transferDeposit(getDb(), user, data));
+}
+
+export async function reverseTransferAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(reverseTransferSchema, input, (data) => reverseTransfer(getDb(), user, data));
 }
 
 export async function setBlUnitAction(input: unknown): Promise<ActionResult<void>> {

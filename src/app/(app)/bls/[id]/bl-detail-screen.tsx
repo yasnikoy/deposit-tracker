@@ -32,6 +32,9 @@ import { ContainersField } from "./containers-field";
 import { CustomerField } from "./customer-field";
 import { UnitField } from "./unit-field";
 import { recordAccountingEntryAction } from "../../accounting/actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { reverseTransferAction } from "../actions";
+import { TransferDialog } from "./transfer-dialog";
 import { toastWithUndo } from "@/components/undo-toast";
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -70,6 +73,10 @@ export type BlDetailPermissions = {
   resend: boolean;
   /** Confirm the accounting entry of a B/L settled with deductions or an offset. */
   recordAccounting: boolean;
+  /** Move the whole deposit to another B/L (accounting or operations). */
+  transfer: boolean;
+  /** Take a transfer back before it is booked (admin). */
+  reverseTransfer: boolean;
 };
 
 export function BlDetailScreen({
@@ -91,7 +98,7 @@ export function BlDetailScreen({
   today: string;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"edit" | "void" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "void" | "transfer" | "reverseTransfer" | null>(null);
 
   // R records a reply, N starts a note (when the viewer may), outside text fields and dialogs.
   useEffect(() => {
@@ -111,6 +118,10 @@ export function BlDetailScreen({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
   const { bl, payment, ledger, documents, timeline } = detail;
+  // A deposit moves on while the B/L is open and nothing was refunded on it.
+  const canTransfer =
+    can.transfer && !bl.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(bl.status) && bl.expectedMinor > 0 && bl.collectedMinor === 0;
+  const canReverseTransfer = can.reverseTransfer && !bl.voidedAt && bl.status === "ACCOUNTING_PENDING" && detail.transfers.out !== null;
   const opening = detail.openingBalance;
   const depositParts = (payment ? 1 : 0) + detail.additionalPayments.length + (opening?.entries.length ?? 0);
   // Deposits moved from Excel: each amount with its date, their receipts, and a drop for a missing one.
@@ -157,6 +168,16 @@ export function BlDetailScreen({
               }}
             >
               {t("payments.accountingEntries.record")}
+            </Button>
+          )}
+          {canTransfer && (
+            <Button size="sm" variant="outline" onClick={() => setDialog("transfer")}>
+              {t("transfers.action")}
+            </Button>
+          )}
+          {canReverseTransfer && (
+            <Button size="sm" variant="outline" className="text-destructive" onClick={() => setDialog("reverseTransfer")}>
+              {t("transfers.reverse")}
             </Button>
           )}
           {can.edit && !bl.voidedAt && (
@@ -211,6 +232,31 @@ export function BlDetailScreen({
             <dd>
               <ContainersField key={bl.containers.join(",")} blId={bl.id} containers={bl.containers} editable={can.edit && !bl.voidedAt} />
             </dd>
+            {(detail.transfers.out || detail.transfers.in.length > 0) && (
+              <>
+                <dt className="text-muted-foreground">{t("transfers.label")}</dt>
+                <dd className="flex flex-col gap-0.5" data-testid="bl-transfers">
+                  {detail.transfers.in.map((tr) => (
+                    <span key={tr.blId}>
+                      {t("transfers.from")}{" "}
+                      <Link href={`/bls/${tr.blId}`} className="font-mono underline">
+                        {tr.blNo}
+                      </Link>{" "}
+                      · {formatMoney(tr.amountMinor, tr.currency)} · {formatBusinessDate(tr.transferredOn)}
+                    </span>
+                  ))}
+                  {detail.transfers.out && (
+                    <span>
+                      {t("transfers.to")}{" "}
+                      <Link href={`/bls/${detail.transfers.out.blId}`} className="font-mono underline">
+                        {detail.transfers.out.blNo}
+                      </Link>{" "}
+                      · {formatMoney(detail.transfers.out.amountMinor, detail.transfers.out.currency)} · {formatBusinessDate(detail.transfers.out.transferredOn)}
+                    </span>
+                  )}
+                </dd>
+              </>
+            )}
             <dt className="text-muted-foreground">{t("bls.sourcePayment")}</dt>
             <dd>
               {payment ? (
@@ -425,6 +471,38 @@ export function BlDetailScreen({
 
       {dialog === "edit" && <EditBlDialog bl={bl} onCancel={() => setDialog(null)} onSaved={done} />}
       {dialog === "void" && <VoidBlDialog bl={bl} onCancel={() => setDialog(null)} onVoided={done} />}
+      {dialog === "transfer" && (
+        <TransferDialog
+          bl={bl}
+          amountMinor={bl.expectedMinor}
+          customers={customers}
+          units={units}
+          today={today}
+          onCancel={() => setDialog(null)}
+          onDone={(targetBlId) => {
+            setDialog(null);
+            router.push(`/bls/${targetBlId}`);
+          }}
+        />
+      )}
+      {dialog === "reverseTransfer" && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDialog(null)}
+          title={t("transfers.reverse")}
+          description={t("transfers.reverseHint")}
+          items={detail.transfers.out ? [`${bl.blNo} → ${detail.transfers.out.blNo}`] : []}
+          confirmLabel={t("transfers.reverse")}
+          destructive
+          requireReason
+          onConfirm={async (reason) => {
+            const result = await reverseTransferAction({ sourceBlId: bl.id, reason });
+            if (!result.ok) return void toast.error(t(result.error, result.params));
+            toast.success(t("transfers.reversed"));
+            done();
+          }}
+        />
+      )}
     </div>
   );
 }

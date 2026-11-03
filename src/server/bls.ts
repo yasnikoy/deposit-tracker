@@ -12,7 +12,7 @@ import { suggestCustomer } from "./customers";
 import type { ReceiptExtraction } from "./receipts/parser";
 import { DomainError } from "./errors";
 import { nameBlDocuments, type DocumentRename } from "./files";
-import { addLedgerEntry, hasConfirmedAllocation } from "./ledger";
+import { activeLedgerEntries, addLedgerEntry, hasActiveTransfer, hasConfirmedAllocation } from "./ledger";
 import { isValidFileNo, normalizeFileNo } from "@/domain/file-number";
 import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 
@@ -262,8 +262,10 @@ export function recordAccountingEntry(db: Db, actor: AuthUser, input: { blIds: n
       const bl = requireBl(tx, blId);
       if (bl.voidedAt) throw new DomainError("bls.errors.voided");
       let status: StoredBlStatus;
+      // A transferred deposit is booked as such and closes as TRANSFERRED, never as collected.
+      const transferred = activeLedgerEntries(tx, bl.id, ["TRANSFER_OUT"]).length > 0;
       try {
-        status = nextStatus(bl.status as StoredBlStatus, "ACCOUNTING_RECORDED");
+        status = nextStatus(bl.status as StoredBlStatus, transferred ? "TRANSFER_RECORDED" : "ACCOUNTING_RECORDED");
       } catch (error) {
         if (error instanceof InvalidTransitionError) throw new DomainError("bls.errors.notAwaitingAccounting", { bl: bl.blNo });
         throw error;
@@ -325,6 +327,8 @@ export function voidBl(db: Db, actor: AuthUser, input: { id: number; reason: str
     const bl = requireBl(tx, input.id);
     if (bl.voidedAt) throw new DomainError("bls.errors.voided");
     if (hasConfirmedAllocation(tx, bl.id)) throw new DomainError("bls.errors.allocated");
+    // A deposit transferred in or out is undone by an admin's transfer reversal, not by voiding.
+    if (hasActiveTransfer(tx, bl.id)) throw new DomainError("bls.errors.transferred");
     tx.update(billsOfLading)
       .set({ voidedAt: now.toISOString(), voidedBy: actor.id, voidReason: input.reason, updatedAt: now.toISOString() })
       .where(eq(billsOfLading.id, bl.id))

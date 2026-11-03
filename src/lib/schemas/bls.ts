@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidIsoDate } from "@/domain/business-days";
 import { isValidBlNumber, normalizeBlNumber } from "@/domain/bl-number";
 import { checkContainerNumber } from "@/domain/containers";
 import type { TranslationKey } from "@/i18n";
@@ -72,3 +73,24 @@ export const uploadFormSchema = z.object({
   blId: z.number().int().positive(),
   documentId: z.number().int().positive(),
 });
+
+/** Moving a B/L's whole deposit to a new B/L (number free) or an open one of the same agency and currency. */
+export const transferDepositSchema = z.object({
+  sourceBlId: z.number().int().positive(),
+  targetBlNo: blNumberSchema,
+  transferredOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
+  // For a new B/L only; prefilled from the source.
+  customerId: z.number().int().positive().nullable().default(null),
+  fileNo: fileNoSchema.nullable().default(null),
+  unitId: z.number().int().positive().nullable().default(null),
+  note: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullish()
+    .transform((value) => value || null),
+});
+
+export const previewTransferSchema = z.object({ sourceBlId: z.number().int().positive(), targetBlNo: z.string().trim().min(3).max(60) });
+
+export const reverseTransferSchema = z.object({ sourceBlId: z.number().int().positive(), reason: z.string().trim().min(1, msg("payments.errors.reason")).max(500) });

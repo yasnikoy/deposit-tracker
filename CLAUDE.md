@@ -95,9 +95,10 @@ Read it before any UI change and follow its checklist (section 11).
    `can(user, action, entity)` check in every mutation, inline edit, bulk
    action and undo; UI hiding is cosmetic. Accountant creates, corrects and
    voids money records; operations creates and voids B/Ls, confirms
-   allocations and records deductions (never corrects money records);
-   admin manages settings, users, form templates, allocation reversals
-   (admin only), write-off approvals and opening-balance records.
+   allocations and records deductions (never corrects money records); both
+   accountant and operations record deposit transfers, which an accountant books;
+   admin manages settings, users, form templates, allocation and transfer
+   reversals (admin only), write-off approvals and opening-balance records.
 7. **Audit:** every state change, correction, void, reversal, undo, write-off
    and settings change writes to `audit_log` with actor, role used,
    before/after and reason.

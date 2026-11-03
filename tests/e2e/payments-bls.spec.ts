@@ -308,6 +308,30 @@ test("a payment names its customer (a new one by name), file number and descript
   await expect(page.getByLabel(tr.description.label)).toHaveValue("Konteyner sayısı arttı");
 });
 
+test("a B/L's deposit is transferred to a new B/L; accounting books it and the original closes as transferred", async ({ page }) => {
+  await login(page, DUAL.username, DUAL.final);
+  await page.getByRole("combobox", { name: tr.search.label }).fill("233333333");
+  await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+  await expect(page.getByRole("heading", { name: "233333333" })).toBeVisible();
+
+  await page.getByRole("button", { name: tr.transfers.action }).click();
+  const dialog = page.getByRole("dialog", { name: tr.transfers.title });
+  await dialog.getByLabel(tr.transfers.targetBlNo).fill("244444444");
+  await expect(dialog.getByText(tr.transfers.targetNew)).toBeVisible();
+  // The new B/L takes the original's customer and file number unless changed.
+  await expect(dialog.getByLabel(tr.bls.fileNo)).toHaveValue("26-77777");
+  await dialog.getByRole("button", { name: tr.transfers.save }).click();
+
+  // The new B/L opens: its deposit came from the original.
+  await expect(page.getByRole("heading", { name: "244444444" })).toBeVisible();
+  await expect(page.getByTestId("bl-transfers")).toContainText("233333333");
+  await page.getByTestId("bl-transfers").getByRole("link", { name: "233333333" }).click();
+  await expect(page.getByRole("heading", { name: "233333333" })).toBeVisible();
+  await expect(page.getByText(tr.bls.statuses.ACCOUNTING_PENDING, { exact: true }).first()).toBeVisible();
+  await page.getByRole("button", { name: tr.payments.accountingEntries.record }).click();
+  await expect(page.getByText(tr.bls.statuses.TRANSFERRED, { exact: true }).first()).toBeVisible();
+});
+
 test("a payment with the number of an existing B/L shows, before saving, that it adds to that B/L", async ({ page }) => {
   await login(page, DUAL.username, DUAL.final);
   await page.goto("/accounting");

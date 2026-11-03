@@ -50,6 +50,8 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
   // Requests sent today, by default: what went out from the office that day.
   const [requestedFrom, setRequestedFrom] = useState(period.to);
   const [requestedTo, setRequestedTo] = useState(period.to);
+  const [transferredFrom, setTransferredFrom] = useState(period.to);
+  const [transferredTo, setTransferredTo] = useState(period.to);
   const [draft, setDraft] = useState<ReportDraft | null>(null);
   const [recipients, setRecipients] = useState("");
   const [cc, setCc] = useState("");
@@ -60,6 +62,7 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
 
   const collected = sections.includes("COLLECTED");
   const requested = sections.includes("REQUESTED");
+  const transferred = sections.includes("TRANSFERRED");
   const request = () => ({
     sections,
     filters: {
@@ -69,6 +72,8 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
       requestedTo: requested ? requestedTo || null : null,
       collectedFrom: collected ? from || null : null,
       collectedTo: collected ? to || null : null,
+      transferredFrom: transferred ? transferredFrom || null : null,
+      transferredTo: transferred ? transferredTo || null : null,
     },
   });
   const toggle = <T,>(list: T[], item: T, on: boolean) => (on ? [...list, item] : list.filter((x) => x !== item));
@@ -122,13 +127,23 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
               ))}
             </fieldset>
 
-            {(requested || collected) && (
+            {(requested || collected || transferred) && (
               <div className="flex flex-col gap-1">
                 {requested && (
                   <PeriodFields id="report-requested" label={`${t("reports.email.sections.REQUESTED")} · ${t("reports.email.requestedPeriod")}`} from={requestedFrom} to={requestedTo} onFrom={setRequestedFrom} onTo={setRequestedTo} />
                 )}
                 {collected && (
                   <PeriodFields id="report" label={`${t("reports.email.sections.COLLECTED")} · ${t("reports.email.collectedPeriod")}`} from={from} to={to} onFrom={setFrom} onTo={setTo} />
+                )}
+                {transferred && (
+                  <PeriodFields
+                    id="report-transferred"
+                    label={`${t("reports.email.sections.TRANSFERRED")} · ${t("reports.email.transferredPeriod")}`}
+                    from={transferredFrom}
+                    to={transferredTo}
+                    onFrom={setTransferredFrom}
+                    onTo={setTransferredTo}
+                  />
                 )}
                 <span className="text-muted-foreground text-xs">{t("reports.email.periodHint")}</span>
               </div>

@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, inArray, isNull, notExists, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { closingStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
-import type { DeductionSource, LedgerType } from "@/domain/records";
+import { DEPOSIT_LEDGER_TYPES, type DeductionSource, type LedgerType } from "@/domain/records";
 import type { DbOrTx } from "./db/client";
 import { agencies, billsOfLading, ledgerEntries, refundAllocations, refunds } from "./db/schema";
 
@@ -22,6 +22,8 @@ export function addLedgerEntry(
     deduction?: { typeId: number; source: DeductionSource } | null;
     /** The agency's deduction statement. */
     documentId?: number | null;
+    /** TRANSFER_IN / TRANSFER_OUT: the B/L on the other side. */
+    transferBlId?: number | null;
     createdBy: number | null;
   },
   now: Date = new Date(),
@@ -34,6 +36,7 @@ export function addLedgerEntry(
       depositPaymentId: entry.depositPaymentId ?? null,
       refundAllocationId: entry.refundAllocationId ?? null,
       documentId: entry.documentId ?? null,
+      transferBlId: entry.transferBlId ?? null,
       deductionTypeId: deduction?.typeId ?? null,
       deductionSource: deduction?.source ?? null,
       createdAt: now.toISOString(),
@@ -68,6 +71,7 @@ export function compensateLedgerEntry(
       deductionTypeId: entry.deductionTypeId,
       deductionSource: entry.deductionSource,
       documentId: entry.documentId,
+      transferBlId: entry.transferBlId,
       compensatesEntryId: entry.id,
       createdBy,
       createdAt: now.toISOString(),
@@ -133,6 +137,11 @@ export function hasConfirmedAllocation(tx: DbOrTx, blId: number): boolean {
   return activeLedgerEntries(tx, blId, ["REFUND_ALLOCATION"]).length > 0;
 }
 
+/** A deposit moved into or out of this B/L that is not reversed: its money records are frozen like an allocation's. */
+export function hasActiveTransfer(tx: DbOrTx, blId: number): boolean {
+  return activeLedgerEntries(tx, blId, ["TRANSFER_IN", "TRANSFER_OUT"]).length > 0;
+}
+
 /** The deposit of a B/L, derived from its ledger (rule 5), in the B/L currency. */
 export function ledgerDeposit(tx: DbOrTx, blId: number): number {
   const row = tx
@@ -142,7 +151,7 @@ export function ledgerDeposit(tx: DbOrTx, blId: number): number {
     .where(
       and(
         eq(ledgerEntries.blId, blId),
-        inArray(ledgerEntries.type, ["PAYMENT", "OFFSET", "OPENING_BALANCE"]),
+        inArray(ledgerEntries.type, [...DEPOSIT_LEDGER_TYPES]),
         eq(ledgerEntries.currency, billsOfLading.currency),
       ),
     )

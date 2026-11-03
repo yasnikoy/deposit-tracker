@@ -486,11 +486,14 @@ export const ledgerEntries = sqliteTable(
     // Set once when operations disputes an unexplained deduction; never cleared, the entry is compensated instead.
     disputed: integer("disputed", { mode: "boolean" }).notNull().default(false),
     disputeNote: text("dispute_note"),
+    // TRANSFER_IN and TRANSFER_OUT: the B/L on the other side of the deposit transfer.
+    transferBlId: integer("transfer_bl_id").references((): AnySQLiteColumn => billsOfLading.id),
     createdBy: integer("created_by").references(() => users.id),
     createdAt: timestamp("created_at").notNull(),
   },
   (t) => [
     check("ledger_entries_type", sql`${t.type} IN (${sqlList(LEDGER_TYPES)})`),
+    check("ledger_entries_transfer", sql`(${t.type} IN ('TRANSFER_IN', 'TRANSFER_OUT')) = (${t.transferBlId} IS NOT NULL)`),
     check("ledger_entries_statement_document", sql`${t.deductionSource} IS NOT 'STATEMENT' OR ${t.documentId} IS NOT NULL`),
     check(
       "ledger_entries_dispute",

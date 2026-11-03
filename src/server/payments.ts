@@ -3,7 +3,7 @@ import { and, desc, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { matchAgencyBySenderName } from "@/domain/agency";
 import { extractBlNumbers, normalizeBlNumber } from "@/domain/bl-number";
 import { istanbulToday } from "@/domain/business-days";
-import { EVIDENCE_KIND, type PaymentKind } from "@/domain/records";
+import { DEPOSIT_LEDGER_TYPES, EVIDENCE_KIND, type PaymentKind } from "@/domain/records";
 import type { Role } from "@/domain/roles";
 import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/payments";
 import { agencyForNewName } from "./agencies";
@@ -25,7 +25,7 @@ import {
 } from "./db/schema";
 import { DomainError, ForbiddenError } from "./errors";
 import { attachDocument, nameBlDocuments, readDocument, type StoredDocument } from "./files";
-import { activeLedgerEntries, activeOpeningEntries, addLedgerEntry, compensateLedgerEntry, hasConfirmedAllocation } from "./ledger";
+import { activeLedgerEntries, activeOpeningEntries, addLedgerEntry, compensateLedgerEntry, hasActiveTransfer, hasConfirmedAllocation } from "./ledger";
 import { notify, operationsOnBl } from "./notifications";
 import { parseReceipt, type ReceiptExtraction } from "./receipts/parser";
 import { getSetting } from "./settings";
@@ -243,7 +243,7 @@ export function createPayment(
 export type BlJoinProblem = "agency" | "currency" | "closed";
 
 /** The active B/L with this number, if any, and why a deposit could not join it. */
-function joinableBl(tx: DbOrTx, blNo: string, deposit: { agencyId: number | null; currency: string }) {
+export function joinableBl(tx: DbOrTx, blNo: string, deposit: { agencyId: number | null; currency: string }) {
   const bl = tx
     .select()
     .from(billsOfLading)
@@ -357,7 +357,7 @@ const blOfPayment = or(eq(billsOfLading.depositPaymentId, depositPayments.id), e
 
 /** Keeps the B/L's stored deposit equal to its active deposit entries (the ledger stays the source). */
 function syncDepositAmount(tx: DbOrTx, blId: number, at: string) {
-  const total = activeLedgerEntries(tx, blId, ["PAYMENT", "OFFSET", "OPENING_BALANCE"]).reduce((sum, e) => sum + e.amountMinor, 0);
+  const total = activeLedgerEntries(tx, blId, [...DEPOSIT_LEDGER_TYPES]).reduce((sum, e) => sum + e.amountMinor, 0);
   return tx.update(billsOfLading).set({ depositAmountMinor: total, updatedAt: at }).where(eq(billsOfLading.id, blId)).returning().get();
 }
 
@@ -390,6 +390,8 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
 
     const bl = activeBlOf(tx, before);
     if (bl && hasConfirmedAllocation(tx, bl.id)) throw new DomainError("payments.errors.allocated");
+    // A transferred deposit moved on with its amount; correcting it would break the transfer.
+    if (bl && hasActiveTransfer(tx, bl.id)) throw new DomainError("payments.errors.transferred", { bl: bl.blNo });
     // A B/L with several payments has one agency and currency: only amount and date can change then.
     if (bl && blPayments(tx, bl).length > 1 && (input.agencyId !== bl.agencyId || input.currency !== bl.currency)) {
       throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
@@ -628,13 +630,24 @@ type EvidenceDocument = { id: number; originalName: string; sizeBytes: number; k
  * payment first, plus those of its opening balances, attached to the B/L itself (first when
  * the B/L was migrated, i.e. has no first payment).
  */
-export function depositEvidences(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): EvidenceDocument[] {
+export function depositEvidences(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }, seen: Set<number> = new Set()): EvidenceDocument[] {
   const fields = { id: documents.id, originalName: documents.originalName, sizeBytes: documents.sizeBytes, kind: documents.kind };
   const own = openingEvidences(tx, bl.id);
   const fromPayments = blPayments(tx, bl)
     .filter((p) => p.evidenceDocumentId !== null)
     .map((p) => tx.select(fields).from(documents).where(eq(documents.id, p.evidenceDocumentId!)).get()!);
-  return bl.depositPaymentId === null ? [...own, ...fromPayments] : [...fromPayments, ...own];
+  // A deposit transferred in was paid for another B/L: its receipt is that B/L's, kept under its name.
+  seen.add(bl.id);
+  const transferred = transferSources(tx, bl.id)
+    .filter((source) => !seen.has(source.id))
+    .flatMap((source) => depositEvidences(tx, source, seen));
+  return [...(bl.depositPaymentId === null ? [...own, ...fromPayments] : [...fromPayments, ...own]), ...transferred];
+}
+
+/** The B/Ls whose deposit was transferred into this one (not reversed). */
+function transferSources(tx: DbOrTx, blId: number) {
+  const ids = activeLedgerEntries(tx, blId, ["TRANSFER_IN"]).map((e) => e.transferBlId!);
+  return ids.length ? tx.select({ id: billsOfLading.id, depositPaymentId: billsOfLading.depositPaymentId }).from(billsOfLading).where(inArray(billsOfLading.id, ids)).all() : [];
 }
 
 /** The receipts or invoices of a B/L's opening balances (owned by the B/L). */
@@ -659,8 +672,11 @@ export function depositEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: 
 }
 
 /** A B/L with a deposit (payment or opening balance) that has no receipt or invoice yet; requests for it warn (rule 12). */
-export function lacksPaymentEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }): boolean {
-  return blPayments(tx, bl).some((p) => p.evidenceDocumentId === null) || missingOpeningEvidence(tx, bl.id) > 0;
+export function lacksPaymentEvidence(tx: DbOrTx, bl: { id: number; depositPaymentId: number | null }, seen: Set<number> = new Set()): boolean {
+  if (blPayments(tx, bl).some((p) => p.evidenceDocumentId === null) || missingOpeningEvidence(tx, bl.id) > 0) return true;
+  // A transferred deposit lacks its receipt when the B/L it came from does.
+  seen.add(bl.id);
+  return transferSources(tx, bl.id).some((source) => !seen.has(source.id) && lacksPaymentEvidence(tx, source, seen));
 }
 
 // ---- Lists ----

@@ -9,6 +9,7 @@ describe("blBalance", () => {
       depositMinor: 300000,
       deductionsMinor: 0,
       collectedMinor: 0,
+      transferredMinor: 0,
       expectedMinor: 300000,
     });
     expect(blBalance([entry("OFFSET", 150000)], "USD").depositMinor).toBe(150000);
@@ -31,7 +32,7 @@ describe("blBalance", () => {
   });
 
   it("is zero for a B/L without entries", () => {
-    expect(blBalance([], "EUR")).toEqual({ depositMinor: 0, deductionsMinor: 0, collectedMinor: 0, expectedMinor: 0 });
+    expect(blBalance([], "EUR")).toEqual({ depositMinor: 0, deductionsMinor: 0, collectedMinor: 0, transferredMinor: 0, expectedMinor: 0 });
   });
 
   it("ignores a fully compensated pair left in the old currency by a currency correction", () => {
@@ -41,5 +42,14 @@ describe("blBalance", () => {
 
   it("refuses an uncompensated entry in another currency instead of mixing currencies", () => {
     expect(() => blBalance([entry("PAYMENT", 300000), entry("REFUND_ALLOCATION", 100, "EUR")], "USD")).toThrow(/currencies are never mixed/);
+  });
+
+  it("counts a deposit transferred in as deposit, and one transferred out as no longer expected", () => {
+    expect(blBalance([entry("TRANSFER_IN", 300000)], "USD")).toMatchObject({ depositMinor: 300000, expectedMinor: 300000 });
+    const source = blBalance([entry("PAYMENT", 300000), entry("TRANSFER_OUT", 300000)], "USD");
+    // The deposit was paid; it moved on and is not owed back on this B/L any more.
+    expect(source).toEqual({ depositMinor: 300000, deductionsMinor: 0, collectedMinor: 0, transferredMinor: 300000, expectedMinor: 0 });
+    // A reversed transfer counts nothing.
+    expect(blBalance([entry("PAYMENT", 300000), entry("TRANSFER_OUT", 300000), entry("TRANSFER_OUT", -300000)], "USD").expectedMinor).toBe(300000);
   });
 });
