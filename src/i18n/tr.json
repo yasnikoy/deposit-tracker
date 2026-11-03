@@ -539,7 +539,7 @@
     "active": "Aktif",
     "inactive": "Pasif",
     "incomplete": "Bilgi eksik",
-    "incompleteHint": "Alıcı adresi girilmemiş; iade talebi gönderilemez. Acente kartını tamamlayın.",
+    "incompleteHint": "Alıcı adresi girilmemiş (acente ya da aktif bir birim için); iade talebi gönderilemez. Acente kartını tamamlayın.",
     "addNew": "Yeni acente ekle: “{name}”",
     "channel": "Talep kanalı",
     "channels": {
@@ -571,6 +571,14 @@
     "globalValue": "Genel: {value}",
     "saveOverrides": "İstisnaları kaydet",
     "readOnly": "Acente bilgilerini operasyon rolü düzenler.",
+    "units": {
+      "title": "Birimler",
+      "hint": "Liman veya ofis başına ayrı alıcılar (ör. Mersin). Aktif birimi olan acentenin her B/L'si bir birim seçer; talepler o birimin alıcılarına gider.",
+      "add": "Birim ekle",
+      "name": "Birim adı",
+      "remove": "Birimi kaldır",
+      "count": "Birim"
+    },
     "transfer": {
       "export": "Dışa aktar",
       "exported": "{count} acente dışa aktarıldı.",
@@ -591,6 +599,8 @@
     },
     "errors": {
       "nameTaken": "Bu adla bir acente zaten var.",
+      "unitNameTaken": "Bu adla bir birim zaten var.",
+      "unitInUse": "“{unit}” birimi B/L'lerde kullanılıyor; kaldırılamaz. Kullanılmayacaksa pasif yapın.",
       "inUse": "Bu acente kayıtlarda kullanılıyor ({links}); silinemez. Kullanılmayacaksa pasif yapın.",
       "email": "Geçersiz e-posta adresi.",
       "tooMany": "En fazla 20 satır girilebilir.",
@@ -784,6 +794,11 @@
   "bls": {
     "customerEdit": "Müşteriyi değiştir",
     "customerSaved": "B/L müşterisi kaydedildi.",
+    "unit": "Birim",
+    "unitMissing": "Birim seçilmedi",
+    "unitEdit": "Birimi değiştir",
+    "unitSaved": "B/L birimi kaydedildi.",
+    "unitPick": "Birim seçin",
     "customerNone": "Müşteri girilmemiş",
     "customerClear": "Müşteriyi kaldır",
     "customer": "Müşteri",
@@ -827,6 +842,8 @@
     "errors": {
       "blNo": "B/L numarası 3–40 karakter olmalı; harf, rakam, - ve / kullanılabilir.",
       "blNoTaken": "Bu B/L numarası başka bir aktif B/L'de kayıtlı.",
+      "unitRequired": "Bu acente için birim seçin.",
+      "unitUnknown": "Seçilen birim bu acentenin aktif birimi değil.",
       "blNoDuplicateInBatch": "Bu B/L numarası tabloda birden fazla satırda var.",
       "blNoLocked": "Talep gönderildikten sonra B/L numarası değiştirilemez.",
       "paymentUnavailable": "Bu ödeme için artık B/L oluşturulamaz (iptal edilmiş ya da B/L'si var).",
@@ -902,6 +919,7 @@
         "create": "B/L oluşturuldu",
         "update": "B/L düzenlendi",
         "setCustomer": "B/L müşterisi değişti",
+        "setUnit": "B/L birimi değişti",
         "accountingRecorded": "Muhasebe kaydı yapıldı",
         "void": "B/L iptal edildi",
         "followPaymentCorrection": "Ödeme düzeltmesi B/L'ye yansıdı",
@@ -1028,6 +1046,7 @@
       "notDueBl": "{bl} için şu anda talep gönderilemez.",
       "portalNotFiled": "Önce portalda talebi oluşturun ve bunu onaylayın: {bls}",
       "noRecipients": "{agency} için alıcı adresi girilmemiş (acente kartı).",
+      "unitMissing": "{bl}: birim seçilmedi. Göndermeden önce B/L ayrıntısından birimi seçin.",
       "locked": "{bl} şu anda {user} tarafından hazırlanıyor.",
       "draftChanged": "Seçili B/L'ler değişti; e-postayı yeniden hazırlayın.",
       "attachment": "Bu ek bu e-postaya eklenemez.",
@@ -1060,6 +1079,7 @@
     "formNotNeeded": "Gerekmez",
     "evidenceMissing": "Dekont yok",
     "evidenceMissingHint": "Ödemenin dekontu veya faturası yüklenmemiş; e-posta onayla ve bu ek olmadan gider.",
+    "unitMissingHint": "Bu acentenin birimleri var; B/L ayrıntısından birim seçilmeden talep gönderilemez.",
     "evidenceWarning": "Şu B/L'lerin ödemesinde dekont veya fatura yok, e-posta bu ek olmadan gider: {bls}. Belgeyi B/L detayından veya Muhasebe ekranından ekleyebilirsiniz.",
     "evidenceConfirm": "Dekontsuz göndermeyi onaylıyorum"
   },
@@ -1467,7 +1487,7 @@
     "errors": {
       "pastAttempts": "0 ile 50 arasında bir sayı girin.",
       "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır.",
-      "joinFields": "B/L {bl} zaten kayıtlı; kayıt ona ek depozito olarak eklenir. Talep sayısı, müşteri, dosya no ve konteynerleri boş bırakın."
+      "joinFields": "B/L {bl} zaten kayıtlı; kayıt ona ek depozito olarak eklenir. Talep sayısı, müşteri, dosya no ve birimi boş bırakın."
     }
   },
   "reports": {

@@ -51,6 +51,8 @@ const buildColumns = (canEdit: boolean) => col.columns([
     ),
   }),
   col.accessor("agencyName", { meta: { label: "bls.agency", filter: "text" }, sortFn: "turkishText" }),
+  // Only agencies with units fill it, so it is hidden by default.
+  col.accessor((b) => b.unitName ?? "", { id: "unit", meta: { label: "bls.unit", filter: "text" }, sortFn: "turkishText" }),
   col.accessor((b) => b.customerName ?? "", { id: "customer", meta: { label: "bls.customer", filter: "text" }, sortFn: "turkishText" }),
   col.accessor((b) => b.fileNo ?? "", {
     id: "fileNo",
@@ -172,7 +174,7 @@ export function AllBlsScreen({
         initialLayout={layout}
         initialFilters={status ? [{ id: "status", value: status }] : undefined}
         // Beklenen equals Depozito until money comes in; request count and last reply are on the row panel.
-        hiddenByDefault={["expectedMinor", "attempts", "lastReply", "containers"]}
+        hiddenByDefault={["unit", "expectedMinor", "attempts", "lastReply", "containers"]}
         onOpenRow={(b, visible) => {
           setOrder(visible.map((v) => String(v.id)));
           setOpenId(b.id);

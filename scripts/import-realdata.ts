@@ -436,7 +436,7 @@ async function main() {
           else {
             // Without a workbook row, customer and file number come from the receipt's reading.
             const customerId = row ? (row.customer ? ensureCustomer(db, admin, row.customer, row.customerCode) : null) : undefined;
-            const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, containers: [], customerId, fileNo: row ? fileNo : undefined }]);
+            const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, customerId, fileNo: row ? fileNo : undefined }]);
             if (errors.length > 0 || created.length === 0) throw new Error(`B/L not created: ${JSON.stringify(errors)}`);
             followReport.deposits++;
           }
@@ -504,7 +504,7 @@ async function main() {
             paidAt,
             kind: "BANK",
             blNo,
-            containers: [],
+            unitId: null,
             customerId,
             fileNo,
             documentId: evidenceId,
@@ -530,7 +530,7 @@ async function main() {
           if (result.status !== "created") throw new Error("payment not created");
           if (result.additionalTo) report.additional++;
           else {
-            const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, containers: [], customerId, fileNo }]);
+            const { created, errors } = createBls(db, ops, [{ paymentId: result.id, blNo, customerId, fileNo }]);
             if (errors.length > 0 || created.length === 0) throw new Error(`B/L not created: ${JSON.stringify(errors)}`);
             report.payments++;
           }

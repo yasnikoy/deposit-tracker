@@ -13,26 +13,7 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
-import {
-  agencies,
-  auditLog,
-  billsOfLading,
-  containers,
-  customers,
-  deductionTypes,
-  depositPayments,
-  documents,
-  emailAttachments,
-  emailBlLinks,
-  emails,
-  ledgerEntries,
-  refundAllocations,
-  refunds,
-  replies,
-  replyTypes,
-  requests,
-  users,
-} from "./db/schema";
+import { agencies, agencyUnits, auditLog, billsOfLading, containers, customers, deductionTypes, depositPayments, documents, emailAttachments, emailBlLinks, emails, ledgerEntries, refundAllocations, refunds, replies, replyTypes, requests, users } from "./db/schema";
 import { activeLockers } from "./draft-locks";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
@@ -55,6 +36,9 @@ export type BlOverview = BlBalance & {
   /** The importer we paid the deposit for, when known. */
   customerId: number | null;
   customerName: string | null;
+  /** The agency's unit the requests go to, for agencies with units. */
+  unitId: number | null;
+  unitName: string | null;
   /** Our internal file number (26-12345), when known. */
   fileNo: string | null;
   /** Free text kept by accounting and operations ("Açıklama"). */
@@ -79,7 +63,7 @@ export type BlOverview = BlBalance & {
   voidReason: string | null;
 };
 
-type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string; customerName: string | null };
+type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string; customerName: string | null; unitName: string | null };
 
 /** `viewer` null: a scheduled job, which sees no draft locks. */
 function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Date): BlOverview[] {
@@ -118,6 +102,8 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
       agencyName: row.agencyName,
       customerId: row.customerId,
       customerName: row.customerName,
+      unitId: row.unitId,
+      unitName: row.unitName,
       fileNo: row.fileNo,
       description: row.description,
       status,
@@ -139,10 +125,11 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
 
 function blRows(db: DbOrTx) {
   return db
-    .select({ bl: billsOfLading, agencyName: agencies.name, customerName: customers.name })
+    .select({ bl: billsOfLading, agencyName: agencies.name, customerName: customers.name, unitName: agencyUnits.name })
     .from(billsOfLading)
     .innerJoin(agencies, eq(agencies.id, billsOfLading.agencyId))
-    .leftJoin(customers, eq(customers.id, billsOfLading.customerId));
+    .leftJoin(customers, eq(customers.id, billsOfLading.customerId))
+    .leftJoin(agencyUnits, eq(agencyUnits.id, billsOfLading.unitId));
 }
 
 /**
@@ -156,7 +143,7 @@ export function listAllBls(db: DbOrTx, actor: AuthUser, now: Date = new Date()):
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
     .filter(({ bl }) => inScope(bl.customerId))
-    .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
+    .map(({ bl, ...names }) => ({ ...bl, ...names }));
   return toOverviews(db, actor, rows, now);
 }
 
@@ -171,7 +158,7 @@ export function allBlsForJob(db: DbOrTx, now: Date): BlOverview[] {
   const rows = blRows(db)
     .orderBy(desc(billsOfLading.paidAt), desc(billsOfLading.id))
     .all()
-    .map(({ bl, agencyName, customerName }) => ({ ...bl, agencyName, customerName }));
+    .map(({ bl, ...names }) => ({ ...bl, ...names }));
   return toOverviews(db, null, rows, now);
 }
 
@@ -324,7 +311,7 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
   authorize(actor, "bl.view");
   const found = blRows(db).where(eq(billsOfLading.id, id)).get();
   if (!found) throw new DomainError("errors.notFound");
-  const [bl] = toOverviews(db, actor, [{ ...found.bl, agencyName: found.agencyName, customerName: found.customerName }], now);
+  const [bl] = toOverviews(db, actor, [{ ...found.bl, agencyName: found.agencyName, customerName: found.customerName, unitName: found.unitName }], now);
 
   const payment = found.bl.depositPaymentId
     ? (db

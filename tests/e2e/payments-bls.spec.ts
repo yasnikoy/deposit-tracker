@@ -237,6 +237,49 @@ test("a payment for an agency not in the system adds it by name, marked as missi
   await expect(row.getByText(tr.agencies.incomplete)).toBeVisible();
 });
 
+test("an agency with units: each B/L picks one, changed later on its detail", async ({ page }) => {
+  const name = "CULines Test";
+  await login(page, DUAL.username, DUAL.final);
+  await page.goto("/agencies");
+  await page.getByRole("button", { name: tr.agencies.new }).click();
+  const panel = page.getByRole("dialog");
+  await panel.getByLabel(tr.agencies.name).fill(name);
+  await panel.locator("#agency-to").fill("genel@culines.example");
+  for (const [index, unit] of ["Mersin", "İzmir"].entries()) {
+    await panel.getByRole("button", { name: tr.agencies.units.add }).click();
+    await panel.locator(`#unit-${index}-name`).fill(unit);
+    await panel.locator(`#unit-${index}-to`).fill(`${unit === "Mersin" ? "mersin" : "izmir"}@culines.example`);
+  }
+  await panel.getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(tr.agencies.toast.created)).toBeVisible();
+  await panel.getByRole("button", { name: tr.common.close, exact: true }).click();
+
+  // The payment continues to its B/L, which needs a unit.
+  await page.goto("/accounting");
+  await page.getByRole("combobox", { name: tr.payments.agency }).fill("culines");
+  await page.getByRole("option", { name: new RegExp(name) }).click();
+  await page.getByLabel(tr.payments.amount).fill("1.200");
+  await page.getByRole("button", { name: tr.payments.save }).click();
+  await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
+  await page.getByLabel(tr.bls.blNo).fill("CULU1000001");
+  await expect(page.getByRole("button", { name: tr.bls.createOne })).toBeDisabled();
+  await page.getByLabel(tr.bls.unit).selectOption({ label: "Mersin" });
+  await page.getByRole("button", { name: tr.bls.createOne }).click();
+  await expect(page.getByText("B/L oluşturuldu: CULU1000001")).toBeVisible();
+
+  // The detail shows the unit and changes it in place.
+  await page.getByRole("combobox", { name: tr.search.label }).fill("CULU1000001");
+  await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+  await expect(page.getByRole("heading", { name: "CULU1000001" })).toBeVisible();
+  await expect(page.getByText("Mersin", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: tr.bls.unitEdit }).click();
+  await page.getByLabel(tr.bls.unit).selectOption({ label: "İzmir" });
+  await page.getByLabel(tr.bls.unit).locator("..").getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(tr.bls.unitSaved)).toBeVisible();
+  await expect(page.getByText("İzmir", { exact: true })).toBeVisible();
+  await expect(page.getByText(tr.timeline.actions.bl.setUnit, { exact: true })).toBeVisible();
+});
+
 test("a payment with the number of an existing B/L shows, before saving, that it adds to that B/L", async ({ page }) => {
   await login(page, DUAL.username, DUAL.final);
   await page.goto("/accounting");

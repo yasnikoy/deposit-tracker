@@ -31,6 +31,8 @@ export const openingBalanceSchema = z
       .transform((value) => value || null)
       .nullish(),
     fileNo: fileNoSchema.nullable().default(null),
+    // Required while the agency has active units (checked on the server); a joining record brings none.
+    unitId: z.number().int().positive().nullable().default(null),
     documentId: z.number().int().positive().nullable().default(null),
     pastAttempts: z.number(msg("openingBalances.errors.pastAttempts")).int(msg("openingBalances.errors.pastAttempts")).min(0).max(MAX_PAST_ATTEMPTS),
     lastRequestOn: z

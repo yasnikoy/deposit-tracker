@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — UI structure and conventions
 
-Nov 2, 2026 (after the third UI review)
+Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units)
 
 This document fixes how the interface is put together: where things live, which page
 patterns exist, which shared components build them, and the visual and wording rules.
@@ -218,7 +218,7 @@ One scheme everywhere; add a new status to this table before using it.
 | Colour (variant) | Meaning | Used for |
 | --- | --- | --- |
 | outline | normal course | *Depozito yatırıldı*, *Talep edildi*, *Konteyner dönüşü bekleniyor*, *Aktif*, open refunds, *B/L bekliyor* (payment), send-mode badges |
-| warning (amber) | someone has to act | *Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*, write-off *Onay bekliyor*, missing receipt on a due request |
+| warning (amber) | someone has to act | *Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*, write-off *Onay bekliyor*, missing receipt on a due request, *Birim seçilmedi* (a B/L of an agency with units names none) |
 | destructive (red) | problem or voided | *İtirazlı*, *İptal*, locked user, agency *Bilgi eksik*, overdue reply (*Gecikmiş*), backup problems |
 | secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
 
@@ -270,6 +270,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Void | *iptal et* (with reason) | *sil* (delete is only for unused agencies/customers) |
 | Allocation of a refund | *dağıtım*, *İade dağıtımı* | *eşleştirme* for allocations |
 | Where an opening balance came from | *Kaynak* | *Not* |
+| An agency's office with its own recipients (e.g. per port) | *Birim*, *Mersin birimi* | *Liman*, *Şube* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 
 ## 11. Checklist for a UI change

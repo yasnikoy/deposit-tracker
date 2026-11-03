@@ -2,7 +2,7 @@ import "server-only";
 import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND } from "@/domain/records";
 import type { OpeningBalanceInput } from "@/lib/schemas/opening-balances";
-import { agencyForNewName } from "./agencies";
+import { agencyForNewName, unitChoiceError } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -48,7 +48,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
 
     const existing = existingBlFor(tx, input.blNo, { agencyId, currency: input.currency });
     if (existing) {
-      if (input.pastAttempts > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName) {
+      if (input.pastAttempts > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName || input.unitId !== null) {
         throw new DomainError("openingBalances.errors.joinFields", { bl: existing.blNo });
       }
       if (input.documentId !== null) {
@@ -73,6 +73,8 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
       throw new DomainError("customers.errors.unknown");
     }
     const customerId = input.customerId ?? (input.newCustomerName ? customerForNewName(tx, actor, roleUsed, input.newCustomerName, now) : null);
+    const unitError = unitChoiceError(tx, agencyId, input.unitId);
+    if (unitError) throw new DomainError(unitError);
 
     const at = now.toISOString();
     const status = input.pastAttempts > 0 ? "REQUESTED" : "PAID";
@@ -83,6 +85,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
         depositPaymentId: null,
         customerId,
         fileNo: input.fileNo,
+        unitId: input.unitId,
         agencyId,
         currency: input.currency,
         depositAmountMinor: input.amountMinor,
@@ -133,6 +136,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
           paidAt: input.paidAt,
           kind: input.kind,
           customerId,
+          unitId: input.unitId,
           documentId: input.documentId,
           pastAttempts: input.pastAttempts,
           lastRequestOn: input.lastRequestOn,

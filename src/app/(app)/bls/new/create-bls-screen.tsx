@@ -15,28 +15,34 @@ import { blCandidatesOf, blNoWarnings } from "../bl-warnings";
 
 
 /** Payments without a B/L in one editable grid; rows with a B/L number are saved together. Read-only for accountants. */
+type RowInput = { blNo: string; unitId: number | null };
+
 export function CreateBlsScreen({
   payments,
   patterns,
+  units,
   readOnly,
 }: {
   payments: PaymentListItem[];
   patterns: Record<number, string[]>;
+  /** Active units of the agencies that have them; such a B/L needs one. */
+  units: Record<number, { id: number; name: string }[]>;
   readOnly: boolean;
 }) {
   const router = useRouter();
-  const [inputs, setInputs] = useState<Record<number, string>>(() =>
+  const [inputs, setInputs] = useState<Record<number, RowInput>>(() =>
     Object.fromEntries(
       payments.map((p) => {
         const candidates = blCandidatesOf(p);
-        return [p.id, candidates.length === 1 ? candidates[0] : ""];
+        return [p.id, { blNo: candidates.length === 1 ? candidates[0] : "", unitId: null }];
       }),
     ),
   );
   const [errors, setErrors] = useState<Record<number, BlRowError[]>>({});
   const [busy, setBusy] = useState(false);
-  const input = (id: number): string => inputs[id] ?? "";
-  const update = (id: number, blNo: string) => setInputs((all) => ({ ...all, [id]: blNo }));
+  const input = (id: number): RowInput => inputs[id] ?? { blNo: "", unitId: null };
+  const update = (id: number, patch: Partial<RowInput>) => setInputs((all) => ({ ...all, [id]: { ...input(id), ...patch } }));
+  const withUnits = payments.some((p) => units[p.agencyId]);
 
   /** Pasting several lines from Excel fills this row and the ones below; only the first column is taken. */
   const onPaste = (index: number, event: ClipboardEvent<HTMLInputElement>) => {
@@ -49,16 +55,16 @@ export function CreateBlsScreen({
       lines.forEach((line, offset) => {
         const payment = payments[index + offset];
         if (!payment) return;
-        next[payment.id] = (line.split("\t")[0] ?? "").trim();
+        next[payment.id] = { blNo: (line.split("\t")[0] ?? "").trim(), unitId: next[payment.id]?.unitId ?? null };
       });
       return next;
     });
   };
 
-  const filled = payments.filter((p) => input(p.id).trim() !== "");
+  const filled = payments.filter((p) => input(p.id).blNo.trim() !== "");
 
   const save = async () => {
-    const rows = filled.map((p) => ({ paymentId: p.id, blNo: input(p.id) }));
+    const rows = filled.map((p) => ({ paymentId: p.id, blNo: input(p.id).blNo, unitId: input(p.id).unitId }));
     if (rows.length === 0) return;
     setBusy(true);
     const result = await createBlsAction({ rows });
@@ -87,12 +93,14 @@ export function CreateBlsScreen({
               <th className="px-2 py-1 text-right font-medium">{t("bls.deposit")}</th>
               <th className="px-2 py-1 font-medium">{t("bls.candidates")}</th>
               {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.blNo")}</th>}
+              {!readOnly && withUnits && <th className="px-2 py-1 font-medium">{t("bls.unit")}</th>}
             </tr>
           </thead>
           <tbody>
             {payments.map((payment, index) => {
-              const blNo = input(payment.id);
+              const { blNo, unitId } = input(payment.id);
               const rowErrors = errors[payment.id] ?? [];
+              const agencyUnits = units[payment.agencyId] ?? [];
               const warnings = blNoWarnings(blNo, patterns[payment.agencyId] ?? []);
               return (
                 <tr key={payment.id} data-testid={`bl-row-${payment.id}`} className="border-t align-top">
@@ -114,7 +122,7 @@ export function CreateBlsScreen({
                           key={candidate}
                           type="button"
                           className="bg-muted hover:bg-accent rounded px-1.5 font-mono text-xs"
-                          onClick={() => update(payment.id, candidate)}
+                          onClick={() => update(payment.id, { blNo: candidate })}
                           title={t("bls.useCandidate", { bl: candidate })}
                         >
                           {candidate}
@@ -129,20 +137,48 @@ export function CreateBlsScreen({
                       aria-label={`${t("bls.blNo")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
                       className="h-8 font-mono uppercase"
                       value={blNo}
-                      onChange={(event) => update(payment.id, event.target.value)}
+                      onChange={(event) => update(payment.id, { blNo: event.target.value })}
                       onPaste={(event) => onPaste(index, event)}
                     />
-                    {rowErrors.map((error) => (
-                      <p key={error.field} role="alert" className="text-destructive text-xs">
-                        {t(error.message)}
-                      </p>
-                    ))}
+                    {rowErrors
+                      .filter((error) => error.field !== "unit")
+                      .map((error) => (
+                        <p key={error.field} role="alert" className="text-destructive text-xs">
+                          {t(error.message)}
+                        </p>
+                      ))}
                     {warnings.map((warning) => (
                       <p key={warning} className="text-xs text-amber-700 dark:text-amber-400">
                         {warning}
                       </p>
                     ))}
                   </td>
+                  )}
+                  {!readOnly && withUnits && (
+                    <td className="w-44 px-2 py-1">
+                      {agencyUnits.length > 0 && (
+                        <select
+                          aria-label={`${t("bls.unit")} – ${payment.agencyName} ${formatMoney(payment.amountMinor, payment.currency)}`}
+                          className="border-input bg-background h-8 w-full rounded-md border px-2"
+                          value={unitId ?? ""}
+                          onChange={(event) => update(payment.id, { unitId: event.target.value ? Number(event.target.value) : null })}
+                        >
+                          <option value="">{t("bls.unitPick")}</option>
+                          {agencyUnits.map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {rowErrors
+                        .filter((error) => error.field === "unit")
+                        .map((error) => (
+                          <p key={error.field} role="alert" className="text-destructive text-xs">
+                            {t(error.message)}
+                          </p>
+                        ))}
+                    </td>
                   )}
                 </tr>
               );

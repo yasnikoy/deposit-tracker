@@ -28,6 +28,9 @@ export const containerListSchema = z
 
 /** Our internal file number, e.g. "T26-90815". */
 /** Our file number, 26-12345 (a leading "T" from transfer descriptions is dropped); empty means none. */
+/** The unit of a B/L (one of its agency's active units). */
+export const setBlUnitSchema = z.object({ blId: z.number().int().positive(), unitId: z.number().int().positive() });
+
 /** The customer of a B/L, or null to clear it. */
 export const setBlCustomerSchema = z.object({ blId: z.number().int().positive(), customerId: z.number().int().positive().nullable() });
 
@@ -40,6 +43,8 @@ export const fileNoSchema = z
 export const blRowSchema = z.object({
   paymentId: z.number().int().positive(),
   blNo: blNumberSchema,
+  // Required while the payment's agency has active units (checked on the server).
+  unitId: z.number().int().positive().nullable().default(null),
   // Optional: without them, the payment's receipt suggests both (file number, customer alias).
   customerId: z.number().int().positive().nullable().optional(),
   fileNo: fileNoSchema.nullable().optional(),

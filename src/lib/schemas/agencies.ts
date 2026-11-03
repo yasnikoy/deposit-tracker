@@ -23,6 +23,19 @@ function isHttpUrl(value: string): boolean {
   }
 }
 
+/** Most units an agency card holds (a sanity bound, not a business rule). */
+const MAX_UNITS = 20;
+
+/** A unit on the agency card: a new one has no id; one left off the card is removed (only while no B/L names it). */
+export const agencyUnitInputSchema = z.object({
+  id: z.number().int().positive().nullish().transform((value) => value ?? null),
+  name: z.string().trim().min(1, msg("common.required")).max(100),
+  active: z.boolean(),
+  toRecipients: emailList,
+  ccRecipients: emailList,
+});
+export type AgencyUnitInput = z.infer<typeof agencyUnitInputSchema>;
+
 export const agencyInputSchema = z
   .object({
     name: z.string().trim().min(1, msg("common.required")).max(100),
@@ -57,6 +70,19 @@ export const agencyInputSchema = z
       .max(2000)
       .nullable()
       .transform((value) => value || null),
+    // Optional in files exported before units existed.
+    units: z
+      .array(agencyUnitInputSchema)
+      .max(MAX_UNITS, msg("agencies.errors.tooMany"))
+      .default([])
+      .superRefine((units, ctx) => {
+        const seen = new Set<string>();
+        units.forEach((unit, index) => {
+          const key = unit.name.toLocaleLowerCase("tr-TR");
+          if (seen.has(key)) ctx.addIssue({ code: "custom", path: [index, "name"], message: msg("agencies.errors.unitNameTaken") });
+          seen.add(key);
+        });
+      }),
   })
   .refine((agency) => agency.requestChannel !== "PORTAL" || agency.portalUrl !== null, {
     path: ["portalUrl"],
@@ -97,6 +123,8 @@ export function agencyCard(a: AgencyInput): AgencyInput {
     requestChannel: a.requestChannel,
     portalUrl: a.portalUrl,
     notes: a.notes,
+    // Units travel without their ids: the importing installation numbers them itself.
+    units: a.units.map(({ name, active, toRecipients, ccRecipients }) => ({ id: null, name, active, toRecipients, ccRecipients })),
   };
 }
 

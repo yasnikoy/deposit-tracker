@@ -1,11 +1,13 @@
 import "server-only";
 import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { requestRecipients, type RequestRecipients } from "@/domain/agency";
 import { blBalance } from "@/domain/balances";
 import { renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import type { RequestKind } from "@/domain/due-requests";
 import type { RequestType } from "@/domain/records";
 import { formatTimestamp } from "@/lib/format";
 import { formatAmount } from "@/lib/money";
+import { unitsByAgency } from "../agencies";
 import { authorize } from "../auth/can";
 import type { AuthUser } from "../auth/types";
 import type { Db, DbOrTx } from "../db/client";
@@ -116,6 +118,9 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   const unique = [...new Set(blIds)];
   const entries = dueEntries(tx, now, {}, unique);
   const formRequired = getSetting("rules.blockSendingWithoutForm", {}, tx);
+  const units = unitsByAgency(tx, [...new Set(entries.map((e) => e.agency.id))]);
+  // Where each B/L's request goes: its unit's recipients, or the agency's own list.
+  const routes = new Map<number, Extract<RequestRecipients, { ok: true }>>();
   for (const id of unique) {
     const entry = entries.find((e) => e.bl.id === id);
     const blNo = entry?.bl.blNo ?? tx.select({ blNo: billsOfLading.blNo }).from(billsOfLading).where(eq(billsOfLading.id, id)).get()?.blNo;
@@ -123,7 +128,13 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
     if (!entry || entry.state.list === null) throw new DomainError("requests.errors.notDueBl", { bl: blNo });
     const refund = entry.state.type === "REFUND";
     if (refund && formRequired && !currentBlForm(tx, id)) throw new DomainError("requests.errors.formMissing", { bl: blNo });
-    if (entry.agency.toRecipients.length === 0) throw new DomainError("requests.errors.noRecipients", { agency: entry.agency.name });
+    const route = requestRecipients(entry.agency, units.get(entry.agency.id) ?? [], entry.bl.unitId);
+    if (!route.ok && route.problem === "UNIT_MISSING") throw new DomainError("requests.errors.unitMissing", { bl: blNo });
+    if (!route.ok) {
+      const unit = units.get(entry.agency.id)?.find((u) => u.id === entry.bl.unitId);
+      throw new DomainError("requests.errors.noRecipients", { agency: unit ? `${entry.agency.name} – ${unit.name}` : entry.agency.name });
+    }
+    routes.set(id, route);
   }
 
   // Group: agency → (first requests | thread of the follow-up), or one group per B/L.
@@ -131,9 +142,11 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
   for (const entry of entries.sort((a, b) => a.bl.paidAt.localeCompare(b.bl.paidAt) || a.bl.id - b.bl.id)) {
     // A portal agency's first request goes as a reply when the agency already wrote about the B/L.
     const thread = entry.state.kind === "FOLLOW_UP" || isPortalFirst(entry) ? lastThread(tx, entry.bl.id, entry.state.type) : null;
+    // Batch emails never mix units: each unit has its own recipients.
+    const target = `${entry.agency.id}:${routes.get(entry.bl.id)!.unitId ?? "agency"}`;
     const key = entry.agency.batchSending
-      ? `${entry.agency.id}:${entry.state.kind === "FIRST" && !thread ? "first" : `thread-${thread?.emailId ?? "none"}`}`
-      : `${entry.agency.id}:bl-${entry.bl.id}`;
+      ? `${target}:${entry.state.kind === "FIRST" && !thread ? "first" : `thread-${thread?.emailId ?? "none"}`}`
+      : `${target}:bl-${entry.bl.id}`;
     const group = groups.get(key) ?? { entries: [], thread };
     group.entries.push(entry);
     groups.set(key, group);
@@ -148,6 +161,7 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
 
   return [...groups.values()].map(({ entries: group, thread }) => {
     const agency = group[0].agency;
+    const route = routes.get(group[0].bl.id)!;
     const lines = group.map((entry) => blValues(tx, entry));
     const batched = group.length > 1;
     const { type, kind } = group[0].state;
@@ -185,8 +199,8 @@ export function buildRequestDrafts(tx: DbOrTx, blIds: number[], now: Date): Emai
       agencyId: agency.id,
       agencyName: agency.name,
       items: group.map((entry) => ({ blId: entry.bl.id, blNo: entry.bl.blNo, type: entry.state.type, kind: entry.state.kind, attemptNo: entry.state.attemptNo })),
-      to: agency.toRecipients,
-      cc: [...new Set([...agency.ccRecipients, ...defaultCc])],
+      to: [...route.to],
+      cc: [...new Set([...route.cc, ...defaultCc])],
       bcc: defaultBcc,
       subject: thread ? replySubject(thread.subject) : renderTemplate(template.subject, values),
       body: renderTemplate(template.body, values) + (thread ? quoteOf(tx, thread) : ""),

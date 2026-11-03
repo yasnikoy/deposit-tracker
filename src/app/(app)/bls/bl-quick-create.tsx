@@ -15,21 +15,25 @@ export function BlQuickCreate({
   paymentId,
   candidates,
   patterns,
+  units,
   onCreated,
 }: {
   paymentId: number;
   candidates: string[];
   patterns: string[];
+  /** The agency's active units; one is required when it has any. */
+  units: { id: number; name: string }[];
   onCreated: (blNo: string) => void;
 }) {
   const [blNo, setBlNo] = useState(candidates.length === 1 ? candidates[0] : "");
+  const [unitId, setUnitId] = useState<number | null>(null);
   const [errors, setErrors] = useState<BlRowError[]>([]);
   const [busy, setBusy] = useState(false);
   const warnings = blNoWarnings(blNo, patterns);
 
   const save = async () => {
     setBusy(true);
-    const result = await createBlsAction({ rows: [{ paymentId, blNo }] });
+    const result = await createBlsAction({ rows: [{ paymentId, blNo, unitId }] });
     setBusy(false);
     if (!result.ok) return void toast.error(t(result.error, result.params));
     setErrors(result.data.errors);
@@ -59,13 +63,32 @@ export function BlQuickCreate({
         {errorFor("blNo") && <p role="alert" className="text-destructive text-xs">{t(errorFor("blNo")!.message)}</p>}
         {errorFor("payment") && <p role="alert" className="text-destructive text-xs">{t(errorFor("payment")!.message)}</p>}
       </div>
+      {units.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="quick-unit">{t("bls.unit")}</Label>
+          <select
+            id="quick-unit"
+            className="border-input bg-background h-9 rounded-md border px-2"
+            value={unitId ?? ""}
+            onChange={(event) => setUnitId(event.target.value ? Number(event.target.value) : null)}
+          >
+            <option value="">{t("bls.unitPick")}</option>
+            {units.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+          {errorFor("unit") && <p role="alert" className="text-destructive text-xs">{t(errorFor("unit")!.message)}</p>}
+        </div>
+      )}
       {warnings.map((warning) => (
         <p key={warning} className="text-xs text-amber-700 dark:text-amber-400">
           {warning}
         </p>
       ))}
       <div className="flex justify-end">
-        <Button onClick={save} disabled={busy || blNo.trim() === ""}>
+        <Button onClick={save} disabled={busy || blNo.trim() === "" || (units.length > 0 && unitId === null)}>
           {t("bls.createOne")}
         </Button>
       </div>

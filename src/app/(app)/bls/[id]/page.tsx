@@ -9,6 +9,7 @@ import { listDeductionTypes, listReplyTypes } from "@/server/lists";
 import { DomainError } from "@/server/errors";
 import { BlDetailScreen } from "./bl-detail-screen";
 import { listCustomers } from "@/server/customers";
+import { activeUnitOptions } from "@/server/agencies";
 
 export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
   const { user } = await requireSession();
@@ -44,6 +45,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         setCustomer: can(user, "bl.setCustomer").allowed,
         recordAccounting: can(user, "bl.recordAccounting").allowed,
       }}
+      units={activeUnitOptions(getDb())[detail.bl.agencyId] ?? []}
       customers={listCustomers(getDb(), user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
       // Users enter real types; the system types come from allocation and write-off approval.
       deductionTypes={listDeductionTypes(getDb(), user)

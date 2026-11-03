@@ -161,6 +161,7 @@ function Continuation({ saved, refs, onDone }: { saved: SavedPayment; refs: Refe
           paymentId={saved.id}
           candidates={blCandidatesOf({ blNoHint: saved.blNoHint, extractedBlNumbers: saved.blCandidates })}
           patterns={agency?.blNumberPatterns ?? []}
+          units={refs.units[saved.agencyId] ?? []}
           onCreated={onDone}
         />
         <Button variant="ghost" className="self-start" onClick={onDone}>

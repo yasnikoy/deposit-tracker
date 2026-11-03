@@ -52,7 +52,7 @@ export function testCustomer(db: Db): number {
 export function makeBl(
   db: Db,
   users: { acc: AuthUser; ops: AuthUser },
-  input: { agencyId: number; blNo: string; amountMinor: number; paidAt: string; currency?: string; containers?: string[]; customerId?: number | null },
+  input: { agencyId: number; blNo: string; amountMinor: number; paidAt: string; currency?: string; containers?: string[]; customerId?: number | null; unitId?: number | null },
   now: Date,
 ): { paymentId: number; blId: number } {
   const result = createPayment(
@@ -73,7 +73,7 @@ export function makeBl(
   );
   if (result.status !== "created") throw new Error("payment not created");
   const customerId = input.customerId === undefined ? testCustomer(db) : input.customerId;
-  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, customerId }], now).created[0];
+  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, customerId, unitId: input.unitId ?? null }], now).created[0];
   if (!created) throw new Error("B/L not created");
   // Containers are entered on the B/L detail, after creation.
   if (input.containers?.length) updateBl(db, users.ops, { id: created.blId, containers: input.containers }, now);

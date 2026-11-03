@@ -12,7 +12,7 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies, deductionTypes, emailAttachments, emails, ledgerEntries, refundAllocations, refunds, reportEmails, requests, users } from "./db/schema";
+import { agencies, agencyUnits, deductionTypes, emailAttachments, emails, ledgerEntries, refundAllocations, refunds, reportEmails, requests, users } from "./db/schema";
 import { DomainError } from "./errors";
 import { getEmailTemplate } from "./email/templates";
 import { storeGeneratedDocument } from "./files";
@@ -272,11 +272,11 @@ export type QueueReportInput = ReportRequest & { to: string[]; cc: string[]; sub
 
 /** Rule: internal recipients only, and never an address an agency receives requests at. */
 function checkRecipients(db: DbOrTx, addresses: string[], fromAddress: string): void {
-  const agencyAddresses = db
-    .select({ to: agencies.toRecipients, cc: agencies.ccRecipients })
-    .from(agencies)
-    .all()
-    .flatMap((a) => [...a.to, ...a.cc]);
+  const agencyAddresses = [
+    ...db.select({ to: agencies.toRecipients, cc: agencies.ccRecipients }).from(agencies).all(),
+    // Units are agency addresses too.
+    ...db.select({ to: agencyUnits.toRecipients, cc: agencyUnits.ccRecipients }).from(agencyUnits).all(),
+  ].flatMap((a) => [...a.to, ...a.cc]);
   const refused = refusedRecipients(addresses, { internalDomains: getSetting("reports.internalDomains", {}, db), senderAddress: fromAddress, agencyAddresses });
   if (refused.agency.length > 0) throw new DomainError("reports.email.errors.agency", { addresses: refused.agency.join(", ") });
   if (refused.external.length > 0) throw new DomainError("reports.email.errors.external", { addresses: refused.external.join(", ") });

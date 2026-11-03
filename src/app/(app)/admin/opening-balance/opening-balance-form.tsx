@@ -29,6 +29,7 @@ type FormValues = {
   newAgencyName: string | null;
   customerId: number | null;
   newCustomerName: string | null;
+  unitId: number | null;
   amountText: string;
   currency: string;
   paidAt: string;
@@ -61,6 +62,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   const [created, setCreated] = useState<{ id: number; blNo: string }[]>([]);
 
   const confirmations = useDepositConfirmations();
+  const unitsOf = (id: number | null) => (id === null ? [] : (refs.units[id] ?? []));
   // While the typed B/L number belongs to an active B/L the deposit joins (`joining`, below), that
   // B/L keeps its request history, customer and file number, so the record sends none.
   // Called only from events, after render has set `joining`.
@@ -70,6 +72,8 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
       newAgencyName: values.newAgencyName,
       customerId: joining ? null : values.customerId,
       newCustomerName: joining ? null : values.newCustomerName,
+      // Only a unit of the chosen agency counts; a joining record brings none.
+      unitId: !joining && unitsOf(values.agencyId).some((u) => u.id === values.unitId) ? values.unitId : null,
       kind: values.kind,
       amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
       currency: values.currency,
@@ -86,8 +90,12 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
 
   const resolver: Resolver<FormValues> = async (values) => {
     const parsed = openingBalanceSchema.safeParse(toInput(values));
-    if (parsed.success) return { values, errors: {} };
     const errors: FieldErrors<FormValues> = {};
+    // The agency's units are known here; the server checks the same rule.
+    if (!joining && unitsOf(values.agencyId).length > 0 && toInput(values).unitId === null) {
+      errors.unitId = { type: "validation", message: "bls.errors.unitRequired" };
+    }
+    if (parsed.success) return Object.keys(errors).length ? { values: {}, errors } : { values, errors: {} };
     for (const issue of parsed.error.issues) {
       const key = String(issue.path[0]);
       const field = (FIELD_OF[key] ?? key) as keyof FormValues;
@@ -102,6 +110,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
     newAgencyName: null,
     customerId: null,
     newCustomerName: null,
+    unitId: null,
     amountText: "",
     currency: activeCurrencies[0]?.code ?? "",
     paidAt: "",
@@ -113,10 +122,11 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
   };
   const form = useForm<FormValues>({ resolver, defaultValues: blank });
   const errors = form.formState.errors;
-  const [kind, agencyId, newAgencyName, customerId, newCustomerName, amountText, currency, pastAttempts, blNo] = useWatch({
+  const [kind, agencyId, newAgencyName, customerId, newCustomerName, unitId, amountText, currency, pastAttempts, blNo] = useWatch({
     control: form.control,
-    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "amountText", "currency", "pastAttempts", "blNo"],
+    name: ["kind", "agencyId", "newAgencyName", "customerId", "newCustomerName", "unitId", "amountText", "currency", "pastAttempts", "blNo"],
   });
+  const agencyUnits = unitsOf(agencyId);
   const amount = parseAmountInput(amountText);
   const joinPreview = useBlJoinPreview(blNo, agencyId, currency);
   const joining = joinPreview !== null && joinPreview.problem === null;
@@ -184,6 +194,7 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
       newAgencyName: values.newAgencyName,
       customerId: values.customerId,
       newCustomerName: values.newCustomerName,
+      unitId: values.unitId,
       currency: values.currency,
     });
     router.refresh();
@@ -303,6 +314,27 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
                 {message(errors.customerId?.message)}
               </div>
             </div>
+
+            {agencyUnits.length > 0 && (
+              <div className="flex w-56 flex-col gap-1.5">
+                <Label htmlFor="opening-unit">{t("bls.unit")}</Label>
+                <select
+                  id="opening-unit"
+                  className="border-input bg-background h-9 rounded-md border px-2"
+                  disabled={joining}
+                  value={agencyUnits.some((u) => u.id === unitId) ? (unitId ?? "") : ""}
+                  onChange={(event) => form.setValue("unitId", event.target.value ? Number(event.target.value) : null, { shouldValidate: form.formState.isSubmitted })}
+                >
+                  <option value="">{t("bls.unitPick")}</option>
+                  {agencyUnits.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name}
+                    </option>
+                  ))}
+                </select>
+                {message(errors.unitId?.message)}
+              </div>
+            )}
 
             <div className="grid grid-cols-[1fr_8rem_10rem] gap-3">
               <div className="flex flex-col gap-1.5">

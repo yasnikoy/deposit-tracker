@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   check,
+  foreignKey,
   index,
   integer,
   primaryKey,
@@ -202,6 +203,33 @@ export const agencies = sqliteTable(
   ],
 );
 
+/**
+ * Units of an agency (e.g. its Mersin office), each with its own recipients. When an agency has
+ * active units, every B/L of it names one and its requests go to that unit's recipients.
+ * A unit a B/L names is deactivated, never deleted.
+ */
+export const agencyUnits = sqliteTable(
+  "agency_units",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    agencyId: integer("agency_id")
+      .notNull()
+      .references(() => agencies.id),
+    name: text("name").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    toRecipients: text("to_recipients", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    ccRecipients: text("cc_recipients", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [
+    check("agency_units_name", sql`length(trim(${t.name})) > 0`),
+    uniqueIndex("agency_units_name_unique").on(t.agencyId, sql`lower(${t.name})`),
+    // Parent key of the B/L's (unit, agency) reference: a B/L names a unit of its own agency.
+    uniqueIndex("agency_units_id_agency").on(t.id, t.agencyId),
+  ],
+);
+
 // ---- Build step 3: lists, documents, payments, B/Ls, ledger ----
 
 const sqlList = (values: readonly string[]) => sql.raw(values.map((v) => `'${v}'`).join(", "));
@@ -382,6 +410,8 @@ export const billsOfLading = sqliteTable(
     fileNo: text("file_no"),
     // Free text kept by accounting and operations ("Açıklama"); replaced the team notes.
     description: text("description"),
+    // The agency's unit the requests go to; required while the agency has active units.
+    unitId: integer("unit_id"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -406,6 +436,8 @@ export const billsOfLading = sqliteTable(
       .where(sql`${t.voidedAt} IS NULL AND ${t.depositPaymentId} IS NOT NULL`),
     uniqueIndex("bills_of_lading_bl_no_active").on(sql`upper(${t.blNo})`).where(sql`${t.voidedAt} IS NULL`),
     index("bills_of_lading_agency").on(t.agencyId),
+    index("bills_of_lading_unit").on(t.unitId),
+    foreignKey({ name: "bills_of_lading_unit_of_agency", columns: [t.unitId, t.agencyId], foreignColumns: [agencyUnits.id, agencyUnits.agencyId] }),
   ],
 );
 

@@ -30,6 +30,7 @@ import { DescriptionEditor } from "../description-editor";
 import type { CustomerOption } from "@/components/customer-combobox";
 import { ContainersField } from "./containers-field";
 import { CustomerField } from "./customer-field";
+import { UnitField } from "./unit-field";
 import { recordAccountingEntryAction } from "../../accounting/actions";
 import { toastWithUndo } from "@/components/undo-toast";
 
@@ -75,6 +76,7 @@ export function BlDetailScreen({
   replyTypes,
   deductionTypes,
   customers,
+  units,
   today,
 }: {
   detail: BlDetail;
@@ -82,6 +84,8 @@ export function BlDetailScreen({
   replyTypes: ReplyTypeOption[];
   deductionTypes: DeductionTypeOption[];
   customers: CustomerOption[];
+  /** The agency's active units; empty for agencies without units. */
+  units: { id: number; name: string }[];
   today: string;
 }) {
   const router = useRouter();
@@ -182,6 +186,14 @@ export function BlDetailScreen({
             <dd>
               <CustomerField blId={bl.id} customerId={bl.customerId} customerName={bl.customerName} customers={customers} editable={can.setCustomer && !bl.voidedAt} />
             </dd>
+            {(units.length > 0 || bl.unitId !== null) && (
+              <>
+                <dt className="text-muted-foreground">{t("bls.unit")}</dt>
+                <dd>
+                  <UnitField key={bl.unitId ?? 0} blId={bl.id} unitId={bl.unitId} unitName={bl.unitName} units={units} editable={can.edit && !bl.voidedAt} />
+                </dd>
+              </>
+            )}
             <dt className="text-muted-foreground">{t("bls.paidAt")}</dt>
             <dd>{formatBusinessDate(bl.paidAt)}</dd>
             <dt className="text-muted-foreground">{t("bls.daysWaiting")}</dt>

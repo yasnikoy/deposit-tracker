@@ -1,13 +1,13 @@
 "use server";
 
-import { blSearchSchema, createBlsSchema, generateFormSchema, setBlCustomerSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
+import { blSearchSchema, createBlsSchema, generateFormSchema, setBlCustomerSchema, setBlUnitSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
 import { appendBlDescriptionSchema, updateBlDescriptionSchema } from "@/lib/schemas/descriptions";
 import { voidSchema } from "@/lib/schemas/payments";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { searchBls, type BlSearchResult } from "@/server/bl-overview";
-import { createBls, setBlCustomer, updateBl, voidBl, type CreateBlsResult } from "@/server/bls";
+import { createBls, setBlCustomer, setBlUnit, updateBl, voidBl, type CreateBlsResult } from "@/server/bls";
 import { getDb } from "@/server/db/client";
 import { classifyDeduction, disputeDeduction, recordStatementDeductions } from "@/server/deductions";
 import type { ActionResult } from "@/server/errors";
@@ -29,6 +29,11 @@ export async function updateBlAction(input: unknown): Promise<ActionResult<numbe
 export async function setBlCustomerAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(setBlCustomerSchema, input, (data) => setBlCustomer(getDb(), user, data));
+}
+
+export async function setBlUnitAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(setBlUnitSchema, input, (data) => setBlUnit(getDb(), user, data));
 }
 
 export async function voidBlAction(input: unknown): Promise<ActionResult<void>> {

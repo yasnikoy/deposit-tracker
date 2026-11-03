@@ -29,7 +29,8 @@ const TABS: { tab: DueTab; href: string }[] = [
 
 /** A row can go into an email when it is an email request, has its form (if required) and nobody else is drafting it. */
 // A portal agency's first request is filed on the portal and goes with its documents by email, so it is sent like the others.
-const selectable = (row: DueRow) => (!row.needsForm || !!row.form) && !row.lockedBy;
+// A B/L of an agency with units is sent only once it names one (the server refuses it too).
+const selectable = (row: DueRow) => (!row.needsForm || !!row.form) && !row.lockedBy && !row.unitMissing;
 
 /** Due (today and overdue) and upcoming requests, grouped by agency. */
 export function DueRequestsScreen({
@@ -244,6 +245,11 @@ function AgencyGroup({
                 <Link href={`/bls/${row.blId}`} className="font-mono hover:underline">
                   {row.blNo}
                 </Link>
+                {row.unitMissing && (
+                  <Badge variant="warning" className="ml-2" title={t("requests.unitMissingHint")}>
+                    {t("bls.unitMissing")}
+                  </Badge>
+                )}
                 {row.evidenceMissing && (
                   <Badge variant="warning" className="ml-2" title={t("requests.evidenceMissingHint")}>
                     {t("requests.evidenceMissing")}

@@ -85,6 +85,12 @@ export function AgenciesScreen({
         meta: { label: "agencies.recipientCount", align: "end", searchable: false },
         sortFn: "basic",
       }),
+      // Unit names, for the few agencies with a separate address per port.
+      col.accessor((a) => a.units.filter((u) => u.active).map((u) => u.name).join(", "), {
+        id: "units",
+        meta: { label: "agencies.units.title", filter: "text" },
+        sortFn: "turkishText",
+      }),
       col.accessor((a) => a.blNumberPatterns.length, {
         id: "patterns",
         meta: { label: "agencies.patternCount", align: "end", searchable: false },
@@ -144,7 +150,7 @@ export function AgenciesScreen({
           setSelected(a.id);
         }}
         rowClassName={(a) => (a.active ? undefined : "text-muted-foreground")}
-        hiddenByDefault={["recipients", "patterns"]}
+        hiddenByDefault={["recipients", "patterns", "units"]}
         bulkActions={(rows) => <ExportAgenciesButton agencies={rows} />}
         toolbar={
           permissions.create && (

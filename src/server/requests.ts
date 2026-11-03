@@ -4,11 +4,12 @@ import { blBalance } from "@/domain/balances";
 import type { StoredBlStatus } from "@/domain/bl-lifecycle";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar, type IsoDate } from "@/domain/business-days";
 import { dueState, statementDueState, type DueList, type DueState, type RequestDurations, type StatementDurations } from "@/domain/due-requests";
-import type { RequestChannel } from "@/domain/agency";
+import { requestRecipients, type RequestChannel } from "@/domain/agency";
 import type { RequestType } from "@/domain/records";
 import { parseSettingValue, type OverridableSettingKey, type SettingKey } from "@/domain/settings/definitions";
 import { resolveSetting } from "@/domain/settings/resolve";
 import type { AgencyOverrides } from "@/lib/schemas/agencies";
+import { unitsByAgency } from "./agencies";
 import { agencyOverrideFields } from "./agency-overrides";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
@@ -210,6 +211,8 @@ export type DueRow = {
   needsForm: boolean;
   /** The payment has no receipt or invoice yet; sending warns (rule 12). */
   evidenceMissing: boolean;
+  /** The agency has units and this B/L names none of its active ones: it cannot be sent until one is chosen. */
+  unitMissing: boolean;
   /** Another user is drafting a request email for this B/L. */
   lockedBy: string | null;
   /** The last recorded agency reply. */
@@ -258,6 +261,7 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
     : [];
 
   const lockers = activeLockers(db, actor, now);
+  const units = unitsByAgency(db);
   const lists: DueLists = {
     DUE: [],
     UPCOMING: [],
@@ -301,6 +305,10 @@ export function listDueRequests(db: DbOrTx, actor: AuthUser, now: Date = new Dat
         form: form ? { id: form.id, originalName: form.originalName } : null,
         needsForm: state.type === "REFUND" && lists.formRequired,
         evidenceMissing: lacksPaymentEvidence(db, bl),
+        unitMissing: (() => {
+          const route = requestRecipients(agency, units.get(agency.id) ?? [], bl.unitId);
+          return !route.ok && route.problem === "UNIT_MISSING";
+        })(),
         lockedBy: lockers.get(bl.id) ?? null,
         lastReply,
       });

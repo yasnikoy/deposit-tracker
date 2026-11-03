@@ -65,6 +65,7 @@ describe("inline agency contact edits", () => {
           requestChannel: card.requestChannel,
           portalUrl: null,
           notes: card.notes,
+          units: [],
         },
       },
       later(2),

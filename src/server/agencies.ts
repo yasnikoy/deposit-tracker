@@ -1,15 +1,16 @@
 import "server-only";
-import { and, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { unitRequired } from "@/domain/agency";
 import type { Role } from "@/domain/roles";
 import { OVERRIDABLE_SETTING_KEYS } from "@/domain/settings/definitions";
 import { isTranslationKey } from "@/i18n";
-import { agencyInputSchema, type AgencyInput, type AgencyOverrides } from "@/lib/schemas/agencies";
+import { agencyInputSchema, type AgencyInput, type AgencyOverrides, type AgencyUnitInput } from "@/lib/schemas/agencies";
 import { agencyOverrideFields } from "./agency-overrides";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { agencies, billsOfLading, depositPayments, documents, emails, notifications, refunds, reportEmails } from "./db/schema";
+import { agencies, agencyUnits, billsOfLading, depositPayments, documents, emails, notifications, refunds, reportEmails } from "./db/schema";
 import { DomainError } from "./errors";
 import { notify, usersWithRole } from "./notifications";
 import { assertUnlinked, type RecordLinks } from "./record-links";
@@ -18,7 +19,46 @@ export type Agency = typeof agencies.$inferSelect;
 export type AgencyWithOverrides = Omit<Agency, (typeof agencyOverrideFields)[keyof typeof agencyOverrideFields]> & {
   overrides: AgencyOverrides;
 };
-export type AgencyListItem = AgencyWithOverrides & { formTemplateName: string | null };
+export type AgencyUnit = typeof agencyUnits.$inferSelect;
+/** A unit as the agency card shows and saves it. */
+export type AgencyUnitCard = AgencyUnitInput & { id: number };
+export type AgencyListItem = AgencyWithOverrides & { formTemplateName: string | null; units: AgencyUnitCard[] };
+
+/** The units of the given agencies (all when omitted), oldest first. */
+export function unitsByAgency(tx: DbOrTx, agencyIds?: number[]): Map<number, AgencyUnit[]> {
+  const rows = tx
+    .select()
+    .from(agencyUnits)
+    .where(agencyIds ? inArray(agencyUnits.agencyId, agencyIds) : undefined)
+    .orderBy(asc(agencyUnits.id))
+    .all();
+  const map = new Map<number, AgencyUnit[]>();
+  for (const row of rows) map.set(row.agencyId, [...(map.get(row.agencyId) ?? []), row]);
+  return map;
+}
+
+/**
+ * Checks the unit chosen for a B/L of the agency: one of its active units while it has any,
+ * none otherwise. Returns the error to show, or null.
+ */
+export function unitChoiceError(tx: DbOrTx, agencyId: number, unitId: number | null): "bls.errors.unitRequired" | "bls.errors.unitUnknown" | null {
+  const units = unitsByAgency(tx, [agencyId]).get(agencyId) ?? [];
+  if (unitId === null) return unitRequired(units) ? "bls.errors.unitRequired" : null;
+  return units.some((u) => u.id === unitId && u.active) ? null : "bls.errors.unitUnknown";
+}
+
+/** Active units per agency, for the pickers where B/Ls are created or changed. */
+export function activeUnitOptions(tx: DbOrTx): Record<number, { id: number; name: string }[]> {
+  const options: Record<number, { id: number; name: string }[]> = {};
+  for (const [agencyId, units] of unitsByAgency(tx)) {
+    const active = units.filter((u) => u.active).map(({ id, name }) => ({ id, name }));
+    if (active.length) options[agencyId] = active;
+  }
+  return options;
+}
+
+const unitCard = (u: AgencyUnit): AgencyUnitCard => ({ id: u.id, name: u.name, active: u.active, toRecipients: u.toRecipients, ccRecipients: u.ccRecipients });
+const unitCardsOf = (tx: DbOrTx, agencyId: number) => (unitsByAgency(tx, [agencyId]).get(agencyId) ?? []).map(unitCard);
 
 function overridesOf(row: Agency): AgencyOverrides {
   return Object.fromEntries(
@@ -32,11 +72,35 @@ function toView(row: Agency): AgencyWithOverrides {
   return view as AgencyWithOverrides;
 }
 
-/** Agency card data as recorded in the audit log (without override columns). */
-function snapshot(row: Agency) {
+/** Agency card data as recorded in the audit log (without override columns), with its units. */
+function snapshot(tx: DbOrTx, row: Agency) {
   const { id: _id, createdAt: _c, updatedAt: _u, ...rest } = toView(row);
   const { overrides: _o, ...card } = rest;
-  return card;
+  return { ...card, units: unitCardsOf(tx, row.id) };
+}
+
+/**
+ * Saves the card's units: listed ones are updated or added (an id not of this agency adds a
+ * new unit), units left off are removed, but only while no B/L names them; those are
+ * deactivated instead.
+ */
+function syncUnits(tx: DbOrTx, agencyId: number, units: AgencyUnitInput[], now: Date) {
+  const at = now.toISOString();
+  const existing = unitsByAgency(tx, [agencyId]).get(agencyId) ?? [];
+  const kept = new Set(units.map((u) => u.id).filter((id) => id !== null));
+  for (const gone of existing.filter((u) => !kept.has(u.id))) {
+    const named = tx.select({ n: sql<number>`count(*)` }).from(billsOfLading).where(eq(billsOfLading.unitId, gone.id)).get()?.n ?? 0;
+    if (named > 0) throw new DomainError("agencies.errors.unitInUse", { unit: gone.name });
+    tx.delete(agencyUnits).where(eq(agencyUnits.id, gone.id)).run();
+  }
+  for (const { id, ...unit } of units) {
+    const current = existing.find((u) => u.id === id);
+    if (current) {
+      tx.update(agencyUnits).set({ ...unit, updatedAt: at }).where(eq(agencyUnits.id, current.id)).run();
+    } else {
+      tx.insert(agencyUnits).values({ ...unit, agencyId, createdAt: at, updatedAt: at }).run();
+    }
+  }
 }
 
 function nameTaken(tx: DbOrTx, name: string, exceptId?: number): boolean {
@@ -53,20 +117,23 @@ function requireAgency(tx: DbOrTx, id: number): Agency {
 
 export function listAgencies(db: Db, actor: AuthUser): AgencyListItem[] {
   authorize(actor, "agency.view");
+  const units = unitsByAgency(db);
   return db
     .select({ agency: agencies, formTemplateName: documents.originalName })
     .from(agencies)
     .leftJoin(documents, eq(documents.id, agencies.formTemplateDocumentId))
     .all()
-    .map(({ agency, formTemplateName }) => ({ ...toView(agency), formTemplateName }));
+    .map(({ agency, formTemplateName }) => ({ ...toView(agency), formTemplateName, units: (units.get(agency.id) ?? []).map(unitCard) }));
 }
 
 function insertAgency(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, input: AgencyInput, now: Date): number {
   const at = now.toISOString();
-  const row = tx.insert(agencies).values({ ...input, createdAt: at, updatedAt: at }).returning().get();
+  const { units, ...card } = input;
+  const row = tx.insert(agencies).values({ ...card, createdAt: at, updatedAt: at }).returning().get();
+  syncUnits(tx, row.id, units, now);
   writeAudit(
     tx,
-    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(row) },
+    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(tx, row) },
     now,
   );
   return row.id;
@@ -124,7 +191,7 @@ export function agencyForNewName(
   const row = tx.insert(agencies).values({ name, createdAt: at, updatedAt: at }).returning().get();
   writeAudit(
     tx,
-    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(row) },
+    { actorUserId: actor.id, roleUsed, action: "agency.create", entityType: "agency", entityId: row.id, after: snapshot(tx, row) },
     now,
   );
   notify(
@@ -149,24 +216,23 @@ export function updateAgency(db: Db, actor: AuthUser, input: { id: number; agenc
 }
 
 function saveAgency(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, id: number, input: AgencyInput, now: Date): number {
-  const before = requireAgency(tx, id);
+  const before = snapshot(tx, requireAgency(tx, id));
   if (nameTaken(tx, input.name, id)) throw new DomainError("agencies.errors.nameTaken");
-  const after = tx
+  const { units, ...card } = input;
+  const row = tx
     .update(agencies)
-    .set({ ...input, updatedAt: now.toISOString() })
+    .set({ ...card, updatedAt: now.toISOString() })
     .where(eq(agencies.id, id))
     .returning()
     .get();
-  if (JSON.stringify(snapshot(before)) === JSON.stringify(snapshot(after))) throw new DomainError("settings.noChanges");
-  return writeAudit(
-    tx,
-    { actorUserId: actor.id, roleUsed, action: "agency.update", entityType: "agency", entityId: id, before: snapshot(before), after: snapshot(after) },
-    now,
-  );
+  syncUnits(tx, id, units, now);
+  const after = snapshot(tx, row);
+  if (JSON.stringify(before) === JSON.stringify(after)) throw new DomainError("settings.noChanges");
+  return writeAudit(tx, { actorUserId: actor.id, roleUsed, action: "agency.update", entityType: "agency", entityId: id, before, after }, now);
 }
 
 /** The fields of an agency card that a user enters (AgencyInput), as stored now. */
-function agencyInputOf(row: Agency): AgencyInput {
+function agencyInputOf(tx: DbOrTx, row: Agency): AgencyInput {
   return agencyInputSchema.parse({
     name: row.name,
     active: row.active,
@@ -178,6 +244,7 @@ function agencyInputOf(row: Agency): AgencyInput {
     requestChannel: row.requestChannel,
     portalUrl: row.portalUrl ?? "",
     notes: row.notes ?? "",
+    units: unitCardsOf(tx, row.id),
   });
 }
 
@@ -192,7 +259,7 @@ export function updateAgencyContact(
 ): number[] {
   const roleUsed = authorize(actor, "agency.update");
   return db.transaction((tx) => {
-    const current = agencyInputOf(requireAgency(tx, input.id));
+    const current = agencyInputOf(tx, requireAgency(tx, input.id));
     const parsed = agencyInputSchema.safeParse({ ...current, portalUrl: current.portalUrl ?? "", notes: current.notes ?? "", [input.field]: input.value });
     if (!parsed.success) throw new DomainError(isTranslationKey(parsed.error.issues[0]?.message) ? parsed.error.issues[0].message : "errors.validation");
     return [saveAgency(tx, actor, roleUsed, input.id, parsed.data, now)];
@@ -202,10 +269,12 @@ export function updateAgencyContact(
 /** Undo of an agency edit: the card returns to what it was, unless it changed again since. */
 export function undoAgencyUpdate(tx: DbOrTx, _actor: AuthUser, audit: { entityId: string | null; before: unknown; after: unknown }, now: Date) {
   const row = requireAgency(tx, Number(audit.entityId));
-  if (JSON.stringify(snapshot(row)) !== JSON.stringify(audit.after)) throw new DomainError("undo.errors.movedOn");
+  if (JSON.stringify(snapshot(tx, row)) !== JSON.stringify(audit.after)) throw new DomainError("undo.errors.movedOn");
   const before = audit.before as ReturnType<typeof snapshot>;
-  const restored = agencyInputSchema.parse({ ...before, portalUrl: before.portalUrl ?? "", notes: before.notes ?? "" });
+  // Edits recorded before units existed carry none; the agency had none then.
+  const { units, ...restored } = agencyInputSchema.parse({ ...before, portalUrl: before.portalUrl ?? "", notes: before.notes ?? "", units: before.units ?? [] });
   tx.update(agencies).set({ ...restored, updatedAt: now.toISOString() }).where(eq(agencies.id, row.id)).run();
+  syncUnits(tx, row.id, units, now);
   return { before: audit.after, after: audit.before };
 }
 
@@ -274,11 +343,13 @@ export function deleteAgency(db: Db, actor: AuthUser, input: { id: number; reaso
   db.transaction((tx) => {
     const agency = requireAgency(tx, input.id);
     assertUnlinked(agencyLinks(tx, agency), "agencies.errors.inUse");
+    const before = snapshot(tx, agency);
     tx.delete(notifications).where(and(eq(notifications.entityType, "agency"), eq(notifications.entityId, agency.id))).run();
+    tx.delete(agencyUnits).where(eq(agencyUnits.agencyId, agency.id)).run();
     tx.delete(agencies).where(eq(agencies.id, agency.id)).run();
     writeAudit(
       tx,
-      { actorUserId: actor.id, roleUsed, action: "agency.delete", entityType: "agency", entityId: agency.id, before: snapshot(agency), reason: input.reason },
+      { actorUserId: actor.id, roleUsed, action: "agency.delete", entityType: "agency", entityId: agency.id, before, reason: input.reason },
       now,
     );
   });
