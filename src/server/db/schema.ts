@@ -331,6 +331,12 @@ export const depositPayments = sqliteTable(
     extractedFields: text("extracted_fields", { mode: "json" }).$type<Record<string, unknown>>(),
     extractedBlNumbers: text("extracted_bl_numbers", { mode: "json" }).$type<string[]>().notNull().default(sql`'[]'`),
     blNoHint: text("bl_no_hint"),
+    // Customer and file number as the accountant entered them (prefilled from the receipt); the
+    // B/L takes them once when it is created, and its detail changes them afterwards.
+    customerId: integer("customer_id").references((): AnySQLiteColumn => customers.id),
+    fileNo: text("file_no"),
+    // The accountant's note on the deposit ("Açıklama"); a new B/L takes it as its description.
+    description: text("description"),
     // An additional deposit ("ek depozito") on a B/L that already exists; the B/L's first
     // payment is the one the B/L points to (bills_of_lading.deposit_payment_id).
     additionalToBlId: integer("additional_to_bl_id").references((): AnySQLiteColumn => billsOfLading.id),

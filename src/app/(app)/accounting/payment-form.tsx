@@ -8,6 +8,7 @@ import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { normalizeFileNo } from "@/domain/file-number";
 import { PAYMENT_KINDS, type PaymentKind } from "@/domain/records";
 import { isTranslationKey, t } from "@/i18n";
 import { formatAmount, formatMoney, parseAmountInput } from "@/lib/money";
@@ -16,7 +17,7 @@ import type { Currency } from "@/server/lists";
 import type { PaymentPrefill } from "@/server/payments";
 import { createPaymentAction } from "./actions";
 import { BlJoinNotice, ReceiptMismatchHint, useBlJoinPreview, useDepositConfirmations } from "./deposit-checks";
-import type { CustomerOption } from "@/components/customer-combobox";
+import { CustomerCombobox, type CustomerOption } from "@/components/customer-combobox";
 
 export type ReferenceData = {
   agencies: AgencyOption[];
@@ -31,18 +32,33 @@ type FormValues = {
   kind: PaymentKind;
   agencyId: number | null;
   newAgencyName: string | null;
+  customerId: number | null;
+  newCustomerName: string | null;
   amountText: string;
   currency: string;
   paidAt: string;
   blNoHint: string;
+  fileNo: string;
+  description: string;
 };
 
 const FIELD_OF: Record<string, keyof FormValues | "evidence"> = {
   amountMinor: "amountText",
   evidenceDocumentId: "evidence",
+  newCustomerName: "customerId",
 };
 
-export type SavedPayment = { id: number; agencyId: number; blNoHint: string | null; blCandidates: string[]; additionalTo: { blId: number; blNo: string } | null };
+export type SavedPayment = {
+  id: number;
+  agencyId: number;
+  blNoHint: string | null;
+  blCandidates: string[];
+  additionalTo: { blId: number; blNo: string } | null;
+  /** What the B/L that follows takes over, shown read-only there. */
+  customerName: string | null;
+  fileNo: string | null;
+  description: string | null;
+};
 
 /**
  * Deposit payment form. In "new" mode the receipt or invoice is uploaded here;
@@ -69,14 +85,21 @@ export function PaymentForm({
 
   const initialCurrency = prefill?.currency ?? activeCurrencies[0]?.code ?? "";
 
+  // While the typed B/L number belongs to an active B/L the payment joins (`joining`, below),
+  // that B/L keeps its customer and file number, so the payment sends none.
+  // Called only from events, after render has set `joining`.
   const toInput = (values: FormValues, confirmDuplicate = false) => ({
     agencyId: values.agencyId,
     newAgencyName: values.newAgencyName,
+    customerId: joining ? null : values.customerId,
+    newCustomerName: joining ? null : values.newCustomerName,
     amountMinor: parseAmountInput(values.amountText) ?? Number.NaN,
     currency: values.currency,
     paidAt: values.paidAt,
     kind: values.kind,
     blNoHint: values.blNoHint,
+    fileNo: joining ? "" : values.fileNo,
+    description: values.description,
     evidenceDocumentId: evidence?.id ?? null,
     queueItemId,
     confirmDuplicate,
@@ -100,19 +123,25 @@ export function PaymentForm({
       kind: "BANK",
       agencyId: prefill?.agencyIds.length === 1 ? prefill.agencyIds[0] : null,
       newAgencyName: null,
+      customerId: prefill?.customerId ?? null,
+      newCustomerName: null,
       amountText: prefill?.amountMinor ? formatAmount(prefill.amountMinor) : "",
       currency: initialCurrency,
       paidAt: prefill?.paidAt ?? refs.today,
       blNoHint: "",
+      fileNo: prefill?.fileNo ?? "",
+      description: "",
     },
   });
   const errors = form.formState.errors as FieldErrors<FormValues & { evidence: string }>;
-  const [kind, currency, amountText, agencyId, newAgencyName, blNoHint] = useWatch({
+  const [kind, currency, amountText, agencyId, newAgencyName, customerId, newCustomerName, blNoHint] = useWatch({
     control: form.control,
-    name: ["kind", "currency", "amountText", "agencyId", "newAgencyName", "blNoHint"],
+    name: ["kind", "currency", "amountText", "agencyId", "newAgencyName", "customerId", "newCustomerName", "blNoHint"],
   });
   const amount = parseAmountInput(amountText);
   const joinPreview = useBlJoinPreview(blNoHint, agencyId, currency);
+  const joining = joinPreview !== null && joinPreview.problem === null;
+  const isKnownCustomer = (name: string) => refs.customers.some((c) => c.name.toLocaleLowerCase("tr-TR") === name.toLocaleLowerCase("tr-TR"));
 
   const submit = async (values: FormValues, confirmDuplicate: boolean) => {
     const result = await createPaymentAction(toInput(values, confirmDuplicate));
@@ -127,7 +156,19 @@ export function PaymentForm({
     const { additionalTo } = result.data;
     toast.success(additionalTo ? t("payments.additionalSaved", { bl: additionalTo.blNo }) : t("payments.saved"));
     if (values.newAgencyName) toast.info(t("payments.newAgencyAdded", { name: values.newAgencyName }));
-    onSaved({ id: result.data.id, agencyId: result.data.agencyId, blNoHint: values.blNoHint.trim() || null, blCandidates: candidates, additionalTo });
+    const sent = toInput(values);
+    if (sent.newCustomerName && !isKnownCustomer(sent.newCustomerName)) toast.info(t("payments.newCustomerAdded", { name: sent.newCustomerName }));
+    onSaved({
+      id: result.data.id,
+      agencyId: result.data.agencyId,
+      blNoHint: values.blNoHint.trim() || null,
+      blCandidates: candidates,
+      additionalTo,
+      customerName: sent.newCustomerName ?? refs.customers.find((c) => c.id === sent.customerId)?.name ?? null,
+      // As stored: without the "T" of transfer descriptions.
+      fileNo: normalizeFileNo(sent.fileNo) || null,
+      description: values.description.trim() || null,
+    });
   };
   const onSubmit = form.handleSubmit((values) => confirmations.checkReceiptMatch(values.blNoHint, candidates, () => submit(values, false)));
 
@@ -194,6 +235,11 @@ export function PaymentForm({
                 if (p.amountMinor) form.setValue("amountText", formatAmount(p.amountMinor));
                 if (p.currency) form.setValue("currency", p.currency);
                 if (p.paidAt) form.setValue("paidAt", p.paidAt);
+                if (p.customerId !== null) {
+                  form.setValue("customerId", p.customerId);
+                  form.setValue("newCustomerName", null);
+                }
+                if (p.fileNo) form.setValue("fileNo", p.fileNo);
                 setCandidates(p.blCandidates);
               }
             }}
@@ -217,6 +263,25 @@ export function PaymentForm({
         />
         {newAgencyName && <p className="text-muted-foreground text-xs">{t("payments.newAgencyHelp")}</p>}
         {message(errors.agencyId?.message)}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="payment-customer">
+          {t("payments.customer")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+        </Label>
+        <CustomerCombobox
+          id="payment-customer"
+          disabled={joining}
+          customers={refs.customers}
+          value={customerId}
+          onChange={(id) => form.setValue("customerId", id)}
+          newName={newCustomerName}
+          onNewName={(name) => form.setValue("newCustomerName", name)}
+          placeholder={t("openingBalances.customerSearch")}
+          invalid={!!errors.customerId}
+        />
+        {newCustomerName && !isKnownCustomer(newCustomerName) && <p className="text-muted-foreground text-xs">{t("payments.newCustomerHelp")}</p>}
+        {message(errors.customerId?.message)}
       </div>
 
       <div className="grid grid-cols-[1fr_8rem_10rem] gap-3">
@@ -254,10 +319,39 @@ export function PaymentForm({
         </Label>
         <Input id="payment-hint" className="uppercase" {...form.register("blNoHint")} />
         <p className="text-muted-foreground text-xs">{t("payments.blNoHintHelp")}</p>
-        {candidates.length > 0 && <p className="text-xs">{t("payments.blCandidates", { list: candidates.join(", ") })}</p>}
+        {/* Candidates from the receipt fill the field with one click, as on the opening balance. */}
+        {candidates.filter((c) => c !== blNoHint.trim().toUpperCase()).length > 0 && (
+          <p className="text-xs">
+            {t("openingBalances.candidates")}{" "}
+            {candidates
+              .filter((c) => c !== blNoHint.trim().toUpperCase())
+              .map((c) => (
+                <button key={c} type="button" className="mr-1 font-mono underline" onClick={() => form.setValue("blNoHint", c)}>
+                  {c}
+                </button>
+              ))}
+          </p>
+        )}
         <ReceiptMismatchHint blNo={blNoHint} candidates={candidates} />
         <BlJoinNotice preview={joinPreview} amountMinor={amount} />
         {message(errors.blNoHint?.message)}
+      </div>
+
+      <div className="flex w-56 flex-col gap-1.5">
+        <Label htmlFor="payment-file-no">
+          {t("openingBalances.fileNo")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+        </Label>
+        <Input id="payment-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
+        {message(errors.fileNo?.message)}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="payment-description">
+          {t("description.title")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+        </Label>
+        <Input id="payment-description" placeholder={t("payments.descriptionPlaceholder")} {...form.register("description")} />
+        <p className="text-muted-foreground text-xs">{t("payments.descriptionHelp")}</p>
+        {message(errors.description?.message)}
       </div>
 
       <div className="flex justify-end">

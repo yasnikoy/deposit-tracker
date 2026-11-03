@@ -8,7 +8,7 @@ import type { Role } from "@/domain/roles";
 import type { CorrectPaymentInput, CreatePaymentInput } from "@/lib/schemas/payments";
 import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
-import { suggestCustomer } from "./customers";
+import { customerForNewName, suggestCustomer } from "./customers";
 import { authorize, can } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx, Tx } from "./db/client";
@@ -16,6 +16,7 @@ import {
   agencies,
   billsOfLading,
   currencies,
+  customers,
   depositPayments,
   documents,
   ledgerEntries,
@@ -47,6 +48,16 @@ export type PaymentPrefill = {
 
 /** An earlier deposit with the same agency, amount, currency and date: a payment, or an opening balance (then `blNo` is set). */
 export type DuplicateCandidate = { id: number; blNo: string | null; agencyName: string; amountMinor: number; currency: string; paidAt: string };
+
+/** A payment as the server takes it: customer, file number and description may be left out. */
+export type NewPayment = Omit<CreatePaymentInput, "customerId" | "newCustomerName" | "fileNo" | "description"> &
+  Partial<Pick<CreatePaymentInput, "customerId" | "newCustomerName" | "fileNo" | "description">>;
+
+function requireActiveCustomer(tx: DbOrTx, customerId: number | null) {
+  if (customerId !== null && !tx.select({ active: customers.active }).from(customers).where(eq(customers.id, customerId)).get()?.active) {
+    throw new DomainError("customers.errors.unknown");
+  }
+}
 
 export type CreatePaymentResult =
   | { status: "created"; id: number; agencyId: number; /** Set when the payment joined an existing B/L as an additional deposit. */ additionalTo: { blId: number; blNo: string } | null }
@@ -136,7 +147,7 @@ export function createPayment(
   db: Db,
   actor: AuthUser,
   // `extraction` is read on the server from the stored receipt, never taken from the client.
-  input: CreatePaymentInput & { extraction?: ReceiptExtraction | null },
+  input: NewPayment & { extraction?: ReceiptExtraction | null },
   now: Date = new Date(),
 ): CreatePaymentResult {
   const roleUsed = authorize(actor, "payment.create");
@@ -161,6 +172,11 @@ export function createPayment(
       const evidence = tx.select().from(documents).where(eq(documents.id, input.evidenceDocumentId)).get();
       if (!evidence || evidence.ownerId !== null) throw new DomainError("payments.errors.evidence");
     }
+    // A payment that joins an existing B/L brings no customer or file number: the B/L has its own.
+    const joining = input.blNoHint ? existingBlFor(tx, input.blNoHint, { agencyId, currency: input.currency }) : null;
+    if (joining && (input.customerId || input.newCustomerName || input.fileNo)) throw new DomainError("payments.errors.joinFields", { bl: joining.blNo });
+    requireActiveCustomer(tx, input.customerId ?? null);
+    const customerId = input.customerId ?? (input.newCustomerName ? customerForNewName(tx, actor, roleUsed, input.newCustomerName, now, { fromPayment: true }) : null);
     const row = tx
       .insert(depositPayments)
       .values({
@@ -173,6 +189,9 @@ export function createPayment(
         extractedFields: queueItem?.extracted ?? input.extraction ?? null,
         extractedBlNumbers: prefillFromExtraction(tx, (queueItem?.extracted ?? input.extraction ?? { parser: "none" }) as ReceiptExtraction).blCandidates,
         blNoHint: input.blNoHint,
+        customerId,
+        fileNo: input.fileNo ?? null,
+        description: input.description ?? null,
         createdBy: actor.id,
         createdAt: at,
         updatedAt: at,
@@ -203,7 +222,7 @@ export function createPayment(
       },
       now,
     );
-    const bl = input.blNoHint ? existingBlFor(tx, input.blNoHint, row) : null;
+    const bl = joining;
     if (bl) tx.update(depositPayments).set({ additionalToBlId: bl.id, updatedAt: at }).where(eq(depositPayments.id, row.id)).run();
     const additionalTo = bl
       ? addDepositToBl(
@@ -212,7 +231,8 @@ export function createPayment(
           roleUsed,
           bl,
           { type: row.kind === "BANK" ? "PAYMENT" : "OFFSET", amountMinor: row.amountMinor, currency: row.currency, entryDate: row.paidAt, depositPaymentId: row.id },
-          { action: "bl.additionalPayment", after: { paymentId: row.id } },
+          // The deposit's description stays with it and shows on the B/L's timeline.
+          { action: "bl.additionalPayment", after: { paymentId: row.id }, reason: row.description },
           now,
         )
       : null;
@@ -306,6 +326,9 @@ function paymentSnapshot(row: Payment) {
     kind: row.kind,
     evidenceDocumentId: row.evidenceDocumentId,
     blNoHint: row.blNoHint,
+    customerId: row.customerId,
+    fileNo: row.fileNo,
+    description: row.description,
   };
 }
 
@@ -372,6 +395,12 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
       throw new DomainError("payments.errors.additionalMismatch", { bl: bl.blNo });
     }
 
+    // Customer and file number change here only while the payment has no B/L; then on the B/L detail.
+    const customerId = input.customerId === undefined ? before.customerId : input.customerId;
+    const fileNo = input.fileNo === undefined ? before.fileNo : input.fileNo;
+    if (bl && (customerId !== before.customerId || fileNo !== before.fileNo)) throw new DomainError("payments.errors.customerOnBl", { bl: bl.blNo });
+    if (customerId !== before.customerId) requireActiveCustomer(tx, customerId);
+
     const at = now.toISOString();
     const after = tx
       .update(depositPayments)
@@ -380,6 +409,8 @@ export function correctPayment(db: Db, actor: AuthUser, input: CorrectPaymentInp
         amountMinor: input.amountMinor,
         currency: input.currency,
         paidAt: input.paidAt,
+        customerId,
+        fileNo,
         updatedAt: at,
       })
       .where(eq(depositPayments.id, input.id))
@@ -638,6 +669,10 @@ export type PaymentListItem = {
   id: number;
   agencyId: number;
   agencyName: string;
+  customerId: number | null;
+  customerName: string | null;
+  fileNo: string | null;
+  description: string | null;
   amountMinor: number;
   currency: string;
   paidAt: string;
@@ -660,6 +695,10 @@ function paymentListQuery(db: DbOrTx) {
       id: depositPayments.id,
       agencyId: depositPayments.agencyId,
       agencyName: agencies.name,
+      customerId: depositPayments.customerId,
+      customerName: customers.name,
+      fileNo: depositPayments.fileNo,
+      description: depositPayments.description,
       amountMinor: depositPayments.amountMinor,
       currency: depositPayments.currency,
       paidAt: depositPayments.paidAt,
@@ -678,6 +717,7 @@ function paymentListQuery(db: DbOrTx) {
     .from(depositPayments)
     .innerJoin(agencies, eq(agencies.id, depositPayments.agencyId))
     .innerJoin(users, eq(users.id, depositPayments.createdBy))
+    .leftJoin(customers, eq(customers.id, depositPayments.customerId))
     .leftJoin(billsOfLading, and(blOfPayment, isNull(billsOfLading.voidedAt)));
 }
 

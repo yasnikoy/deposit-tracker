@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — UI structure and conventions
 
-Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units, resend)
+Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units, resend, shared deposit forms)
 
 This document fixes how the interface is put together: where things live, which page
 patterns exist, which shared components build them, and the visual and wording rules.
@@ -269,7 +269,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Writing off a remaining amount | *silme*, *Kalanı silmeyi öner* | *Silme öner* alone |
 | Void | *iptal et* (with reason) | *sil* (delete is only for unused agencies/customers) |
 | Allocation of a refund | *dağıtım*, *İade dağıtımı* | *eşleştirme* for allocations |
-| Where an opening balance came from | *Kaynak* | *Not* |
+| Free text on a deposit (payment or opening balance); it starts the B/L's description | *Açıklama* | *Kaynak*, *Not* |
 | An agency's office with its own recipients (e.g. per port) | *Birim*, *Mersin birimi* | *Liman*, *Şube* |
 | Sending a sent request email again (not a new request) | *Yeniden gönder*; the copy is a *Yeniden gönderim* (grey badge) | *Tekrar talep*, *Takip* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |

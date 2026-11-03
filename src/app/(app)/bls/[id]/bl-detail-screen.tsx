@@ -255,6 +255,7 @@ export function BlDetailScreen({
                         ) : (
                           <span className="text-amber-700 dark:text-amber-400">{t("payments.evidenceMissing.BANK")}</span>
                         )}
+                        {p.description && <div className="text-muted-foreground text-xs whitespace-pre-line">{p.description}</div>}
                       </li>
                     ))}
                   </ul>

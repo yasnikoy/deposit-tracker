@@ -3,6 +3,7 @@ import { isValidIsoDate } from "@/domain/business-days";
 import { isValidBlNumber, normalizeBlNumber } from "@/domain/bl-number";
 import { PAYMENT_KINDS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
+import { fileNoSchema } from "./bls";
 
 const msg = (key: TranslationKey) => key;
 const id = z.number().int().positive();
@@ -29,6 +30,33 @@ const blNoHint = z
   .max(40)
   .transform((value) => normalizeBlNumber(value) || null)
   .refine((value) => value === null || isValidBlNumber(value), msg("bls.errors.blNo"));
+
+/**
+ * The customer and file number of a deposit (payment or opening balance), both optional: a
+ * registered customer, or a new one by name, which is registered with the record.
+ */
+export const depositCustomerFields = {
+  customerId: id.nullable().default(null),
+  newCustomerName: z
+    .string()
+    .trim()
+    .max(200)
+    .transform((value) => value || null)
+    .nullish(),
+  fileNo: fileNoSchema.nullable().default(null),
+};
+
+/** The deposit's free text ("Açıklama"); a new B/L takes it as its description. */
+export const depositDescriptionSchema = z
+  .string()
+  .trim()
+  .max(2000)
+  .nullish()
+  .transform((value) => value || null);
+
+/** Not both a registered customer and a new name. */
+export const isCustomerChoice = (input: { customerId: number | null; newCustomerName?: string | null }) => !(input.customerId !== null && input.newCustomerName);
+export const customerChoiceIssue = { path: ["customerId"], message: msg("errors.validation") };
 
 const hasNewName = (input: { newAgencyName?: unknown }) => typeof input.newAgencyName === "string" && input.newAgencyName.trim() !== "";
 const hasAgency = (input: { agencyId?: unknown; newAgencyName?: unknown }) =>
@@ -64,19 +92,27 @@ export const createPaymentSchema = z
     ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNoHint,
+    ...depositCustomerFields,
+    description: depositDescriptionSchema,
     // Optional: the receipt or invoice can be attached later (rule 12).
     evidenceDocumentId: id.nullable().default(null),
     queueItemId: id.nullable().default(null),
     confirmDuplicate: z.boolean().default(false),
   })
-  .refine(isAgencyChoice, agencyChoiceIssue);
+  .refine(isAgencyChoice, agencyChoiceIssue)
+  .refine(isCustomerChoice, customerChoiceIssue);
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
-/** Corrections cover amount, currency, date and agency; the kind is fixed. */
+/**
+ * Corrections cover amount, currency, date and agency (the kind is fixed), and while the
+ * payment has no B/L its customer and file number.
+ */
 export const correctPaymentSchema = z.object({
   id,
   ...paymentFields,
+  customerId: id.nullable().optional(),
+  fileNo: fileNoSchema.nullable().optional(),
   reason: requiredReasonSchema,
 });
 

@@ -8,8 +8,10 @@ import { getTableLayout } from "@/server/preferences";
 import { listCustomerStandingDocuments } from "@/server/standing-documents";
 import { CustomersScreen } from "./customers-screen";
 
-export default async function CustomersPage() {
+export default async function CustomersPage({ searchParams }: { searchParams: Promise<{ customer?: string }> }) {
   const { user } = await requireSession();
+  // A notification about a new customer opens its card.
+  const customerParam = Number((await searchParams).customer);
   if (!can(user, "customer.view").allowed) return <Forbidden />;
   const db = getDb();
   return (
@@ -19,6 +21,7 @@ export default async function CustomersPage() {
       <CustomersScreen
         customers={listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active }))}
         documents={listCustomerStandingDocuments(db, user)}
+        initialCustomerId={Number.isSafeInteger(customerParam) && customerParam > 0 ? customerParam : null}
         layout={getTableLayout(db, user.id, "customers")}
         permissions={{ manage: can(user, "customer.manage").allowed, delete: can(user, "customer.delete").allowed, documents: can(user, "standingDocument.manage").allowed }}
       />

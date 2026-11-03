@@ -86,6 +86,8 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
         customerId,
         fileNo: input.fileNo,
         unitId: input.unitId,
+        // "Açıklama" on the form: the B/L's description (and the audit reason, as before).
+        description: input.note,
         agencyId,
         currency: input.currency,
         depositAmountMinor: input.amountMinor,

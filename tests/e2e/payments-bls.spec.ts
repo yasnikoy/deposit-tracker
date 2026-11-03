@@ -280,6 +280,34 @@ test("an agency with units: each B/L picks one, changed later on its detail", as
   await expect(page.getByText(tr.timeline.actions.bl.setUnit, { exact: true })).toBeVisible();
 });
 
+test("a payment names its customer (a new one by name), file number and description; the B/L takes them over", async ({ page }) => {
+  await login(page, DUAL.username, DUAL.final);
+  await page.goto("/accounting");
+  await pickAgency(page);
+  await page.getByRole("combobox", { name: tr.payments.customer }).fill("Deniz İthalat");
+  await page.getByRole("option", { name: tr.customers.addNew.replace("{name}", "Deniz İthalat") }).click();
+  await expect(page.getByText(tr.payments.newCustomerHelp)).toBeVisible();
+  await page.getByLabel(tr.payments.amount).fill("2.200");
+  await page.getByLabel(tr.openingBalances.fileNo).fill("T26-77777");
+  await page.getByLabel(tr.description.title).fill("Konteyner sayısı arttı");
+  await page.getByRole("button", { name: tr.payments.save }).click();
+  await expect(page.getByText(tr.payments.newCustomerAdded.replace("{name}", "Deniz İthalat"))).toBeVisible();
+
+  // The B/L step shows what it takes over, read-only.
+  await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
+  await expect(page.getByText("Deniz İthalat", { exact: true })).toBeVisible();
+  await expect(page.getByText("26-77777", { exact: true })).toBeVisible();
+  await page.getByLabel(tr.bls.blNo).fill("233333333");
+  await page.getByRole("button", { name: tr.bls.createOne }).click();
+  await expect(page.getByText("B/L oluşturuldu: 233333333")).toBeVisible();
+
+  await page.getByRole("combobox", { name: tr.search.label }).fill("233333333");
+  await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+  await expect(page.getByRole("heading", { name: "233333333" })).toBeVisible();
+  await expect(page.getByText("Deniz İthalat", { exact: true }).first()).toBeVisible();
+  await expect(page.getByLabel(tr.description.label)).toHaveValue("Konteyner sayısı arttı");
+});
+
 test("a payment with the number of an existing B/L shows, before saving, that it adds to that B/L", async ({ page }) => {
   await login(page, DUAL.username, DUAL.final);
   await page.goto("/accounting");

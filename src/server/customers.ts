@@ -8,6 +8,7 @@ import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { billsOfLading, customers, refunds, standingDocuments } from "./db/schema";
 import { DomainError } from "./errors";
+import { notify, usersWithRole } from "./notifications";
 import { assertUnlinked } from "./record-links";
 
 export type Customer = typeof customers.$inferSelect;
@@ -46,14 +47,29 @@ function insertCustomer(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, inpu
  * authorized the record): an active customer of that name is used as it is, otherwise one is
  * registered with only its name.
  */
-export function customerForNewName(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, rawName: string, now: Date): number {
+export function customerForNewName(
+  tx: DbOrTx,
+  actor: AuthUser,
+  roleUsed: Role | null,
+  rawName: string,
+  now: Date,
+  /** From a payment: the accountant may add the customer, and admins are told to complete its card. */
+  options: { fromPayment?: boolean } = {},
+): number {
   const name = rawName.trim();
   const existing = tx.select().from(customers).all().find((c) => fold(c.name) === fold(name));
   if (existing) {
     if (!existing.active) throw new DomainError("customers.errors.unknown");
     return existing.id;
   }
-  return insertCustomer(tx, actor, roleUsed, { name, code: null, aliases: [] }, now);
+  if (!options.fromPayment) return insertCustomer(tx, actor, roleUsed, { name, code: null, aliases: [] }, now);
+  const id = insertCustomer(tx, actor, authorize(actor, "customer.createFromPayment"), { name, code: null, aliases: [] }, now);
+  notify(
+    tx,
+    { userIds: usersWithRole(tx, "ADMIN"), actorId: actor.id, kind: "NEW_CUSTOMER", entityType: "customer", entityId: id, detail: { actor: actor.displayName, customer: name } },
+    now,
+  );
+  return id;
 }
 
 /** Saves a customer card (accounting or operations); deactivated customers stay on their records. */

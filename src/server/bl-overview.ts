@@ -288,7 +288,7 @@ export type BlDetail = {
     missingEvidence: number;
   } | null;
   /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
-  additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null }[];
+  additionalPayments: { id: number; amountMinor: number; currency: string; paidAt: string; evidenceDocumentId: number | null; evidenceName: string | null; description: string | null }[];
   ledger: BlLedgerLine[];
   allocations: BlAllocation[];
   documents: BlDocument[];
@@ -402,6 +402,8 @@ export function getBlDetail(db: DbOrTx, actor: AuthUser, id: number, now: Date =
     paidAt: p.paidAt,
     evidenceDocumentId: p.evidenceDocumentId,
     evidenceName: p.evidenceDocumentId ? (db.select({ name: documents.originalName }).from(documents).where(eq(documents.id, p.evidenceDocumentId)).get()?.name ?? null) : null,
+    // The accountant's description of this deposit stays with it.
+    description: p.description,
   }));
 
   const entityConditions = [and(eq(auditLog.entityType, "bill_of_lading"), eq(auditLog.entityId, String(id)))];

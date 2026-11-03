@@ -16,6 +16,7 @@ export function BlQuickCreate({
   candidates,
   patterns,
   units,
+  payment,
   onCreated,
 }: {
   paymentId: number;
@@ -23,6 +24,8 @@ export function BlQuickCreate({
   patterns: string[];
   /** The agency's active units; one is required when it has any. */
   units: { id: number; name: string }[];
+  /** What the B/L takes over from its payment, shown read-only. */
+  payment: { customerName: string | null; fileNo: string | null; description: string | null };
   onCreated: (blNo: string) => void;
 }) {
   const [blNo, setBlNo] = useState(candidates.length === 1 ? candidates[0] : "");
@@ -48,6 +51,7 @@ export function BlQuickCreate({
 
   return (
     <div className="flex flex-col gap-3">
+      <PaymentCarryOver {...payment} />
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="quick-bl-no">{t("bls.blNo")}</Label>
         <Input id="quick-bl-no" className="uppercase" value={blNo} onChange={(event) => setBlNo(event.target.value)} autoFocus />
@@ -93,5 +97,35 @@ export function BlQuickCreate({
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * The customer, file number and description the accountant entered on the payment, which the
+ * new B/L takes over; read-only here (the B/L detail changes them afterwards).
+ */
+export function PaymentCarryOver({ customerName, fileNo, description }: { customerName: string | null; fileNo: string | null; description: string | null }) {
+  if (!customerName && !fileNo && !description) return null;
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-sm">
+      {customerName && (
+        <>
+          <dt className="text-muted-foreground">{t("bls.customer")}</dt>
+          <dd>{customerName}</dd>
+        </>
+      )}
+      {fileNo && (
+        <>
+          <dt className="text-muted-foreground">{t("bls.fileNo")}</dt>
+          <dd className="font-mono">{fileNo}</dd>
+        </>
+      )}
+      {description && (
+        <>
+          <dt className="text-muted-foreground">{t("description.title")}</dt>
+          <dd className="whitespace-pre-line">{description}</dd>
+        </>
+      )}
+    </dl>
   );
 }

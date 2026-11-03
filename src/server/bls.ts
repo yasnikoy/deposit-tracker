@@ -40,18 +40,21 @@ const fileNoOf = (read: string | undefined) => {
   return isValidFileNo(value) ? value : null;
 };
 
-/** Customer and file number of a new B/L: as given, else read from its payment's receipt. */
+/**
+ * Customer and file number of a new B/L: as given, else as entered on its payment, else read
+ * from the payment's receipt (payments entered before the payment form had these fields).
+ */
 function customerAndFile(tx: DbOrTx, row: BlRowInput, payment: typeof depositPayments.$inferSelect) {
   const extraction = (payment.extractedFields ?? {}) as ReceiptExtraction;
   if (row.customerId) {
     const customer = tx.select().from(customers).where(eq(customers.id, row.customerId)).get();
     if (!customer?.active) throw new DomainError("customers.errors.unknown");
   }
-  const suggested = row.customerId === undefined && extraction.description ? suggestCustomer(tx, extraction.description) : null;
+  const suggested = row.customerId === undefined && payment.customerId === null && extraction.description ? suggestCustomer(tx, extraction.description) : null;
   return {
-    customerId: row.customerId ?? suggested,
+    customerId: row.customerId === undefined ? (payment.customerId ?? suggested) : row.customerId,
     // Payments read before v0.10.0 kept the "T" of the description.
-    fileNo: row.fileNo === undefined ? fileNoOf(extraction.fileNumber) : row.fileNo && normalizeFileNo(row.fileNo),
+    fileNo: row.fileNo === undefined ? (payment.fileNo ?? fileNoOf(extraction.fileNumber)) : row.fileNo && normalizeFileNo(row.fileNo),
   };
 }
 
@@ -66,6 +69,8 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
       customerId,
       fileNo,
       unitId: row.unitId,
+      // The accountant's description of the payment starts the B/L's description.
+      description: payment.description,
       depositPaymentId: payment.id,
       agencyId: payment.agencyId,
       currency: payment.currency,

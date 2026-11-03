@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useForm, useWatch, type FieldErrors, type Resolver } from "react-hook-form";
 import { AgencyCombobox } from "@/components/agency-combobox";
+import { CustomerCombobox } from "@/components/customer-combobox";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +22,7 @@ import type { PaymentListItem } from "@/server/payments";
 import { correctPaymentAction } from "./actions";
 import type { ReferenceData } from "./payment-form";
 
-type Values = { agencyId: number | null; amountText: string; currency: string; paidAt: string; reason: string };
+type Values = { agencyId: number | null; amountText: string; currency: string; paidAt: string; customerId: number | null; fileNo: string; reason: string };
 
 /** Accountant corrects an own payment with a reason; a linked B/L follows on the server. */
 export function CorrectPaymentDialog({
@@ -36,12 +37,15 @@ export function CorrectPaymentDialog({
   onCancel: () => void;
 }) {
   const [serverError, setServerError] = useState<string | null>(null);
+  // Customer and file number are the payment's only until its B/L exists; then the B/L detail changes them.
+  const withoutBl = payment.blId === null;
   const toInput = (v: Values) => ({
     id: payment.id,
     agencyId: v.agencyId,
     amountMinor: parseAmountInput(v.amountText) ?? Number.NaN,
     currency: v.currency,
     paidAt: v.paidAt,
+    ...(withoutBl ? { customerId: v.customerId, fileNo: v.fileNo } : {}),
     reason: v.reason,
   });
   const resolver: Resolver<Values> = async (values) => {
@@ -62,10 +66,12 @@ export function CorrectPaymentDialog({
       amountText: formatAmount(payment.amountMinor),
       currency: payment.currency,
       paidAt: payment.paidAt,
+      customerId: payment.customerId,
+      fileNo: payment.fileNo ?? "",
       reason: "",
     },
   });
-  const [agencyId, currency, amountText] = useWatch({ control: form.control, name: ["agencyId", "currency", "amountText"] });
+  const [agencyId, currency, amountText, customerId] = useWatch({ control: form.control, name: ["agencyId", "currency", "amountText", "customerId"] });
   const amount = parseAmountInput(amountText);
   const { errors, isSubmitting } = form.formState;
   const message = (key?: string) =>
@@ -124,6 +130,26 @@ export function CorrectPaymentDialog({
               {message(errors.paidAt?.message)}
             </div>
           </div>
+          {withoutBl && (
+            <div className="grid grid-cols-[1fr_10rem] gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="correct-customer">{t("payments.customer")}</Label>
+                <CustomerCombobox
+                  id="correct-customer"
+                  customers={refs.customers.filter((c) => c.active || c.id === payment.customerId)}
+                  value={customerId}
+                  onChange={(id) => form.setValue("customerId", id)}
+                  placeholder={t("openingBalances.customerSearch")}
+                />
+                {message(errors.customerId?.message)}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="correct-file-no">{t("openingBalances.fileNo")}</Label>
+                <Input id="correct-file-no" className="font-mono uppercase" {...form.register("fileNo")} />
+                {message(errors.fileNo?.message)}
+              </div>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="correct-reason">{t("common.reasonRequired")}</Label>
             <textarea id="correct-reason" rows={2} className="border-input bg-background rounded-md border px-2 py-1" {...form.register("reason")} />

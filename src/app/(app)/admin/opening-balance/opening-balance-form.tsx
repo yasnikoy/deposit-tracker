@@ -361,22 +361,17 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
               </div>
             </div>
 
-            {/* Tab order follows daily use: B/L number and request history first, then the file number. */}
-            <div className="grid grid-cols-[14rem_14rem_14rem] gap-3">
+            {/* The same order as the payment form: B/L number, file number, description; then the request history. */}
+            <div className="grid grid-cols-[14rem_14rem] gap-3">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="opening-bl-no">{t("bls.blNo")}</Label>
                 <Input id="opening-bl-no" className="font-mono uppercase" {...form.register("blNo")} />
                 {message(errors.blNo?.message)}
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="opening-attempts">{t("openingBalances.pastAttempts")}</Label>
-                <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" disabled={joining} {...form.register("pastAttempts")} />
-                {message(errors.pastAttempts?.message)}
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="opening-last-request">{t("openingBalances.lastRequestOn")}</Label>
-                <Input id="opening-last-request" type="date" max={refs.today} disabled={joining || pastAttempts === "0"} {...form.register("lastRequestOn")} />
-                {message(errors.lastRequestOn?.message)}
+                <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
+                <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
+                {message(errors.fileNo?.message)}
               </div>
             </div>
             <div className="-mt-2 flex flex-col gap-1">
@@ -399,13 +394,6 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
               <BlJoinNotice preview={joinPreview} amountMinor={amount}>
                 <p>{t("blJoin.keepsHistory")}</p>
               </BlJoinNotice>
-              {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
-            </div>
-
-            <div className="flex w-56 flex-col gap-1.5">
-              <Label htmlFor="opening-file-no">{t("openingBalances.fileNo")}</Label>
-              <Input id="opening-file-no" className="font-mono uppercase" disabled={joining} {...form.register("fileNo")} />
-              {message(errors.fileNo?.message)}
             </div>
 
             <div className="flex flex-col gap-1.5">
@@ -413,6 +401,23 @@ export function OpeningBalanceForm({ refs }: { refs: ReferenceData }) {
                 {t("openingBalances.note")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
               </Label>
               <Input id="opening-note" placeholder={t("openingBalances.notePlaceholder")} {...form.register("note")} />
+              <p className="text-muted-foreground text-xs">{t("openingBalances.noteHelp")}</p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <div className="grid grid-cols-[14rem_14rem] gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="opening-attempts">{t("openingBalances.pastAttempts")}</Label>
+                  <Input id="opening-attempts" type="number" min={0} max={50} className="w-24" disabled={joining} {...form.register("pastAttempts")} />
+                  {message(errors.pastAttempts?.message)}
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="opening-last-request">{t("openingBalances.lastRequestOn")}</Label>
+                  <Input id="opening-last-request" type="date" max={refs.today} disabled={joining || pastAttempts === "0"} {...form.register("lastRequestOn")} />
+                  {message(errors.lastRequestOn?.message)}
+                </div>
+              </div>
+              {!joining && <p className="text-muted-foreground text-xs">{t("openingBalances.attemptsHelp")}</p>}
             </div>
 
             <div className="flex items-center justify-end gap-3">

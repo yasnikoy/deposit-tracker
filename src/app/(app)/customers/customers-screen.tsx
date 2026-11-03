@@ -20,18 +20,21 @@ import type { StandingDocument } from "@/server/standing-documents";
 export function CustomersScreen({
   customers,
   documents,
+  initialCustomerId = null,
   layout,
   permissions,
 }: {
   customers: CustomerOption[];
   /** Each customer's signature circular and power of attorney. */
   documents: Record<number, StandingDocument[]>;
+  /** A card to open at once (from a notification link). */
+  initialCustomerId?: number | null;
   layout: TableLayout | null;
   /** `documents`: upload the customer's standing documents (operations and admin). */
   permissions: { manage: boolean; delete: boolean; documents: boolean };
 }) {
   const canManage = permissions.manage;
-  const [selected, setSelected] = useState<number | "new" | null>(null);
+  const [selected, setSelected] = useState<number | "new" | null>(initialCustomerId);
   const [order, setOrder] = useState<string[]>([]);
   const close = useCallback(() => setSelected(null), []);
   const customer = typeof selected === "number" ? customers.find((c) => c.id === selected) : undefined;

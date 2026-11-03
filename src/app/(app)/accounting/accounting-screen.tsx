@@ -162,6 +162,7 @@ function Continuation({ saved, refs, onDone }: { saved: SavedPayment; refs: Refe
           candidates={blCandidatesOf({ blNoHint: saved.blNoHint, extractedBlNumbers: saved.blCandidates })}
           patterns={agency?.blNumberPatterns ?? []}
           units={refs.units[saved.agencyId] ?? []}
+          payment={{ customerName: saved.customerName, fileNo: saved.fileNo, description: saved.description }}
           onCreated={onDone}
         />
         <Button variant="ghost" className="self-start" onClick={onDone}>
@@ -303,6 +304,7 @@ function PaymentRecords({ payments, refs, layout, currentUserId }: { payments: P
         cell: ({ getValue }) => formatBusinessDate(getValue()),
       }),
       col.accessor("agencyName", { meta: { label: "payments.agency", filter: "text" }, sortFn: "turkishText" }),
+      col.accessor((p) => p.customerName ?? "", { id: "customer", meta: { label: "payments.customer", filter: "text" }, sortFn: "turkishText" }),
       col.accessor("amountMinor", {
         meta: { label: "payments.amount", align: "end", toText: (v) => formatAmount(v as number) },
         sortFn: "basic",

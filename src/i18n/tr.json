@@ -464,6 +464,10 @@
         "inAppNewAgency": {
           "label": "Bildirim: yeni acente",
           "help": "Muhasebe ödeme girerken sistemde olmayan bir acenteyi adıyla eklediğinde, kartını tamamlamaları için tüm operasyon kullanıcıları bildirim alır."
+        },
+        "inAppNewCustomer": {
+          "label": "Bildirim: yeni müşteri",
+          "help": "Muhasebe ödeme girerken sistemde olmayan bir müşteriyi adıyla eklediğinde, kartını tamamlamaları için yöneticiler bildirim alır."
         }
       },
       "reports": {
@@ -751,6 +755,11 @@
     "continueToBl": "B/L oluşturmaya devam et",
     "newAgencyHelp": "Bu acente sistemde yok; ödemeyle birlikte yalnızca adıyla eklenir. Operasyon bilgilerini tamamlar.",
     "newAgencyAdded": "Yeni acente eklendi: {name}. Operasyona bildirildi.",
+    "customer": "Müşteri",
+    "newCustomerHelp": "Müşteri yalnızca adıyla eklenir; yöneticiye kartını tamamlaması için bildirim gider.",
+    "newCustomerAdded": "Yeni müşteri eklendi: {name}. Yöneticiye bildirildi.",
+    "descriptionPlaceholder": "ör. ek depozito, eksik ödeme",
+    "descriptionHelp": "Operasyon B/L'yi oluştururken görür; yeni B/L'nin açıklaması olur. Mevcut B/L'ye eklenen ödemede o ödemeyle kalır.",
     "parserUnknown": "Dekont okunamadı (tanınmayan biçim); alanları elle doldurun.",
     "errors": {
       "agency": "Acente seçin veya yeni acente adı yazın.",
@@ -768,6 +777,8 @@
       "queueItem": "Bu dekont artık kuyrukta değil.",
       "evidenceExists": "Bu ödemenin dekontu veya faturası zaten var; değiştirmek için ödemeyi düzeltin.",
       "additionalMismatch": "B/L {bl} başka bir acente veya para birimiyle kayıtlı; ek depozito aynı acente ve para biriminde olmalı.",
+      "joinFields": "Ödeme B/L {bl} kaydına ek depozito olarak eklenir; müşteri ve dosya no B/L'de kalır. Bu alanları boş bırakın.",
+      "customerOnBl": "Ödemenin B/L'si ({bl}) oluşturulmuş; müşteri ve dosya no B/L ayrıntısından değiştirilir.",
       "additionalClosed": "B/L {bl} kapanmış; kapanmış bir B/L'ye ek depozito eklenemez."
     },
     "evidenceOptional": "(isteğe bağlı, sonra da eklenebilir)",
@@ -1482,7 +1493,8 @@
     "pastAttempts": "Şimdiye kadarki talep sayısı",
     "lastRequestOn": "Son talep tarihi",
     "attemptsHelp": "Uygulama dışında yapılan iade talepleri. Hiç talep yapılmadıysa 0 bırakın: ilk talep, ödeme tarihinden ilk talep süresi kadar sonra gelir (süre dolmuşsa hemen). Talep yapıldıysa bir sonraki talep, son talepten takip aralığı kadar sonra gelir ve bir sonraki numarayı alır.",
-    "note": "Kaynak",
+    "note": "Açıklama",
+    "noteHelp": "Yeni B/L'nin açıklaması olur; mevcut B/L'ye eklenen kayıtta işlem geçmişinde kalır.",
     "notePlaceholder": "ör. Excel satır 14",
     "save": "Açılış bakiyesini kaydet",
     "saveAndNext": "Kaydet ve sıradakine geç",
@@ -1652,7 +1664,8 @@
       "WRITE_OFF_PROPOSED": "{actor}, B/L {blNo} için {amount} silme önerdi: {reason}",
       "WRITE_OFF_APPROVED": "{actor}, B/L {blNo} için {amount} silme önerinizi onayladı.",
       "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}",
-      "NEW_AGENCY": "{actor}, ödeme girerken yeni acente ekledi: {agency}. Acente bilgileri eksik; kartı tamamlayın."
+      "NEW_AGENCY": "{actor}, ödeme girerken yeni acente ekledi: {agency}. Acente bilgileri eksik; kartı tamamlayın.",
+      "NEW_CUSTOMER": "{actor}, ödeme girerken yeni müşteri ekledi: {customer}. Müşteri kodu, diğer adları ve sabit belgeleri eksik; kartı tamamlayın."
     },
     "unknownAgency": "Acentesi bilinmeyen"
   },

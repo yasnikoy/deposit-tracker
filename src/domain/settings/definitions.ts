@@ -146,6 +146,7 @@ export const settingDefinitions = {
   "notifications.inAppUnprocessedReply": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppWriteOff": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppNewAgency": { group: "notifications", kind: "boolean", schema: z.boolean() },
+  "notifications.inAppNewCustomer": { group: "notifications", kind: "boolean", schema: z.boolean() },
 
   /** Report email recipients must be in one of these domains (or the sender's own). */
   "reports.internalDomains": { group: "reports", kind: "domainList", schema: domainList },

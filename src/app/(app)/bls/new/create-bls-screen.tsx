@@ -91,6 +91,9 @@ export function CreateBlsScreen({
               <th className="px-2 py-1 font-medium">{t("bls.paidAt")}</th>
               <th className="px-2 py-1 font-medium">{t("bls.agency")}</th>
               <th className="px-2 py-1 text-right font-medium">{t("bls.deposit")}</th>
+              <th className="px-2 py-1 font-medium">{t("bls.customer")}</th>
+              <th className="px-2 py-1 font-medium">{t("bls.fileNo")}</th>
+              <th className="px-2 py-1 font-medium">{t("description.title")}</th>
               <th className="px-2 py-1 font-medium">{t("bls.candidates")}</th>
               {!readOnly && <th className="px-2 py-1 font-medium">{t("bls.blNo")}</th>}
               {!readOnly && withUnits && <th className="px-2 py-1 font-medium">{t("bls.unit")}</th>}
@@ -107,6 +110,18 @@ export function CreateBlsScreen({
                   <td className="px-2 py-1 whitespace-nowrap">{formatBusinessDate(payment.paidAt)}</td>
                   <td className="px-2 py-1">{payment.agencyName}</td>
                   <td className="px-2 py-1 text-right whitespace-nowrap">{formatMoney(payment.amountMinor, payment.currency)}</td>
+                  {/* Entered by the accountant on the payment; the B/L takes them over. */}
+                  <td className="px-2 py-1">{payment.customerName ?? <span className="text-muted-foreground">{t("common.none")}</span>}</td>
+                  <td className="px-2 py-1 font-mono whitespace-nowrap">{payment.fileNo ?? <span className="text-muted-foreground font-sans">{t("common.none")}</span>}</td>
+                  <td className="max-w-56 px-2 py-1">
+                    {payment.description ? (
+                      <span className="block truncate text-xs" title={payment.description}>
+                        {payment.description.split("\n")[0]}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{t("common.none")}</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1">
                     <div className="flex flex-wrap gap-1">
                       {/* A candidate already in the B/L no field is not repeated as a chip. */}

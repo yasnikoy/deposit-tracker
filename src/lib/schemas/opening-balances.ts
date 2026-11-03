@@ -2,8 +2,8 @@ import { z } from "zod";
 import { isValidIsoDate } from "@/domain/business-days";
 import { PAYMENT_KINDS } from "@/domain/records";
 import type { TranslationKey } from "@/i18n";
-import { blNumberSchema, fileNoSchema } from "./bls";
-import { agencyChoiceFields, agencyChoiceIssue, isAgencyChoice, paymentFields } from "./payments";
+import { blNumberSchema } from "./bls";
+import { agencyChoiceFields, agencyChoiceIssue, depositCustomerFields, depositDescriptionSchema, isAgencyChoice, paymentFields } from "./payments";
 
 const msg = (key: TranslationKey) => key;
 
@@ -22,15 +22,7 @@ export const openingBalanceSchema = z
     ...agencyChoiceFields,
     kind: z.enum(PAYMENT_KINDS),
     blNo: blNumberSchema,
-    customerId: z.number().int().positive().nullable().default(null),
-    // A customer not registered yet, by name (registered with the record).
-    newCustomerName: z
-      .string()
-      .trim()
-      .max(200)
-      .transform((value) => value || null)
-      .nullish(),
-    fileNo: fileNoSchema.nullable().default(null),
+    ...depositCustomerFields,
     // Required while the agency has active units (checked on the server); a joining record brings none.
     unitId: z.number().int().positive().nullable().default(null),
     documentId: z.number().int().positive().nullable().default(null),
@@ -39,12 +31,8 @@ export const openingBalanceSchema = z
       .string()
       .refine(isValidIsoDate, msg("payments.errors.date"))
       .nullable(),
-    note: z
-      .string()
-      .trim()
-      .max(500)
-      .nullish()
-      .transform((value) => value || null),
+    // "Açıklama": the new B/L's description (and the audit reason).
+    note: depositDescriptionSchema,
     confirmDuplicate: z.boolean().default(false),
   })
   .superRefine((input, ctx) => {

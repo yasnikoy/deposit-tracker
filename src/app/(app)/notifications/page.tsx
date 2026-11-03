@@ -33,6 +33,8 @@ function text(n: NotificationItem): string {
         : t("notifications.texts.WRITE_OFF_REJECTED", { actor: String(d.actor), blNo: String(d.blNo), note: String(d.note ?? "") });
     case "NEW_AGENCY":
       return t("notifications.texts.NEW_AGENCY", { actor: String(d.actor), agency: String(d.agency) });
+    case "NEW_CUSTOMER":
+      return t("notifications.texts.NEW_CUSTOMER", { actor: String(d.actor), customer: String(d.customer) });
   }
 }
 
@@ -41,6 +43,7 @@ function href(n: NotificationItem): string {
   if (n.entityType === "email") return `/replies?email=${n.entityId}`;
   if (n.entityType === "write_off") return "/admin/write-offs";
   if (n.entityType === "agency") return `/agencies?agency=${n.entityId}`;
+  if (n.entityType === "customer") return `/customers?customer=${n.entityId}`;
   return `/bls/${n.entityId}`;
 }
 

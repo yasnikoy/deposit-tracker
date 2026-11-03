@@ -33,6 +33,8 @@ const rules = {
   "agency.create": only("OPERATIONS"),
   // An agency not in the system yet is added by name while entering its payment; operations completes the card.
   "agency.createFromPayment": only("ACCOUNTANT"),
+  // A customer named on a payment that is not registered yet (name only; admins complete the card).
+  "customer.createFromPayment": only("ACCOUNTANT"),
   // Likewise while moving an Excel record in as an opening balance.
   "agency.createFromOpeningBalance": only("ADMIN"),
   "agency.update": only("OPERATIONS"),
