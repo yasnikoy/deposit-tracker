@@ -489,7 +489,24 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
-- Nothing yet.
+**Nov 3, 2026 — decisions from the office (not built yet).** The sections above change as each part is built; until then they describe the current app.
+
+- **Units (*Birim*) per agency.** Some agencies use a different address per port (e.g. three for one agency). An agency card gets an optional list of units, each with a name (e.g. *Mersin*) and its own To/CC recipients; a unit in use is deactivated, never deleted. When an agency has active units:
+  - Every new B/L of it needs a unit: single and bulk B/L creation, the dual-role flow and the opening balance. Operations changes it on the B/L detail (audited); a change applies to later requests only.
+  - Requests go to the unit's recipients instead of the agency's list. Batch emails are grouped by agency and unit.
+  - An open B/L of that agency without a unit (e.g. created before the units were added) cannot be sent; the due list shows the amber chip *Birim seçilmedi* (approved), and the preview refuses it.
+  - The agency shows *Bilgi eksik* while an active unit has no To recipient. Units travel with the agency export and import.
+  - All B/Ls gets a *Birim* column, hidden by default (*Sütunlar*), with filter and search.
+- **Resending a request (*Yeniden gönder*).** For a request that was sent to the wrong people, or that an agency's reply redirects. Operations resends a sent request of an open B/L from the B/L detail (a batch email is resent whole). The preview is prefilled with the original's subject, body and attachments as sent; recipients are editable. It goes as a new email in the same form as the original, not as a reply to it. The request keeps its attempt number, request date, follow-up timing and status; a resend is not a new request in counts, reports or the scorecard. Replies to either email link to the B/Ls. Later follow-ups reply to the newest email of the chain (the resend). Audited, shown on the timeline, dry-run applies. No "save these recipients" option: units cover wrong addresses.
+- **Standing documents per customer.** The signature circular and power of attorney move from the two global slots to the customer card; the global slots are no longer used (their rows stay). Operations and admin upload them on the customer card. A request attaches the B/L's customer's documents, named *İmza sirküleri* and *Vekaletname* (no customer name). When the rule setting is on, a B/L without a customer, or whose customer lacks either document, cannot be sent: the preview names it and why. Batch emails are split by customer, so one email never carries two customers' documents.
+- **Report email, requested section.** *Requested refunds* becomes the refund requests sent in a chosen period (default today), first requests and follow-ups as separate rows, each with the B/L's current status. Only sent requests count; resends, failed sends and deduction-statement requests are left out. *Collected* keeps its own period.
+- **Payment and opening-balance forms share one structure.** Order: kind → receipt → agency → customer → amount / currency / date → B/L number → file number → description, then for the opening balance only past requests and last request date.
+  - The payment form shows the customer and file number read from the receipt (both optional, editable) and stores them on the payment; the B/L takes them once when it is created and the B/L detail changes them afterwards. While the payment has no B/L, the accountant changes them in the payment correction. A payment that joins an existing B/L locks both, as the opening balance does.
+  - The accountant may name a new customer on the payment form; it is registered with the payment (name only) and admins are notified to complete the card, as with a new agency.
+  - *Kaynak* on the opening balance becomes *Açıklama*, and the payment form gets it too (optional). It becomes the new B/L's description; on a deposit that joins an existing B/L it stays with that deposit and the audit row.
+  - Containers leave both forms and the B/L creation forms; they are entered on the B/L detail only.
+  - B/L candidates from the receipt are clickable on both forms. Payment lists and the payments awaiting a B/L show the customer. The B/L creation forms show the payment's customer and file number read-only.
+- Build order: units, resend, customer documents, report period, then the shared payment form.
 
 **Nov 2, 2026 — opening balances join existing B/Ls, B/L description replaces notes, one portal request, UI review and docs/UI.md, v0.13.0**
 
