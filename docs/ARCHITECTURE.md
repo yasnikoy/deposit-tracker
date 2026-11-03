@@ -503,8 +503,8 @@ The app runs from a portable folder on an office desktop PC; other users open it
 - **Payment and opening-balance forms share one structure.** Order: kind → receipt → agency → customer → amount / currency / date → B/L number → file number → description, then for the opening balance only past requests and last request date.
   - The payment form shows the customer and file number read from the receipt (both optional, editable) and stores them on the payment; the B/L takes them once when it is created and the B/L detail changes them afterwards. While the payment has no B/L, the accountant changes them in the payment correction. A payment that joins an existing B/L locks both, as the opening balance does.
   - The accountant may name a new customer on the payment form; it is registered with the payment (name only) and admins are notified to complete the card, as with a new agency.
-  - *Kaynak* on the opening balance becomes *Açıklama*, and the payment form gets it too (optional). It becomes the new B/L's description; on a deposit that joins an existing B/L it stays with that deposit and the audit row.
-  - Containers leave both forms and the B/L creation forms; they are entered on the B/L detail only.
+  - *Kaynak* on the opening balance becomes *Açıklama*, and the payment form gets it too (optional). Operations sees a payment's description wherever it creates the B/L or adds the payment to an existing B/L (quick create, bulk B/L table, the additional-deposit step). It becomes the new B/L's description; on a deposit that joins an existing B/L it stays with that deposit (shown in the B/L detail's deposit list) and the audit row.
+  - Containers leave the opening-balance form (the payment form never had them). They stay where B/Ls are created and edited: quick create, bulk B/L table, the B/L detail and inline editing in All B/Ls.
   - B/L candidates from the receipt are clickable on both forms. Payment lists and the payments awaiting a B/L show the customer. The B/L creation forms show the payment's customer and file number read-only.
 - Build order: units, resend, customer documents, report period, then the shared payment form.
 
