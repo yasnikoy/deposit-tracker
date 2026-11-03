@@ -43,6 +43,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         proposeWriteOff: can(user, "writeOff.propose").allowed,
         editDescription: can(user, "bl.editDescription").allowed,
         setCustomer: can(user, "bl.setCustomer").allowed,
+        resend: can(user, "request.resend").allowed,
         recordAccounting: can(user, "bl.recordAccounting").allowed,
       }}
       units={activeUnitOptions(getDb())[detail.bl.agencyId] ?? []}

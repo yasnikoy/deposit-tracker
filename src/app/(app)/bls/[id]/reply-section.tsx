@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Search } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Search, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, type FormEvent } from "react";
 import { toastWithUndo } from "@/components/undo-toast";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +18,8 @@ import { linkMailboxMessageAction, recordReplyWithoutEmailAction, searchMailboxA
 import { EmailDialog } from "../../replies/email-dialog";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
 import type { DeductionTypeOption } from "../deduction-dialog";
+import { prepareResendAction, type ResendDraft } from "../../requests/actions";
+import { ResendDialog } from "../../requests/email-preview-dialog";
 
 /** The B/L's email thread and recorded replies, with the two ways to add one by hand. */
 export function ReplySection({
@@ -29,6 +32,7 @@ export function ReplySection({
   canRecord,
   canLink,
   canRecordDeduction,
+  canResend,
 }: {
   blId: number;
   detail: Pick<BlDetail, "emails" | "replies">;
@@ -39,12 +43,19 @@ export function ReplySection({
   canRecord: boolean;
   canLink: boolean;
   canRecordDeduction: boolean;
+  canResend: boolean;
 }) {
   const router = useRouter();
   const [dialog, setDialog] = useState<"record" | "link" | null>(null);
   // An email opened in place, so the user stays on the B/L.
   const [openEmail, setOpenEmail] = useState<number | null>(null);
   const closeEmail = useCallback(() => setOpenEmail(null), []);
+  const [resend, setResend] = useState<ResendDraft | null>(null);
+  const startResend = async (emailId: number) => {
+    const result = await prepareResendAction({ emailId });
+    if (!result.ok) return void toast.error(t(result.error, result.params));
+    setResend(result.data);
+  };
   const done = () => {
     setDialog(null);
     router.refresh();
@@ -88,7 +99,23 @@ export function ReplySection({
                   ) : (
                     <span>{email.subject || t("replies.noSubject")}</span>
                   )}
+                  {email.resendOfEmailId !== null && <Badge variant="secondary">{t("blReplies.resent")}</Badge>}
+                  {email.sendStatus === "QUEUED" && <Badge variant="secondary">{t("reports.email.statuses.QUEUED")}</Badge>}
+                  {email.sendStatus === "FAILED" && <Badge variant="destructive">{t("reports.email.statuses.FAILED")}</Badge>}
                   {email.dryRun && <Badge variant="secondary">{t("timeline.notes.dryRun")}</Badge>}
+                  {canResend && email.direction === "OUT" && email.sendStatus === "SENT" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-6 px-1.5"
+                      aria-label={`${t("requests.resend")} – ${email.subject}`}
+                      title={t("requests.resend")}
+                      onClick={() => startResend(email.id)}
+                    >
+                      <Send className="size-3.5" />
+                    </Button>
+                  )}
                 </span>
                 <span className="text-muted-foreground ml-6 text-xs">
                   {formatTimestamp(email.at)} · {email.from}
@@ -130,6 +157,15 @@ export function ReplySection({
 
       {dialog === "record" && <RecordReplyDialog blId={blId} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
       {dialog === "link" && <MailboxLinkDialog blId={blId} onCancel={() => setDialog(null)} onDone={done} />}
+      {resend && (
+        <ResendDialog
+          draft={resend}
+          onDone={() => {
+            setResend(null);
+            router.refresh();
+          }}
+        />
+      )}
       {openEmail !== null && (
         <EmailDialog
           emailId={openEmail}

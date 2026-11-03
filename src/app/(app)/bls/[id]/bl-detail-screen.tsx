@@ -66,6 +66,8 @@ export type BlDetailPermissions = {
   proposeWriteOff: boolean;
   editDescription: boolean;
   setCustomer: boolean;
+  /** Send a sent request email again (wrong recipients, or redirected by a reply). */
+  resend: boolean;
   /** Confirm the accounting entry of a B/L settled with deductions or an offset. */
   recordAccounting: boolean;
 };
@@ -287,6 +289,8 @@ export function BlDetailScreen({
             canRecord={can.recordReply && !bl.voidedAt}
             canLink={can.linkEmail && !bl.voidedAt}
             canRecordDeduction={can.recordDeduction && !bl.voidedAt}
+            // Only while the B/L is still open: a settled B/L takes no more requests.
+            canResend={can.resend && !bl.voidedAt && bl.status !== "COLLECTED" && bl.status !== "ACCOUNTING_PENDING"}
           />
         </Section>
 

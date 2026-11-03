@@ -508,3 +508,19 @@ test("B/L detail: emails open in place, with the message; the customer is change
   await expect(page.getByText(tr.bls.customerSaved).last()).toBeVisible();
   await expect(page.getByText("Hapag Müşteri")).toBeVisible();
 });
+
+test("a request email sent to the wrong address goes again from the B/L detail, without a new request", async ({ page }) => {
+  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"), { readonly: true });
+  const { id } = db.prepare("SELECT id FROM bills_of_lading WHERE bl_no = ?").get(PORTAL_BL_NO) as { id: number };
+  db.close();
+  await login(page, OPS.username, OPS.final);
+  await page.goto(`/bls/${id}`);
+  await page.getByRole("button", { name: new RegExp(`^${tr.requests.resend} – `) }).first().click();
+  const dialog = page.getByRole("dialog", { name: new RegExp(tr.requests.resend) });
+  await expect(dialog.getByText(tr.requests.resendHint)).toBeVisible();
+  await dialog.getByLabel(tr.requests.to).fill("dogru-adres@example.com");
+  await dialog.getByRole("button", { name: tr.requests.send }).click();
+  await expect(page.getByText(tr.requests.resendQueued)).toBeVisible();
+  await expect(page.getByText(tr.blReplies.resent, { exact: true })).toBeVisible();
+  await expect(page.getByText(tr.timeline.actions.request.resend, { exact: true })).toBeVisible();
+});

@@ -65,7 +65,7 @@ const isPortalFirst = (entry: DueEntry) => entry.agency.requestChannel === "PORT
 
 /**
  * The latest message of a B/L's request chain of one type, to reply to: our last sent request
- * email, or a later agency email linked to the B/L (for portal agencies, the one linked by
+ * email (or its latest resend), or a later agency email linked to the B/L (for portal agencies, the one linked by
  * hand). The statement chain starts with our first statement request, so only agency emails
  * after it belong to it.
  */
@@ -82,13 +82,23 @@ function lastThread(tx: DbOrTx, blId: number, type: RequestType): ThreadEmail | 
     sentAt: emails.sentAt,
     receivedAt: emails.receivedAt,
   };
-  const sent = tx
+  const requested = tx
     .select(fields)
     .from(requests)
     .innerJoin(emails, eq(emails.id, requests.emailId))
     .where(and(eq(requests.blId, blId), eq(requests.type, type), eq(requests.sendStatus, "SENT"), isNotNull(requests.emailId)))
     .orderBy(desc(requests.id))
     .get();
+  // A request email sent again (e.g. to the right recipients): the follow-up replies to the resend.
+  const resent = requested
+    ? tx
+        .select(fields)
+        .from(emails)
+        .where(and(eq(emails.resendOfEmailId, requested.emailId), eq(emails.sendStatus, "SENT")))
+        .orderBy(desc(emails.sentAt), desc(emails.id))
+        .get()
+    : undefined;
+  const sent = resent ?? requested;
   const received = tx
     .select(fields)
     .from(emailBlLinks)

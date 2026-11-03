@@ -103,6 +103,8 @@ const rules = {
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),
   "request.sendEmail": only("OPERATIONS"),
+  // Sending a sent request email again (wrong recipients, or redirected by a reply); not a new request.
+  "request.resend": only("OPERATIONS"),
   "email.sendTest": only("ADMIN"),
   // Agency replies are read and recorded by operations (the Replies screen).
   "reply.view": only("OPERATIONS"),

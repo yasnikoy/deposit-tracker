@@ -67,9 +67,20 @@ export async function parseMessage(raw: Buffer): Promise<ParsedMessage> {
   };
 }
 
-/** The active B/Ls a stored message belongs to: requests of a sent email, links of an imported one. */
-function blsOfEmails(tx: DbOrTx, emailIds: number[]): number[] {
-  if (emailIds.length === 0) return [];
+/**
+ * The active B/Ls a stored message belongs to: requests of a sent email (a resend carries its
+ * original's), links of an imported one.
+ */
+function blsOfEmails(tx: DbOrTx, referencedIds: number[]): number[] {
+  if (referencedIds.length === 0) return [];
+  const originals = tx
+    .select({ id: emails.resendOfEmailId })
+    .from(emails)
+    .where(inArray(emails.id, referencedIds))
+    .all()
+    .map((e) => e.id)
+    .filter((id): id is number => id !== null);
+  const emailIds = [...new Set([...referencedIds, ...originals])];
   const fromRequests = tx.select({ blId: requests.blId }).from(requests).where(inArray(requests.emailId, emailIds)).all();
   const fromLinks = tx
     .select({ blId: emailBlLinks.blId })

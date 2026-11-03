@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { formatBytes } from "@/lib/format";
 import type { EmailDraft } from "@/server/email/compose";
-import { cancelEmailsAction, queueEmailAction } from "./actions";
+import type { ActionResult } from "@/server/errors";
+import { cancelEmailsAction, queueEmailAction, queueResendAction, type ResendDraft } from "./actions";
 
 const toList = (text: string) =>
   text
@@ -53,7 +54,52 @@ export function EmailPreviewDialog({ drafts, onDone }: { drafts: EmailDraft[]; o
   );
 }
 
-function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () => void; onSkip: () => void }) {
+/** What the preview sends: the edited recipients, subject, body and kept attachments. */
+type EditedEmail = { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string; documentIds: number[] };
+
+/**
+ * A request email sent again from the B/L detail: the original as sent, recipients editable,
+ * as a new email. The requests keep their attempt and date.
+ */
+export function ResendDialog({ draft, onDone }: { draft: ResendDraft; onDone: () => void }) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onDone()}>
+      <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            {t("requests.resend")} – {draft.agencyName}
+          </DialogTitle>
+          <DialogDescription>{t("requests.resendHint")}</DialogDescription>
+        </DialogHeader>
+        <DraftForm
+          draft={draft}
+          send={(email) => queueResendAction({ emailId: draft.resendOfEmailId, ...email })}
+          sentText={t("requests.resendQueued")}
+          onSent={onDone}
+          onSkip={onDone}
+          skipText={t("common.cancel")}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DraftForm({
+  draft,
+  send: sendEmail,
+  sentText,
+  onSent,
+  onSkip,
+  skipText,
+}: {
+  draft: EmailDraft;
+  /** Queues the email; by default as the draft's requests. */
+  send?: (email: EditedEmail) => Promise<ActionResult<number>>;
+  sentText?: string;
+  onSent: () => void;
+  onSkip: () => void;
+  skipText?: string;
+}) {
   const [to, setTo] = useState(draft.to.join(", "));
   const [cc, setCc] = useState(draft.cc.join(", "));
   const [bcc, setBcc] = useState(draft.bcc.join(", "));
@@ -75,23 +121,21 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
   const send = async () => {
     setBusy(true);
     setError(null);
-    const result = await queueEmailAction({
-      blIds: draft.items.map((i) => i.blId),
-      to: toList(to),
-      cc: toList(cc),
-      bcc: toList(bcc),
-      subject,
-      body,
-      documentIds: [...kept],
-      confirmMissingEvidence: evidenceConfirmed,
-      confirmPortalFiled: portalFiled,
-    });
+    const email: EditedEmail = { to: toList(to), cc: toList(cc), bcc: toList(bcc), subject, body, documentIds: [...kept] };
+    const result = sendEmail
+      ? await sendEmail(email)
+      : await queueEmailAction({
+          blIds: draft.items.map((i) => i.blId),
+          ...email,
+          confirmMissingEvidence: evidenceConfirmed,
+          confirmPortalFiled: portalFiled,
+        });
     setBusy(false);
     if (!result.ok) {
       const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
       return setError(t(field ?? result.error, result.params));
     }
-    toast.success(t("requests.queued"));
+    toast.success(sentText ?? t("requests.queued"));
     onSent();
   };
 
@@ -145,7 +189,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
               {attachment.originalName}
             </a>
             <span className="text-muted-foreground text-xs">
-              {attachment.blNo ?? t("standing.title")} · {formatBytes(attachment.sizeBytes)}
+              {attachment.blNo ?? (attachment.kind === "STANDING" ? t("standing.title") : t(`requests.attachmentKinds.${attachment.kind}`))} · {formatBytes(attachment.sizeBytes)}
             </span>
           </label>
         ))}
@@ -183,7 +227,7 @@ function DraftForm({ draft, onSent, onSkip }: { draft: EmailDraft; onSent: () =>
       )}
       <DialogFooter>
         <Button variant="ghost" onClick={onSkip} disabled={busy}>
-          {t("requests.skip")}
+          {skipText ?? t("requests.skip")}
         </Button>
         <Button onClick={send} disabled={busy || tooLarge || (evidenceMissing && !evidenceConfirmed) || (portalFiling && !portalFiled)}>
           {t("requests.send")}

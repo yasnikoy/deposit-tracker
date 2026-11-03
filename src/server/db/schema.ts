@@ -589,6 +589,9 @@ export const emails = sqliteTable(
     rawDocumentId: integer("raw_document_id").references(() => documents.id),
     // Incoming only: when the mailbox received the message.
     receivedAt: timestamp("received_at"),
+    // Outgoing only: a request email sent again (wrong recipients, or redirected by a reply). It
+    // points to the original request email, whose requests it carries without being a new request.
+    resendOfEmailId: integer("resend_of_email_id").references((): AnySQLiteColumn => emails.id),
     createdAt: timestamp("created_at").notNull(),
   },
   (t) => [
@@ -597,6 +600,7 @@ export const emails = sqliteTable(
     check("emails_received_at", sql`(${t.direction} = 'IN') = (${t.receivedAt} IS NOT NULL)`),
     uniqueIndex("emails_message_id_unique").on(t.messageId),
     index("emails_in_reply_to").on(t.inReplyTo),
+    index("emails_resend_of").on(t.resendOfEmailId),
   ],
 );
 

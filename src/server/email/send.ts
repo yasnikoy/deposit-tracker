@@ -18,6 +18,7 @@ import { markServiceFailing, markServiceOk } from "../service-status";
 import { getSetting } from "../settings";
 import { lockForDraft, releaseDraftLocks } from "../draft-locks";
 import { buildRequestDrafts } from "./compose";
+import { resendBlIds } from "./resend";
 import type { MailTransport } from "./transport";
 
 /** Retries after the first attempt, then the request is marked failed (ARCHITECTURE → Jobs). */
@@ -209,6 +210,13 @@ function markSent(db: Db, email: EmailRow, raw: Buffer, dryRun: boolean, now: Da
         now,
       );
     }
+    for (const blId of resendBlIds(tx, email)) {
+      writeAudit(
+        tx,
+        { ...senderOf(email), action: "request.resent", entityType: "bill_of_lading", entityId: blId, after: { emailId: email.id, resendOfEmailId: email.resendOfEmailId, dryRun } },
+        now,
+      );
+    }
     if (!dryRun) {
       markServiceOk(tx, "SMTP", now);
       enqueueJob(tx, "COPY_TO_SENT_FOLDER", { emailId: email.id }, now, now);
@@ -227,6 +235,10 @@ function markFailed(db: Db, email: EmailRow, error: string, now: Date): void {
         { ...senderOf(email), action: "request.failed", entityType: "bill_of_lading", entityId: request.blId, after: { emailId: email.id, error } },
         now,
       );
+    }
+    // A failed resend leaves the requests as they were; the timeline shows it.
+    for (const blId of resendBlIds(tx, email)) {
+      writeAudit(tx, { ...senderOf(email), action: "request.resendFailed", entityType: "bill_of_lading", entityId: blId, after: { emailId: email.id, error } }, now);
     }
   });
 }

@@ -34,3 +34,16 @@ export const queueEmailSchema = z.object({
   confirmMissingEvidence: z.boolean().default(false),
   confirmPortalFiled: z.boolean().default(false),
 });
+
+/** Sending a request email again; the original is a sent request email (or one of its resends). */
+export const prepareResendSchema = z.object({ emailId: id });
+
+export const queueResendSchema = z.object({
+  emailId: id,
+  to: addresses.min(1, msg("requests.errors.recipients")),
+  cc: addresses,
+  bcc: addresses,
+  subject: z.string().trim().min(1).max(500),
+  body: z.string().min(1).max(20_000),
+  documentIds: z.array(id).max(100),
+});

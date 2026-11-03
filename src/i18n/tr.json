@@ -945,7 +945,10 @@
         "portal": "Portal talebi kaydedildi",
         "queue": "Talep e-postası kuyruğa alındı",
         "sent": "Talep e-postası gönderildi",
-        "failed": "Talep e-postası gönderilemedi"
+        "failed": "Talep e-postası gönderilemedi",
+        "resend": "Talep e-postası yeniden gönderilmek üzere kuyruğa alındı",
+        "resent": "Talep e-postası yeniden gönderildi",
+        "resendFailed": "Yeniden gönderilen e-posta gönderilemedi"
       },
       "email": {
         "received": "Acente e-postası alındı",
@@ -1046,6 +1049,8 @@
       "notDueBl": "{bl} için şu anda talep gönderilemez.",
       "portalNotFiled": "Önce portalda talebi oluşturun ve bunu onaylayın: {bls}",
       "noRecipients": "{agency} için alıcı adresi girilmemiş (acente kartı).",
+      "resendNotSent": "Yalnızca gönderilmiş bir talep e-postası yeniden gönderilebilir.",
+      "resendClosed": "Bu e-postanın B/L'leri kapanmış veya iptal edilmiş; yeniden gönderilemez.",
       "unitMissing": "{bl}: birim seçilmedi. Göndermeden önce B/L ayrıntısından birimi seçin.",
       "locked": "{bl} şu anda {user} tarafından hazırlanıyor.",
       "draftChanged": "Seçili B/L'ler değişti; e-postayı yeniden hazırlayın.",
@@ -1080,6 +1085,14 @@
     "evidenceMissing": "Dekont yok",
     "evidenceMissingHint": "Ödemenin dekontu veya faturası yüklenmemiş; e-posta onayla ve bu ek olmadan gider.",
     "unitMissingHint": "Bu acentenin birimleri var; B/L ayrıntısından birim seçilmeden talep gönderilemez.",
+    "resend": "Yeniden gönder",
+    "resendHint": "E-posta yeni bir ileti olarak, yanıt olarak değil, gider. Talep sayısı, talep tarihi ve takip zamanı değişmez.",
+    "resendQueued": "E-posta yeniden gönderilmek üzere kuyruğa alındı.",
+    "attachmentKinds": {
+      "FORM": "İade formu",
+      "RECEIPT": "Dekont",
+      "INVOICE": "Fatura"
+    },
     "evidenceWarning": "Şu B/L'lerin ödemesinde dekont veya fatura yok, e-posta bu ek olmadan gider: {bls}. Belgeyi B/L detayından veya Muhasebe ekranından ekleyebilirsiniz.",
     "evidenceConfirm": "Dekontsuz göndermeyi onaylıyorum"
   },
@@ -1242,6 +1255,7 @@
     "noEmails": "Henüz e-posta yok.",
     "sent": "Gönderilen",
     "received": "Gelen",
+    "resent": "Yeniden gönderim",
     "replies": "Kaydedilen yanıtlar",
     "noReplies": "Henüz yanıt kaydedilmedi.",
     "byEmail": "e-postadan",

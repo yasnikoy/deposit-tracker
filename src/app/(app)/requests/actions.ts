@@ -4,16 +4,31 @@ import { ZodError } from "zod";
 import {
   impactPreviewSchema,
   prepareEmailsSchema,
+  prepareResendSchema,
   queueEmailSchema,
+  queueResendSchema,
   updateBlOverridesSchema,
 } from "@/lib/schemas/requests";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
+import { prepareResend, queueResend } from "@/server/email/resend";
 import { queueRequestEmail } from "@/server/email/send";
 import { DomainError, type ActionResult } from "@/server/errors";
 import { previewDueImpact, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
+
+export type ResendDraft = EmailDraft & { resendOfEmailId: number };
+
+export async function prepareResendAction(input: unknown): Promise<ActionResult<ResendDraft>> {
+  const { user } = await requireSession();
+  return runAction(prepareResendSchema, input, (data) => prepareResend(getDb(), user, data));
+}
+
+export async function queueResendAction(input: unknown): Promise<ActionResult<number>> {
+  const { user } = await requireSession();
+  return runAction(queueResendSchema, input, (data) => queueResend(getDb(), user, data));
+}
 
 export async function updateBlOverridesAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();

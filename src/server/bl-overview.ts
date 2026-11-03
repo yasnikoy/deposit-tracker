@@ -250,6 +250,10 @@ export type BlEmail = {
   from: string;
   dryRun: boolean;
   attachments: { id: number; originalName: string }[];
+  /** Outgoing: QUEUED, SENT or FAILED; null for agency emails. */
+  sendStatus: "QUEUED" | "SENT" | "FAILED" | null;
+  /** A request email sent again: the original it repeats. */
+  resendOfEmailId: number | null;
 };
 
 export type BlReply = { id: number; typeName: string; repliedOn: string; byName: string; emailId: number | null; note: string | null; undone: boolean };
@@ -499,7 +503,16 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
     .where(and(eq(emailBlLinks.blId, blId), isNull(emailBlLinks.unlinkedAt)))
     .all()
     .map((l) => l.emailId);
-  const ids = [...new Set([...sentIds, ...linkedIds])];
+  // Request emails sent again belong to the chain too, whatever became of them.
+  const resendIds = sentIds.length
+    ? db
+        .select({ id: emails.id })
+        .from(emails)
+        .where(inArray(emails.resendOfEmailId, sentIds))
+        .all()
+        .map((e) => e.id)
+    : [];
+  const ids = [...new Set([...sentIds, ...resendIds, ...linkedIds])];
   if (ids.length === 0) return [];
   const files = db
     .select({ emailId: emailAttachments.emailId, id: documents.id, originalName: documents.originalName })
@@ -519,6 +532,8 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
       at: email.receivedAt ?? email.sentAt ?? email.createdAt,
       from: email.fromAddress,
       dryRun: email.dryRun,
+      sendStatus: email.sendStatus,
+      resendOfEmailId: email.resendOfEmailId,
       // Our own attachments are the B/L's documents already; the agency's are shown here.
       attachments: email.direction === "IN" ? files.filter((f) => f.emailId === email.id).map(({ id, originalName }) => ({ id, originalName })) : [],
     }))
