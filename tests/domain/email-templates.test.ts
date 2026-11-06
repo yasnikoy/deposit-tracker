@@ -40,8 +40,8 @@ describe("templatePlaceholders", () => {
 
 describe("preview samples", () => {
   it("cover every placeholder a template may use, so the settings preview shows no raw {name}", () => {
-    // The signature comes from its setting; the batch sections are built from BATCH_LINE.
-    const builtElsewhere = new Set(["signature", "refund_section", "statement_section"]);
+    // The signature comes from its setting; the batch sections and report lines from their line templates.
+    const builtElsewhere = new Set(["signature", "refund_section", "statement_section", "requested_lines", "remaining_lines", "collected_lines", "transferred_lines"]);
     const missing = Object.values(EMAIL_TEMPLATE_PLACEHOLDERS)
       .flat()
       .filter((name) => !builtElsewhere.has(name) && !(name in EMAIL_TEMPLATE_SAMPLES));

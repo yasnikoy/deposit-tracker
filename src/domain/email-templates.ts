@@ -69,8 +69,8 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
 /**
  * Sample values for the live preview in settings only; real emails take them from the records.
  * Every placeholder above has one (tested), so the preview never shows a raw `{name}`.
- * `{signature}` comes from the signature setting, and the batch sections are built from
- * BATCH_LINE with these values.
+ * `{signature}` comes from the signature setting, the batch sections are built from
+ * BATCH_LINE and the report summary's `{…_lines}` from the REPORT_LINE_* templates, with these values.
  */
 export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   agency_name: "Örnek Denizcilik",
@@ -101,12 +101,8 @@ export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   from_bl: "MEDU1234567",
   to_bl: "MEDU7654321",
   requested_period: "16.10.2026",
-  requested_lines: "• Örnek Denizcilik · USD: 3 talep, depozito 7.500,00 USD",
-  remaining_lines: "• Örnek Denizcilik · USD: 12 B/L, 45.250,00 USD\n• Toplam USD: 12 B/L, 45.250,00 USD",
   collected_period: "01.10.2026 – 16.10.2026",
-  collected_lines: "• Örnek Denizcilik · USD: 2 B/L, tahsil 5.300,00 USD, kesinti 700,00 USD, silinen 0,00 USD",
   transferred_period: "16.10.2026",
-  transferred_lines: "• Örnek Denizcilik: B/L MEDU1234567 → B/L MEDU7654321, 3.000,00 USD (16.10.2026)",
   deduction_open: "1",
   disputed: "0",
   failed: "0",

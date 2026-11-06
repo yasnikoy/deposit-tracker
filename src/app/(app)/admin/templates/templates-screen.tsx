@@ -15,9 +15,23 @@ import { updateEmailTemplateAction } from "../settings/actions";
 /** Line and summary parts: they have no subject of their own. */
 const NO_SUBJECT = new Set<EmailTemplateKey>(["BATCH_LINE", "REPLY_QUOTE", "REPORT_SUMMARY", "REPORT_LINE_REQUESTED", "REPORT_LINE_REMAINING", "REPORT_LINE_TOTAL", "REPORT_LINE_COLLECTED", "REPORT_LINE_TRANSFERRED"]);
 
-function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {
-  // The preview shows every report section.
-  if (key === "REPORT_SUMMARY") return { ...SAMPLE, requested_section: "1", remaining_section: "1", collected_section: "1", transferred_section: "1", problems_section: "1" };
+function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string, bodies: Map<EmailTemplateKey, string>): Record<string, string> {
+  if (key === "REPORT_SUMMARY") {
+    // Every report section, its lines worded by the saved line templates.
+    const line = (lineKey: EmailTemplateKey) => renderTemplate(bodies.get(lineKey) ?? "", SAMPLE);
+    return {
+      ...SAMPLE,
+      requested_lines: line("REPORT_LINE_REQUESTED"),
+      remaining_lines: `${line("REPORT_LINE_REMAINING")}\n${line("REPORT_LINE_TOTAL")}`,
+      collected_lines: line("REPORT_LINE_COLLECTED"),
+      transferred_lines: line("REPORT_LINE_TRANSFERRED"),
+      requested_section: "1",
+      remaining_section: "1",
+      collected_section: "1",
+      transferred_section: "1",
+      problems_section: "1",
+    };
+  }
   if (key !== "BATCH") return { ...SAMPLE, signature };
   const lines = [SAMPLE, { ...SAMPLE, bl_no: "MEDU7654321", containers: "TGHU8765432", amount: "1.500,00" }];
   // A statement line shows the unexplained deduction as its amount.
@@ -33,23 +47,24 @@ function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: st
 
 export function TemplatesScreen({ templates, signature }: { templates: EmailTemplate[]; signature: string }) {
   const lineTemplate = templates.find((tpl) => tpl.key === "BATCH_LINE")?.body ?? "";
+  const bodies = new Map(templates.map((tpl) => [tpl.key, tpl.body]));
   return (
     <div className="flex max-w-5xl flex-col gap-4">
       {templates.map((template) => (
-        <TemplateCard key={`${template.key}:${template.updatedAt}`} template={template} signature={signature} lineTemplate={lineTemplate} />
+        <TemplateCard key={`${template.key}:${template.updatedAt}`} template={template} signature={signature} lineTemplate={lineTemplate} bodies={bodies} />
       ))}
     </div>
   );
 }
 
-function TemplateCard({ template, signature, lineTemplate }: { template: EmailTemplate; signature: string; lineTemplate: string }) {
+function TemplateCard({ template, signature, lineTemplate, bodies }: { template: EmailTemplate; signature: string; lineTemplate: string; bodies: Map<EmailTemplateKey, string> }) {
   const router = useRouter();
   const [subject, setSubject] = useState(template.subject);
   const [body, setBody] = useState(template.body);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
   const key = template.key;
-  const values = sampleValues(key, signature, key === "BATCH_LINE" ? body : lineTemplate);
+  const values = sampleValues(key, signature, key === "BATCH_LINE" ? body : lineTemplate, bodies);
   const changed = subject !== template.subject || body !== template.body;
 
   const save = async () => {
