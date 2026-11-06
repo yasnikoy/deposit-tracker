@@ -507,7 +507,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
-- Report email: the summary's wording is editable in Settings → email templates, as decided with the user on Nov 6: `REPORT_SUMMARY` (section titles, layout and order, a block per section) and line templates `REPORT_LINE_REQUESTED`, `_REMAINING`, `_TOTAL`, `_COLLECTED`, `_TRANSFERRED`, seeded with today's wording. An empty section now reads *Kayıt yok.* without a bullet. Each CSV attachment can be unticked in the preview, like request attachments; the audit records the attached sections (`attachSections`). See Report email.
+- Report email: the summary's wording is editable in Settings → email templates, as decided with the user on Nov 6: `REPORT_SUMMARY` (section titles, layout and order, a block per section) and line templates `REPORT_LINE_REQUESTED`, `_REMAINING`, `_TOTAL`, `_COLLECTED`, `_TRANSFERRED`. Their starting texts name the currency once, after the amount (*Hat Lojistik · 2 B/L, 1.700,00 USD*; *Toplam: 2 B/L, 1.700,00 USD*), as the user worded them on the development install. An empty section now reads *Kayıt yok.* without a bullet. Each CSV attachment can be unticked in the preview, like request attachments; the audit records the attached sections (`attachSections`). See Report email.
 
 **Nov 3, 2026 — agency units, resending requests, customer documents, report periods, shared deposit forms, containers on the B/L detail, deposit transfers, v0.14.0**
 

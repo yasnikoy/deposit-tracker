@@ -161,19 +161,19 @@
     },
     "REPORT_LINE_REQUESTED": {
       "subject": "",
-      "body": "• {agency} · {currency}: {count} talep, depozito {amount} {currency}"
+      "body": "• {agency} · {count} talep, depozito {amount} {currency}"
     },
     "REPORT_LINE_REMAINING": {
       "subject": "",
-      "body": "• {agency} · {currency}: {count} B/L, {amount} {currency}"
+      "body": "• {agency} · {count} B/L, {amount} {currency}"
     },
     "REPORT_LINE_TOTAL": {
       "subject": "",
-      "body": "• Toplam {currency}: {count} B/L, {amount} {currency}"
+      "body": "• Toplam: {count} B/L, {amount} {currency}"
     },
     "REPORT_LINE_COLLECTED": {
       "subject": "",
-      "body": "• {agency} · {currency}: {count} B/L, tahsil {amount} {currency}, kesinti {deductions} {currency}, silinen {write_off} {currency}"
+      "body": "• {agency} · {count} B/L, tahsil {amount} {currency}, kesinti {deductions} {currency}, silinen {write_off} {currency}"
     },
     "REPORT_LINE_TRANSFERRED": {
       "subject": "",

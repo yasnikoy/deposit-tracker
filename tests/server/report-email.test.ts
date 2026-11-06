@@ -99,17 +99,17 @@ describe("report email preview", () => {
     expect(draft.summary).toBe(
       [
         "Talep edilen iadeler (01.09.2026 – 22.10.2026)",
-        "• Hat Lojistik · EUR: 1 talep, depozito 400,00 EUR",
-        "• Hat Lojistik · USD: 4 talep, depozito 8.000,00 USD",
+        "• Hat Lojistik · 1 talep, depozito 400,00 EUR",
+        "• Hat Lojistik · 4 talep, depozito 8.000,00 USD",
         "",
         "Kalan depozitolar",
-        "• Hat Lojistik · EUR: 1 B/L, 400,00 EUR",
-        "• Hat Lojistik · USD: 2 B/L, 1.700,00 USD",
-        "• Toplam EUR: 1 B/L, 400,00 EUR",
-        "• Toplam USD: 2 B/L, 1.700,00 USD",
+        "• Hat Lojistik · 1 B/L, 400,00 EUR",
+        "• Hat Lojistik · 2 B/L, 1.700,00 USD",
+        "• Toplam: 1 B/L, 400,00 EUR",
+        "• Toplam: 2 B/L, 1.700,00 USD",
         "",
         "Tahsil edilenler (01.10.2026 – 31.10.2026)",
-        "• Hat Lojistik · USD: 3 B/L, tahsil 6.300,00 USD, kesinti 700,00 USD, silinen 0,00 USD",
+        "• Hat Lojistik · 3 B/L, tahsil 6.300,00 USD, kesinti 700,00 USD, silinen 0,00 USD",
         "",
         "Sorunlar",
         "• Kesintisi açık: 1 B/L",
@@ -157,7 +157,7 @@ describe("report email preview", () => {
       .values({ blId: d, type: "REFUND", channel: "EMAIL", attemptNo: 3, sendStatus: "FAILED", requestedOn: "2026-10-16", createdBy: ops.id, createdAt: "2026-10-16T09:00:00.000Z" })
       .run();
     const october = requestedOn("2026-10-01", "2026-10-22");
-    expect(october.summary).toBe("Talep edilen iadeler (01.10.2026 – 22.10.2026)\n• Hat Lojistik · USD: 1 talep, depozito 1.000,00 USD");
+    expect(october.summary).toBe("Talep edilen iadeler (01.10.2026 – 22.10.2026)\n• Hat Lojistik · 1 talep, depozito 1.000,00 USD");
     expect(october.attachments).toEqual([{ section: "REQUESTED", fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 1 }]);
     expect(requestedOn("2026-09-01", "2026-10-22").attachments[0].rows).toBe(6);
   });
@@ -205,7 +205,7 @@ describe("report email sending", () => {
     const emailId = send(["mudur@firma.com.tr"], ["ekip@firmagrup.com"]);
     const email = db.select().from(emails).where(eq(emails.id, emailId)).get()!;
     expect(email).toMatchObject({ direction: "OUT", agencyId: null, sendStatus: "QUEUED", to: ["mudur@firma.com.tr"], cc: ["ekip@firmagrup.com"] });
-    expect(email.bodyText).toMatch(/^Merhaba,\n\nÖzet aşağıda\.\n\nTalep edilen iadeler \(01\.09\.2026 – 22\.10\.2026\)\n• Hat Lojistik · EUR/);
+    expect(email.bodyText).toMatch(/^Merhaba,\n\nÖzet aşağıda\.\n\nTalep edilen iadeler \(01\.09\.2026 – 22\.10\.2026\)\n• Hat Lojistik · 1 talep, depozito 400,00 EUR/);
     expect(email.bodyText.endsWith("\n\nFirma A.Ş. Operasyon")).toBe(true);
 
     const files = db.select({ doc: documents }).from(emailAttachments).innerJoin(documents, eq(documents.id, emailAttachments.documentId)).where(eq(emailAttachments.emailId, emailId)).all();
