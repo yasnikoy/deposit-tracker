@@ -143,7 +143,7 @@ describe("the report email", () => {
     const filters = { agencyIds: [], currency: null, requestedFrom: null, requestedTo: null, collectedFrom: null, collectedTo: null };
     const draft = reportEmailDraft(db, ops, { sections: ["TRANSFERRED"], filters: { ...filters, transferredFrom: "2026-10-20", transferredTo: "2026-10-22" } }, NOW);
     expect(draft.summary).toBe("Aktarılan depozitolar (20.10.2026 – 22.10.2026)\n• MSC: B/L MEDU1000001 → B/L MEDU2000001, 3.000,00 USD (20.10.2026)");
-    expect(draft.attachments).toEqual([{ fileName: "Aktarılan depozitolar 2026-10-22.csv", rows: 1 }]);
+    expect(draft.attachments).toEqual([{ section: "TRANSFERRED", fileName: "Aktarılan depozitolar 2026-10-22.csv", rows: 1 }]);
     expect(() => reportEmailDraft(db, ops, { sections: ["TRANSFERRED"], filters }, NOW)).toThrow(/period/);
   });
 });

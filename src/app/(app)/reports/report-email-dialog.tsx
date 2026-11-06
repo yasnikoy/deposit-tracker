@@ -56,7 +56,9 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
   const [recipients, setRecipients] = useState("");
   const [cc, setCc] = useState("");
   const [subject, setSubject] = useState("");
-  const [intro, setIntro] = useState("");
+  const [body, setBody] = useState("");
+  // Sections whose table goes along as a CSV; all of them until unticked in the preview.
+  const [attached, setAttached] = useState<ReportSection[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -87,13 +89,14 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
     setDraft(result.data);
     setRecipients(result.data.to.join(", "));
     setSubject(result.data.subject);
-    setIntro(result.data.intro);
+    setBody(result.data.body);
+    setAttached(result.data.attachments.map((a) => a.section));
   };
 
   const send = async () => {
     setBusy(true);
     setError(null);
-    const result = await queueReportAction({ ...request(), to: toList(recipients), cc: toList(cc), subject, intro });
+    const result = await queueReportAction({ ...request(), to: toList(recipients), cc: toList(cc), subject, body, attachSections: attached });
     setBusy(false);
     if (!result.ok) {
       const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
@@ -197,8 +200,8 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
               </div>
             ))}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="report-intro">{t("reports.email.intro")}</Label>
-              <textarea id="report-intro" rows={5} className="border-input bg-background rounded-md border px-2 py-1 text-sm" value={intro} onChange={(e) => setIntro(e.target.value)} />
+              <Label htmlFor="report-body">{t("reports.email.body")}</Label>
+              <textarea id="report-body" rows={8} className="border-input bg-background rounded-md border px-2 py-1 text-sm" value={body} onChange={(e) => setBody(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">{t("reports.email.summary")}</span>
@@ -206,16 +209,16 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
                 {draft.summary}
               </pre>
             </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-sm font-medium">{t("reports.email.attachments")}</span>
-              <ul className="text-sm">
-                {draft.attachments.map((a) => (
-                  <li key={a.fileName}>
-                    {a.fileName} <span className="text-muted-foreground text-xs">({t("reports.email.rows", { count: a.rows })})</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <fieldset className="flex flex-col gap-1">
+              <legend className="mb-1 text-sm font-medium">{t("reports.email.attachments")}</legend>
+              {draft.attachments.map((a) => (
+                <label key={a.section} className="flex items-center gap-2 text-sm">
+                  <Checkbox checked={attached.includes(a.section)} onCheckedChange={(checked) => setAttached((list) => toggle(list, a.section, checked === true))} />
+                  <span>{a.fileName}</span>
+                  <span className="text-muted-foreground text-xs">({t("reports.email.rows", { count: a.rows })})</span>
+                </label>
+              ))}
+            </fieldset>
             {error && <p className="text-destructive text-sm">{error}</p>}
             <DialogFooter>
               <Button variant="ghost" onClick={() => setDraft(null)} disabled={busy}>

@@ -277,21 +277,23 @@ function summaryText(sections: BuiltSection[]): string {
   return sections.map((s) => [s.title, ...s.summary.map((line) => `• ${line}`)].join("\n")).join("\n\n");
 }
 
-function composeBody(db: DbOrTx, intro: string, summary: string): string {
+/** The body as edited in the preview, `{summary}` filled from the figures of now, then the signature. */
+function composeBody(db: DbOrTx, body: string, summary: string): string {
   const signature = getSetting("email.signature", {}, db).trim();
-  return [intro.trim(), summary, signature].filter((part) => part !== "").join("\n\n");
+  return [renderTemplate(body, { summary }).trim(), signature].filter((part) => part !== "").join("\n\n");
 }
 
 export type ReportDraft = {
   to: string[];
   subject: string;
-  intro: string;
-  /** Added below the intro; not editable. */
+  /** The REPORT template with `{date}` filled; `{summary}` is filled at send time. */
+  body: string;
+  /** What `{summary}` will say; not editable. */
   summary: string;
-  attachments: { fileName: string; rows: number }[];
+  attachments: { section: ReportSection; fileName: string; rows: number }[];
 };
 
-/** The preview: default recipients, subject and intro from the template, and what the sections will say. */
+/** The preview: default recipients, subject and body from the template, and what the sections will say. */
 export function reportEmailDraft(db: DbOrTx, actor: AuthUser, request: ReportRequest, now: Date = new Date()): ReportDraft {
   authorize(actor, "report.sendEmail");
   const sections = buildSections(db, actor, request, now);
@@ -300,13 +302,14 @@ export function reportEmailDraft(db: DbOrTx, actor: AuthUser, request: ReportReq
   return {
     to: getSetting("reports.defaultRecipients", {}, db),
     subject: renderTemplate(template.subject, values),
-    intro: renderTemplate(template.body, values),
+    body: renderTemplate(template.body, values),
     summary: summaryText(sections),
-    attachments: sections.map((s) => ({ fileName: s.fileName, rows: s.grid.rows.length })),
+    attachments: sections.map((s) => ({ section: s.section, fileName: s.fileName, rows: s.grid.rows.length })),
   };
 }
 
-export type QueueReportInput = ReportRequest & { to: string[]; cc: string[]; subject: string; intro: string };
+/** `attachSections`: the sections whose list goes along as a CSV (the preview's ticked attachments). */
+export type QueueReportInput = ReportRequest & { to: string[]; cc: string[]; subject: string; body: string; attachSections: ReportSection[] };
 
 /** Rule: internal recipients only, and never an address an agency receives requests at. */
 function checkRecipients(db: DbOrTx, addresses: string[], fromAddress: string): void {
@@ -321,8 +324,8 @@ function checkRecipients(db: DbOrTx, addresses: string[], fromAddress: string): 
 }
 
 /**
- * Sends the report: the sections are built again from the current state, each list becomes a
- * CSV attachment, and the email goes through the send job like a request (retries, dry-run,
+ * Sends the report: the sections are built again from the current state, each list left ticked
+ * becomes a CSV attachment, and the email goes through the send job like a request (retries, dry-run,
  * sent-folder copy, .eml kept).
  */
 export function queueReportEmail(db: Db, actor: AuthUser, input: QueueReportInput, now: Date = new Date()): number {
@@ -345,7 +348,7 @@ export function queueReportEmail(db: Db, actor: AuthUser, input: QueueReportInpu
         to: input.to,
         cc: input.cc,
         subject: input.subject,
-        bodyText: composeBody(tx, input.intro, summaryText(sections)),
+        bodyText: composeBody(tx, input.body, summaryText(sections)),
         sendStatus: "QUEUED",
         queuedBy: actor.id,
         roleUsed,
@@ -353,7 +356,7 @@ export function queueReportEmail(db: Db, actor: AuthUser, input: QueueReportInpu
       })
       .returning()
       .get();
-    for (const section of sections) {
+    for (const section of sections.filter((s) => input.attachSections.includes(s.section))) {
       const doc = storeGeneratedDocument(
         tx,
         { kind: "OTHER", originalName: section.fileName, content: Buffer.from(toCsv(section.grid), "utf8"), createdBy: actor.id, ownerType: "email", ownerId: email.id },
@@ -370,7 +373,7 @@ export function queueReportEmail(db: Db, actor: AuthUser, input: QueueReportInpu
         action: "report.email",
         entityType: "email",
         entityId: email.id,
-        after: { sections: sections.map((s) => s.section), filters: input.filters, to: input.to, cc: input.cc, subject: input.subject },
+        after: { sections: sections.map((s) => s.section), filters: input.filters, attachSections: input.attachSections, to: input.to, cc: input.cc, subject: input.subject },
       },
       now,
     );

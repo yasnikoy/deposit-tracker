@@ -418,9 +418,9 @@ The optional weekly summary email contains open balance per currency, B/Ls waiti
 
 - **Sections**, any combination: *requested refunds* (the refund requests sent in a chosen period, default today: first requests and follow-ups as separate rows, with B/L, agency, request, request date, the B/L's status now, deposit, outstanding and last reply; failed sends, resends and deduction-statement requests are not counted); *remaining deposits* (open balance per agency and currency); *collected in a period* (refunds allocated in the date range, with deductions and write-offs); *transferred deposits* (deposits moved to another B/L in a chosen period, default today, source → target); *problems* (open and disputed deductions, failed sends, B/Ls waiting longest).
 - **Filters:** agencies, currency, a request-date range for the requested section (default today) and a value-date range for the collected section (default this month so far); the other sections show the state of today. Voided records are excluded, as in every report.
-- **Format:** a Turkish email with a short summary table per section in the body (template in settings) and the full lists as CSV attachments, one per section, in the export format (UTF-8 with BOM, semicolons, Turkish numbers and dates).
+- **Format:** a Turkish email whose body is the `REPORT` template (settings): `{date}` and `{summary}`, the short summary table per section, placed where the template puts it (a template without `{summary}` sends none); the signature follows. The full lists go as CSV attachments, one per section, in the export format (UTF-8 with BOM, semicolons, Turkish numbers and dates).
 - **Recipients:** internal only. They must belong to one of the internal email domains (setting; the sender's own domain counts), and an address that is on any agency's recipient list is refused, so internal figures never reach an agency. A saved default recipient list (setting) prefills the preview.
-- **Sending:** always with a preview (recipients, subject and intro editable), then through the same send job as requests: retries, the sent-folder copy, dry-run outside production (rule 13), the `.eml` kept. Each send is audited with its sections, filters and recipients. Nothing is sent on a schedule; the weekly summary covers that.
+- **Sending:** always with a preview (recipients, subject and body editable; the body keeps `{summary}`, which is filled from the figures at send time, and the summary it will become is shown read-only; each CSV attachment has a checkbox, ticked by default, as in the request preview), then through the same send job as requests: retries, the sent-folder copy, dry-run outside production (rule 13), the `.eml` kept. Each send is audited with its sections, filters and recipients. Nothing is sent on a schedule; the weekly summary covers that.
 
 ## Screens
 
@@ -507,7 +507,7 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
-- Nothing yet.
+- Report email: the section summaries are the `{summary}` placeholder of the `REPORT` template, so an admin places them and the text around them; the preview edits the whole body (*Metin*) with `{summary}` kept, filled at send time. The seed body ends with `{summary}`, so an unedited template keeps today's email; a template an admin has saved sends no summary until `{summary}` is added to it. Each CSV attachment can be unticked in the preview, like request attachments; the audit records the attached sections (`attachSections`). See Report email.
 
 **Nov 3, 2026 — agency units, resending requests, customer documents, report periods, shared deposit forms, containers on the B/L detail, deposit transfers, v0.14.0**
 

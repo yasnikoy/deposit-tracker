@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { allocationProposal, confirmAllocation } from "@/server/allocations";
 import type { AuthUser } from "@/server/auth/types";
@@ -94,7 +94,9 @@ describe("report email preview", () => {
     const draft = reportEmailDraft(db, ops, ALL, NOW);
     expect(draft.to).toEqual(["mudur@firma.com.tr"]);
     expect(draft.subject).toBe("Depozito durum raporu – 22.10.2026");
-    expect(draft.intro).toContain("22.10.2026 itibarıyla");
+    expect(draft.body).toContain("22.10.2026 itibarıyla");
+    // The summary stays a placeholder in the editable body; sending fills it from fresh figures.
+    expect(draft.body).toContain("{summary}");
     expect(draft.summary).toBe(
       [
         "Talep edilen iadeler (01.09.2026 – 22.10.2026)",
@@ -118,10 +120,10 @@ describe("report email preview", () => {
       ].join("\n"),
     );
     expect(draft.attachments).toEqual([
-      { fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 5 },
-      { fileName: "Kalan depozitolar 2026-10-22.csv", rows: 3 },
-      { fileName: "Tahsil edilenler 2026-10-22.csv", rows: 3 },
-      { fileName: "Sorunlar 2026-10-22.csv", rows: 1 },
+      { section: "REQUESTED", fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 5 },
+      { section: "REMAINING", fileName: "Kalan depozitolar 2026-10-22.csv", rows: 3 },
+      { section: "COLLECTED", fileName: "Tahsil edilenler 2026-10-22.csv", rows: 3 },
+      { section: "PROBLEMS", fileName: "Sorunlar 2026-10-22.csv", rows: 1 },
     ]);
   });
 
@@ -147,7 +149,7 @@ describe("report email preview", () => {
       .run();
     const october = requestedOn("2026-10-01", "2026-10-22");
     expect(october.summary).toBe("Talep edilen iadeler (01.10.2026 – 22.10.2026)\n• Hat Lojistik · USD: 1 talep, depozito 1.000,00 USD");
-    expect(october.attachments).toEqual([{ fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 1 }]);
+    expect(october.attachments).toEqual([{ section: "REQUESTED", fileName: "Talep edilen iadeler 2026-10-22.csv", rows: 1 }]);
     expect(requestedOn("2026-09-01", "2026-10-22").attachments[0].rows).toBe(6);
   });
 
@@ -164,12 +166,31 @@ describe("report email preview", () => {
 
   it("is for operations only", () => {
     expect(() => reportEmailDraft(db, acc, ALL, NOW)).toThrow(ForbiddenError);
-    expect(() => queueReportEmail(db, admin, { ...ALL, to: ["mudur@firma.com.tr"], cc: [], subject: "x", intro: "y" }, NOW)).toThrow(ForbiddenError);
+    expect(() => queueReportEmail(db, admin, { ...ALL, to: ["mudur@firma.com.tr"], cc: [], subject: "x", body: "y", attachSections: [] }, NOW)).toThrow(ForbiddenError);
   });
 });
 
 describe("report email sending", () => {
-  const send = (to: string[], cc: string[] = []) => queueReportEmail(db, ops, { ...ALL, to, cc, subject: "Depozito durum raporu", intro: "Merhaba,\n\nÖzet aşağıda." }, NOW);
+  const send = (to: string[], cc: string[] = [], body = "Merhaba,\n\nÖzet aşağıda.\n\n{summary}", attachSections = ALL.sections) =>
+    queueReportEmail(db, ops, { ...ALL, to, cc, subject: "Depozito durum raporu", body, attachSections }, NOW);
+  const attachedNames = (emailId: number) =>
+    db.select({ name: documents.originalName }).from(emailAttachments).innerJoin(documents, eq(documents.id, emailAttachments.documentId)).where(eq(emailAttachments.emailId, emailId)).all().map((f) => f.name);
+
+  it("fills {summary} where the body has it; a body without it carries no summary", () => {
+    const moved = send(["mudur@firma.com.tr"], [], "{summary}\n\nSaygılarımızla");
+    expect(db.select().from(emails).where(eq(emails.id, moved)).get()!.bodyText).toMatch(/^Talep edilen iadeler \(01\.09\.2026 – 22\.10\.2026\)\n[\s\S]*\n\nSaygılarımızla\n\nFirma A\.Ş\. Operasyon$/);
+    const without = send(["mudur@firma.com.tr"], [], "Merhaba,\n\nEkte.");
+    expect(db.select().from(emails).where(eq(emails.id, without)).get()!.bodyText).toBe("Merhaba,\n\nEkte.\n\nFirma A.Ş. Operasyon");
+  });
+
+  it("attaches only the tables left ticked in the preview, none when all are removed", () => {
+    const some = send(["mudur@firma.com.tr"], [], undefined, ["PROBLEMS", "REQUESTED"]);
+    expect(attachedNames(some)).toEqual(["Talep edilen iadeler 2026-10-22.csv", "Sorunlar 2026-10-22.csv"]);
+    const none = send(["mudur@firma.com.tr"], [], undefined, []);
+    expect(attachedNames(none)).toEqual([]);
+    const audit = db.select().from(auditLog).where(and(eq(auditLog.action, "report.email"), eq(auditLog.entityId, String(none)))).get()!;
+    expect(audit.after).toMatchObject({ sections: ALL.sections, attachSections: [] });
+  });
 
   it("refuses external addresses and anything on an agency's recipient list, before queuing", () => {
     expect(() => send(["mudur@firma.com.tr"], ["dis@gmail.com"])).toThrow(/external/);
