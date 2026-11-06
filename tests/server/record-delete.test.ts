@@ -68,7 +68,7 @@ describe("deleting an agency", () => {
     queueReportEmail(
       db,
       ops,
-      { sections: ["REMAINING"], filters: { agencyIds: [filtered], currency: null, requestedFrom: null, requestedTo: null, collectedFrom: null, collectedTo: null }, to: ["mudur@firma.com.tr"], cc: [], subject: "Rapor", body: "Merhaba", attachSections: [] },
+      { sections: ["REMAINING"], filters: { agencyIds: [filtered], currency: null, requestedFrom: null, requestedTo: null, collectedFrom: null, collectedTo: null }, to: ["mudur@firma.com.tr"], cc: [], subject: "Rapor", intro: "Merhaba", attachSections: [] },
       NOW,
     );
     expect(() => deleteAgency(db, admin, { id: filtered, reason: "x" }, NOW)).toThrow(expect.objectContaining({ params: { links: "1 rapor e-postası filtresi" } }));

@@ -13,6 +13,12 @@ export const EMAIL_TEMPLATE_KEYS = [
   "REPLY_QUOTE",
   "DAILY_UNPROCESSED",
   "REPORT",
+  "REPORT_SUMMARY",
+  "REPORT_LINE_REQUESTED",
+  "REPORT_LINE_REMAINING",
+  "REPORT_LINE_TOTAL",
+  "REPORT_LINE_COLLECTED",
+  "REPORT_LINE_TRANSFERRED",
   "WEEKLY_SUMMARY",
 ] as const;
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];
@@ -30,8 +36,32 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   REPLY_QUOTE: ["from", "sent_at", "to", "cc_section", "subject"],
   // Internal reminder to our own team; never sent to agencies.
   DAILY_UNPROCESSED: ["count", "warning_days", "agency_lines", "link"],
-  // Operations report to internal addresses: {summary} is the section summaries; the signature follows the body.
-  REPORT: ["date", "summary"],
+  // Operations report to internal addresses: the body is the intro; section summaries and the signature follow it.
+  REPORT: ["date"],
+  // The section summaries below the report intro: a `[[section]] … [[/section]]` block per section,
+  // kept only when it is chosen; each `{…_lines}` is built from that section's line template.
+  REPORT_SUMMARY: [
+    "requested_period",
+    "requested_lines",
+    "remaining_lines",
+    "collected_period",
+    "collected_lines",
+    "transferred_period",
+    "transferred_lines",
+    "deduction_open",
+    "disputed",
+    "failed",
+    "waiting",
+    "waiting_days",
+  ],
+  // One line per agency and currency; {amount} without the currency, as in BATCH_LINE.
+  REPORT_LINE_REQUESTED: ["agency", "currency", "count", "amount"],
+  REPORT_LINE_REMAINING: ["agency", "currency", "count", "amount"],
+  // One line per currency, after the remaining-deposit lines.
+  REPORT_LINE_TOTAL: ["currency", "count", "amount"],
+  REPORT_LINE_COLLECTED: ["agency", "currency", "count", "amount", "deductions", "write_off"],
+  // One line per transfer.
+  REPORT_LINE_TRANSFERRED: ["agency", "from_bl", "to_bl", "amount", "currency", "date"],
   // Optional weekly email to our own team; never sent to agencies.
   WEEKLY_SUMMARY: ["date", "balance_lines", "waiting_days", "waiting_count", "waiting_lines", "unprocessed_count", "overdue_count", "link"],
 };
@@ -64,8 +94,23 @@ export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   waiting_days: "30",
   waiting_count: "2",
   waiting_lines: "• MEDU1234567 · Örnek Denizcilik · 42 iş günü · 3.000,00 USD\n• MEDU7654321 · Deniz Hatları · 35 iş günü · 1.500,00 USD",
-  summary: "Kalan depozitolar\n• Örnek Denizcilik · USD: 12 B/L, 45.250,00 USD\n\nSorunlar\n• Kesintisi açık: 1 B/L",
   unprocessed_count: "3",
+  agency: "Örnek Denizcilik",
+  deductions: "700,00",
+  write_off: "0,00",
+  from_bl: "MEDU1234567",
+  to_bl: "MEDU7654321",
+  requested_period: "16.10.2026",
+  requested_lines: "• Örnek Denizcilik · USD: 3 talep, depozito 7.500,00 USD",
+  remaining_lines: "• Örnek Denizcilik · USD: 12 B/L, 45.250,00 USD\n• Toplam USD: 12 B/L, 45.250,00 USD",
+  collected_period: "01.10.2026 – 16.10.2026",
+  collected_lines: "• Örnek Denizcilik · USD: 2 B/L, tahsil 5.300,00 USD, kesinti 700,00 USD, silinen 0,00 USD",
+  transferred_period: "16.10.2026",
+  transferred_lines: "• Örnek Denizcilik: B/L MEDU1234567 → B/L MEDU7654321, 3.000,00 USD (16.10.2026)",
+  deduction_open: "1",
+  disputed: "0",
+  failed: "0",
+  waiting: "2",
   overdue_count: "1",
 };
 

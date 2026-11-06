@@ -2,7 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { istanbulToday, type IsoDate } from "@/domain/business-days";
-import { renderTemplate } from "@/domain/email-templates";
+import { renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import { refusedRecipients, REPORT_SECTIONS, type ReportSection } from "@/domain/report-email";
 import { t } from "@/i18n";
 import { toCsv, type Grid } from "@/lib/csv";
@@ -40,9 +40,17 @@ export type ReportFilters = {
 
 export type ReportRequest = { sections: ReportSection[]; filters: ReportFilters };
 
-type BuiltSection = { section: ReportSection; title: string; summary: string[]; grid: Grid; fileName: string };
+/** `values`: the REPORT_SUMMARY placeholders this section fills. */
+type BuiltSection = { section: ReportSection; values: Record<string, string>; grid: Grid; fileName: string };
 
-const money = (minor: number, currency: string) => `${formatAmount(minor)} ${currency}`;
+const count = (n: number) => n.toLocaleString("tr-TR");
+
+/** One line per item from a line template; a section with none says so. */
+function lines(db: DbOrTx, key: EmailTemplateKey, items: Record<string, string>[]): string {
+  if (items.length === 0) return t("reports.email.empty");
+  const template = getEmailTemplate(db, key).body;
+  return items.map((values) => renderTemplate(template, values)).join("\n");
+}
 const date = (value: string | null) => (value ? formatBusinessDate(value) : "");
 
 type Group = { agencyName: string; currency: string; count: number; amounts: number[] };
@@ -95,10 +103,14 @@ function requestedSection(db: DbOrTx, all: Position[], filters: ReportFilters): 
     .map((r) => ({ ...r, agencyName: r.bl.agencyName, currency: r.bl.currency }))
     .sort((a, b) => a.requestedOn!.localeCompare(b.requestedOn!) || a.agencyName.localeCompare(b.agencyName, "tr") || a.bl.blNo.localeCompare(b.bl.blNo));
   return {
-    title: `${t("reports.email.sections.REQUESTED")} (${periodLabel(from, to)})`,
-    summary: groupBy(items, (r) => [r.bl.depositMinor]).map((g) =>
-      t("reports.email.lines.requested", { agency: g.agencyName, currency: g.currency, count: g.count, amount: money(g.amounts[0], g.currency) }),
-    ),
+    values: {
+      requested_period: periodLabel(from, to),
+      requested_lines: lines(
+        db,
+        "REPORT_LINE_REQUESTED",
+        groupBy(items, (r) => [r.bl.depositMinor]).map((g) => ({ agency: g.agencyName, currency: g.currency, count: count(g.count), amount: formatAmount(g.amounts[0]) })),
+      ),
+    },
     grid: {
       headers: [t("bls.blNo"), t("bls.agency"), t("reports.email.columns.request"), t("reports.email.columns.requestedOn"), t("bls.status"), t("bls.deposit"), t("bls.currency"), t("reports.email.columns.outstanding"), t("bls.lastReply")],
       rows: items.map(({ bl, attemptNo, requestedOn }) => [
@@ -127,10 +139,14 @@ function transferredSection(db: DbOrTx, all: Position[], filters: ReportFilters)
     .map((tr) => ({ ...tr, agencyName: scoped.get(tr.sourceBlId)!.agencyName }))
     .sort((a, b) => a.transferredOn.localeCompare(b.transferredOn) || a.sourceBlNo.localeCompare(b.sourceBlNo));
   return {
-    title: `${t("reports.email.sections.TRANSFERRED")} (${periodLabel(from, to)})`,
-    summary: items.map((tr) =>
-      t("reports.email.lines.transferred", { from: tr.sourceBlNo, to: tr.targetBlNo, agency: tr.agencyName, amount: money(tr.amountMinor, tr.currency), date: formatBusinessDate(tr.transferredOn) }),
-    ),
+    values: {
+      transferred_period: periodLabel(from, to),
+      transferred_lines: lines(
+        db,
+        "REPORT_LINE_TRANSFERRED",
+        items.map((tr) => ({ agency: tr.agencyName, from_bl: tr.sourceBlNo, to_bl: tr.targetBlNo, amount: formatAmount(tr.amountMinor), currency: tr.currency, date: formatBusinessDate(tr.transferredOn) })),
+      ),
+    },
     grid: {
       headers: [t("reports.email.columns.transferredOn"), t("bls.agency"), t("reports.email.columns.fromBl"), t("reports.email.columns.toBl"), t("reports.email.columns.amount"), t("bls.currency"), t("reports.email.columns.by")],
       rows: items.map((tr) => [formatBusinessDate(tr.transferredOn), tr.agencyName, tr.sourceBlNo, tr.targetBlNo, formatAmount(tr.amountMinor), tr.currency, tr.byName ?? ""]),
@@ -138,20 +154,22 @@ function transferredSection(db: DbOrTx, all: Position[], filters: ReportFilters)
   };
 }
 
-function remainingSection(open: Position[]): Omit<BuiltSection, "section" | "fileName"> {
+function remainingSection(db: DbOrTx, open: Position[]): Omit<BuiltSection, "section" | "fileName"> {
   const items = open.filter((p) => p.outstandingMinor > 0);
   const byCurrency = groupBy(
     items.map((p) => ({ ...p, agencyName: "" })),
     (p) => [p.outstandingMinor],
   );
   return {
-    title: t("reports.email.sections.REMAINING"),
-    summary: [
-      ...groupBy(items, (p) => [p.outstandingMinor]).map((g) =>
-        t("reports.email.lines.remaining", { agency: g.agencyName, currency: g.currency, count: g.count, amount: money(g.amounts[0], g.currency) }),
-      ),
-      ...byCurrency.map((g) => t("reports.email.lines.total", { currency: g.currency, count: g.count, amount: money(g.amounts[0], g.currency) })),
-    ],
+    values: {
+      remaining_lines:
+        items.length === 0
+          ? t("reports.email.empty")
+          : [
+              lines(db, "REPORT_LINE_REMAINING", groupBy(items, (p) => [p.outstandingMinor]).map((g) => ({ agency: g.agencyName, currency: g.currency, count: count(g.count), amount: formatAmount(g.amounts[0]) }))),
+              lines(db, "REPORT_LINE_TOTAL", byCurrency.map((g) => ({ currency: g.currency, count: count(g.count), amount: formatAmount(g.amounts[0]) }))),
+            ].join("\n"),
+    },
     grid: {
       headers: [t("bls.blNo"), t("bls.agency"), t("bls.status"), t("bls.paidAt"), t("bls.deposit"), t("bls.currency"), t("reports.email.columns.outstanding"), t("bls.daysWaiting")],
       rows: items.map((p) => [
@@ -205,17 +223,21 @@ function collectedSection(db: DbOrTx, all: Position[], filters: ReportFilters): 
     .map((id) => ({ ...byId.get(id)!, ...collected.get(id)!, ...(deductions.get(id) ?? { deductionMinor: 0, writeOffMinor: 0 }) }))
     .sort((a, b) => a.lastDate.localeCompare(b.lastDate) || a.blNo.localeCompare(b.blNo));
   return {
-    title: t("reports.email.collectedTitle", { from: formatBusinessDate(from), to: formatBusinessDate(to) }),
-    summary: groupBy(items, (i) => [i.amountMinor, i.deductionMinor, i.writeOffMinor]).map((g) =>
-      t("reports.email.lines.collected", {
-        agency: g.agencyName,
-        currency: g.currency,
-        count: g.count,
-        amount: money(g.amounts[0], g.currency),
-        deductions: money(g.amounts[1], g.currency),
-        writeOff: money(g.amounts[2], g.currency),
-      }),
-    ),
+    values: {
+      collected_period: periodLabel(from, to),
+      collected_lines: lines(
+        db,
+        "REPORT_LINE_COLLECTED",
+        groupBy(items, (i) => [i.amountMinor, i.deductionMinor, i.writeOffMinor]).map((g) => ({
+          agency: g.agencyName,
+          currency: g.currency,
+          count: count(g.count),
+          amount: formatAmount(g.amounts[0]),
+          deductions: formatAmount(g.amounts[1]),
+          write_off: formatAmount(g.amounts[2]),
+        })),
+      ),
+    },
     grid: {
       headers: [t("bls.blNo"), t("bls.agency"), t("bls.currency"), t("bls.deposit"), t("reports.email.columns.collected"), t("reports.email.columns.refundDate"), t("reports.email.columns.deductions"), t("reports.email.columns.writeOff")],
       rows: items.map((i) => [i.blNo, i.agencyName, i.currency, formatAmount(i.depositMinor), formatAmount(i.amountMinor), formatBusinessDate(i.lastDate), formatAmount(i.deductionMinor), formatAmount(i.writeOffMinor)]),
@@ -223,14 +245,12 @@ function collectedSection(db: DbOrTx, all: Position[], filters: ReportFilters): 
   };
 }
 
-const PROBLEM_KINDS = ["DEDUCTION_OPEN", "DISPUTED", "FAILED", "WAITING"] as const;
-
 /** Open and disputed deductions, failed sends, and B/Ls waiting beyond the last aging bucket. */
 function problemsSection(db: DbOrTx, open: Position[]): Omit<BuiltSection, "section" | "fileName"> {
   const edges = getSetting("durations.agingBucketEdges", {}, db);
   const longest = edges[edges.length - 1];
   const scoped = new Map(open.map((p) => [p.id, p]));
-  type Row = { kind: (typeof PROBLEM_KINDS)[number]; bl: Position; amountMinor: number; detail: string };
+  type Row = { kind: "DEDUCTION_OPEN" | "DISPUTED" | "FAILED" | "WAITING"; bl: Position; amountMinor: number; detail: string };
   const rows: Row[] = [
     ...open
       .filter((p) => p.status === "DEDUCTION_OPEN" || p.status === "DISPUTED")
@@ -243,10 +263,9 @@ function problemsSection(db: DbOrTx, open: Position[]): Omit<BuiltSection, "sect
       .sort((a, b) => (b.daysWaiting ?? 0) - (a.daysWaiting ?? 0))
       .map((p): Row => ({ kind: "WAITING", bl: p, amountMinor: p.outstandingMinor, detail: t("reports.email.waitingDays", { days: p.daysWaiting ?? 0 }) })),
   ];
-  const count = (kind: Row["kind"]) => rows.filter((r) => r.kind === kind).length;
+  const of = (kind: Row["kind"]) => count(rows.filter((r) => r.kind === kind).length);
   return {
-    title: t("reports.email.sections.PROBLEMS"),
-    summary: PROBLEM_KINDS.map((kind) => t(`reports.email.lines.problems.${kind}`, { count: count(kind), days: longest })),
+    values: { deduction_open: of("DEDUCTION_OPEN"), disputed: of("DISPUTED"), failed: of("FAILED"), waiting: of("WAITING"), waiting_days: count(longest) },
     grid: {
       headers: [t("reports.email.columns.problem"), t("bls.blNo"), t("bls.agency"), t("bls.currency"), t("reports.email.columns.amount"), t("reports.email.columns.detail")],
       rows: rows.map((r) => [t(`reports.email.problemKinds.${r.kind}`, { days: longest }), r.bl.blNo, r.bl.agencyName, r.bl.currency, formatAmount(r.amountMinor), r.detail]),
@@ -267,33 +286,32 @@ function buildSections(db: DbOrTx, actor: AuthUser, request: ReportRequest, now:
   const today = istanbulToday(now);
   return REPORT_SECTIONS.filter((s) => sections.includes(s)).map((section) => {
     const built =
-      section === "REQUESTED" ? requestedSection(db, all, filters) : section === "REMAINING" ? remainingSection(open) : section === "COLLECTED" ? collectedSection(db, all, filters) : section === "TRANSFERRED" ? transferredSection(db, all, filters) : problemsSection(db, open);
-    return { ...built, section, summary: built.summary.length > 0 ? built.summary : [t("reports.email.empty")], fileName: `${t(`reports.email.sections.${section}`)} ${today}.csv` };
+      section === "REQUESTED" ? requestedSection(db, all, filters) : section === "REMAINING" ? remainingSection(db, open) : section === "COLLECTED" ? collectedSection(db, all, filters) : section === "TRANSFERRED" ? transferredSection(db, all, filters) : problemsSection(db, open);
+    return { ...built, section, fileName: `${t(`reports.email.sections.${section}`)} ${today}.csv` };
   });
 }
 
-/** Section summaries as plain text: a title line, then one line per agency and currency. */
-function summaryText(sections: BuiltSection[]): string {
-  return sections.map((s) => [s.title, ...s.summary.map((line) => `• ${line}`)].join("\n")).join("\n\n");
+/** Section summaries from the REPORT_SUMMARY template: the block of each chosen section is kept. */
+function summaryText(db: DbOrTx, sections: BuiltSection[]): string {
+  const values = Object.assign({}, ...sections.map((s) => ({ ...s.values, [`${s.section.toLowerCase()}_section`]: "1" })));
+  return renderTemplate(getEmailTemplate(db, "REPORT_SUMMARY").body, values).trim();
 }
 
-/** The body as edited in the preview, `{summary}` filled from the figures of now, then the signature. */
-function composeBody(db: DbOrTx, body: string, summary: string): string {
+function composeBody(db: DbOrTx, intro: string, summary: string): string {
   const signature = getSetting("email.signature", {}, db).trim();
-  return [renderTemplate(body, { summary }).trim(), signature].filter((part) => part !== "").join("\n\n");
+  return [intro.trim(), summary, signature].filter((part) => part !== "").join("\n\n");
 }
 
 export type ReportDraft = {
   to: string[];
   subject: string;
-  /** The REPORT template with `{date}` filled; `{summary}` is filled at send time. */
-  body: string;
-  /** What `{summary}` will say; not editable. */
+  intro: string;
+  /** Added below the intro; not editable. */
   summary: string;
   attachments: { section: ReportSection; fileName: string; rows: number }[];
 };
 
-/** The preview: default recipients, subject and body from the template, and what the sections will say. */
+/** The preview: default recipients, subject and intro from the template, and what the sections will say. */
 export function reportEmailDraft(db: DbOrTx, actor: AuthUser, request: ReportRequest, now: Date = new Date()): ReportDraft {
   authorize(actor, "report.sendEmail");
   const sections = buildSections(db, actor, request, now);
@@ -302,14 +320,14 @@ export function reportEmailDraft(db: DbOrTx, actor: AuthUser, request: ReportReq
   return {
     to: getSetting("reports.defaultRecipients", {}, db),
     subject: renderTemplate(template.subject, values),
-    body: renderTemplate(template.body, values),
-    summary: summaryText(sections),
+    intro: renderTemplate(template.body, values),
+    summary: summaryText(db, sections),
     attachments: sections.map((s) => ({ section: s.section, fileName: s.fileName, rows: s.grid.rows.length })),
   };
 }
 
 /** `attachSections`: the sections whose list goes along as a CSV (the preview's ticked attachments). */
-export type QueueReportInput = ReportRequest & { to: string[]; cc: string[]; subject: string; body: string; attachSections: ReportSection[] };
+export type QueueReportInput = ReportRequest & { to: string[]; cc: string[]; subject: string; intro: string; attachSections: ReportSection[] };
 
 /** Rule: internal recipients only, and never an address an agency receives requests at. */
 function checkRecipients(db: DbOrTx, addresses: string[], fromAddress: string): void {
@@ -348,7 +366,7 @@ export function queueReportEmail(db: Db, actor: AuthUser, input: QueueReportInpu
         to: input.to,
         cc: input.cc,
         subject: input.subject,
-        bodyText: composeBody(tx, input.body, summaryText(sections)),
+        bodyText: composeBody(tx, input.intro, summaryText(tx, sections)),
         sendStatus: "QUEUED",
         queuedBy: actor.id,
         roleUsed,

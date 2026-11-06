@@ -153,7 +153,31 @@
     },
     "REPORT": {
       "subject": "Depozito durum raporu – {date}",
-      "body": "Merhaba,\n\n{date} itibarıyla depozito durumunun özeti aşağıdadır. Ayrıntılı listeler ekteki Excel dosyalarında yer almaktadır.\n\n{summary}"
+      "body": "Merhaba,\n\n{date} itibarıyla depozito durumunun özeti aşağıdadır. Ayrıntılı listeler ekteki Excel dosyalarında yer almaktadır."
+    },
+    "REPORT_SUMMARY": {
+      "subject": "",
+      "body": "[[requested]]\nTalep edilen iadeler ({requested_period})\n{requested_lines}\n\n[[/requested]]\n[[remaining]]\nKalan depozitolar\n{remaining_lines}\n\n[[/remaining]]\n[[collected]]\nTahsil edilenler ({collected_period})\n{collected_lines}\n\n[[/collected]]\n[[transferred]]\nAktarılan depozitolar ({transferred_period})\n{transferred_lines}\n\n[[/transferred]]\n[[problems]]\nSorunlar\n• Kesintisi açık: {deduction_open} B/L\n• İtirazlı: {disputed} B/L\n• Gönderilemeyen talep: {failed}\n• {waiting_days} iş gününden uzun bekleyen: {waiting} B/L\n[[/problems]]"
+    },
+    "REPORT_LINE_REQUESTED": {
+      "subject": "",
+      "body": "• {agency} · {currency}: {count} talep, depozito {amount} {currency}"
+    },
+    "REPORT_LINE_REMAINING": {
+      "subject": "",
+      "body": "• {agency} · {currency}: {count} B/L, {amount} {currency}"
+    },
+    "REPORT_LINE_TOTAL": {
+      "subject": "",
+      "body": "• Toplam {currency}: {count} B/L, {amount} {currency}"
+    },
+    "REPORT_LINE_COLLECTED": {
+      "subject": "",
+      "body": "• {agency} · {currency}: {count} B/L, tahsil {amount} {currency}, kesinti {deductions} {currency}, silinen {write_off} {currency}"
+    },
+    "REPORT_LINE_TRANSFERRED": {
+      "subject": "",
+      "body": "• {agency}: B/L {from_bl} → B/L {to_bl}, {amount} {currency} ({date})"
     }
   }
 }

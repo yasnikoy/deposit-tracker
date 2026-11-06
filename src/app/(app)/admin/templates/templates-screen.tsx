@@ -12,7 +12,12 @@ import { t } from "@/i18n";
 import type { EmailTemplate } from "@/server/email/templates";
 import { updateEmailTemplateAction } from "../settings/actions";
 
+/** Line and summary parts: they have no subject of their own. */
+const NO_SUBJECT = new Set<EmailTemplateKey>(["BATCH_LINE", "REPLY_QUOTE", "REPORT_SUMMARY", "REPORT_LINE_REQUESTED", "REPORT_LINE_REMAINING", "REPORT_LINE_TOTAL", "REPORT_LINE_COLLECTED", "REPORT_LINE_TRANSFERRED"]);
+
 function sampleValues(key: EmailTemplateKey, signature: string, lineTemplate: string): Record<string, string> {
+  // The preview shows every report section.
+  if (key === "REPORT_SUMMARY") return { ...SAMPLE, requested_section: "1", remaining_section: "1", collected_section: "1", transferred_section: "1", problems_section: "1" };
   if (key !== "BATCH") return { ...SAMPLE, signature };
   const lines = [SAMPLE, { ...SAMPLE, bl_no: "MEDU7654321", containers: "TGHU8765432", amount: "1.500,00" }];
   // A statement line shows the unexplained deduction as its amount.
@@ -64,7 +69,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
       </CardHeader>
       <CardContent className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-3">
-          {key !== "BATCH_LINE" && key !== "REPLY_QUOTE" && (
+          {!NO_SUBJECT.has(key) && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`${key}-subject`}>{t("templates.subject")}</Label>
               <Input id={`${key}-subject`} className="h-8" value={subject} onChange={(event) => setSubject(event.target.value)} />
@@ -74,7 +79,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
             <Label htmlFor={`${key}-body`}>{t("templates.body")}</Label>
             <textarea
               id={`${key}-body`}
-              rows={key === "BATCH_LINE" ? 2 : key === "REPLY_QUOTE" ? 9 : 12}
+              rows={key === "BATCH_LINE" || key.startsWith("REPORT_LINE_") ? 2 : key === "REPLY_QUOTE" ? 9 : 12}
               className="border-input bg-background rounded-md border px-2 py-1 font-mono text-xs"
               value={body}
               onChange={(event) => setBody(event.target.value)}
@@ -84,6 +89,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
             {t("templates.placeholders")} {EMAIL_TEMPLATE_PLACEHOLDERS[key].map((p) => `{${p}}`).join(" ")}
           </p>
           {key === "BATCH" && <p className="text-muted-foreground text-xs">{t("templates.sectionsHint")}</p>}
+          {key === "REPORT_SUMMARY" && <p className="text-muted-foreground text-xs">{t("templates.reportSectionsHint")}</p>}
           {key === "REPLY_QUOTE" && <p className="text-muted-foreground text-xs">{t("templates.quoteHint")}</p>}
           <div className="flex items-center gap-2">
             <Input
@@ -101,7 +107,7 @@ function TemplateCard({ template, signature, lineTemplate }: { template: EmailTe
         <div className="flex flex-col gap-1.5">
           <span className="text-muted-foreground text-xs">{t("templates.preview")}</span>
           <div className="bg-muted/40 rounded-md border p-3 text-sm whitespace-pre-wrap" data-testid={`template-preview-${key}`}>
-            {key !== "BATCH_LINE" && key !== "REPLY_QUOTE" && <div className="mb-2 font-medium">{renderTemplate(subject, values)}</div>}
+            {!NO_SUBJECT.has(key) && <div className="mb-2 font-medium">{renderTemplate(subject, values)}</div>}
             {renderTemplate(body, values)}
           </div>
         </div>

@@ -30,6 +30,6 @@ export const queueReportSchema = reportRequestSchema.extend({
   to: addresses.min(1, msg("reports.email.errors.recipients")),
   cc: addresses,
   subject: z.string().trim().min(1).max(500),
-  body: z.string().max(20_000),
+  intro: z.string().max(20_000),
   attachSections: z.array(z.enum(REPORT_SECTIONS)).max(REPORT_SECTIONS.length),
 });

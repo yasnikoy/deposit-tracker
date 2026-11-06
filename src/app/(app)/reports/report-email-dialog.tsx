@@ -56,7 +56,7 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
   const [recipients, setRecipients] = useState("");
   const [cc, setCc] = useState("");
   const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+  const [intro, setIntro] = useState("");
   // Sections whose table goes along as a CSV; all of them until unticked in the preview.
   const [attached, setAttached] = useState<ReportSection[]>([]);
   const [busy, setBusy] = useState(false);
@@ -89,14 +89,14 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
     setDraft(result.data);
     setRecipients(result.data.to.join(", "));
     setSubject(result.data.subject);
-    setBody(result.data.body);
+    setIntro(result.data.intro);
     setAttached(result.data.attachments.map((a) => a.section));
   };
 
   const send = async () => {
     setBusy(true);
     setError(null);
-    const result = await queueReportAction({ ...request(), to: toList(recipients), cc: toList(cc), subject, body, attachSections: attached });
+    const result = await queueReportAction({ ...request(), to: toList(recipients), cc: toList(cc), subject, intro, attachSections: attached });
     setBusy(false);
     if (!result.ok) {
       const field = result.fieldErrors ? Object.values(result.fieldErrors)[0] : undefined;
@@ -200,8 +200,8 @@ function ReportEmailDialog({ agencies, currencies, period, onClose }: Props & { 
               </div>
             ))}
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="report-body">{t("reports.email.body")}</Label>
-              <textarea id="report-body" rows={8} className="border-input bg-background rounded-md border px-2 py-1 text-sm" value={body} onChange={(e) => setBody(e.target.value)} />
+              <Label htmlFor="report-intro">{t("reports.email.intro")}</Label>
+              <textarea id="report-intro" rows={5} className="border-input bg-background rounded-md border px-2 py-1 text-sm" value={intro} onChange={(e) => setIntro(e.target.value)} />
             </div>
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">{t("reports.email.summary")}</span>

@@ -1149,6 +1149,7 @@
     "body": "Metin",
     "placeholders": "Kullanılabilecek alanlar:",
     "sectionsHint": "[[refund]] … [[/refund]] ve [[statement]] … [[/statement]] blokları, bölüm boşsa e-postadan çıkarılır.",
+    "reportSectionsHint": "[[requested]], [[remaining]], [[collected]], [[transferred]] ve [[problems]] blokları, o bölüm raporda seçilmediyse çıkarılır. Bölümlerin sırası bu şablondaki sıradır.",
     "preview": "Önizleme (örnek değerlerle)",
     "save": "Şablonu kaydet",
     "saved": "Şablon kaydedildi.",
@@ -1161,6 +1162,12 @@
       "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası",
       "DEDUCTION_STATEMENT": "Kesinti dökümü talebi",
       "REPORT": "Rapor e-postası",
+      "REPORT_SUMMARY": "Rapor özeti",
+      "REPORT_LINE_REQUESTED": "Rapor satırı: talep edilen iadeler",
+      "REPORT_LINE_REMAINING": "Rapor satırı: kalan depozitolar",
+      "REPORT_LINE_TOTAL": "Rapor satırı: kalan depozito toplamı",
+      "REPORT_LINE_COLLECTED": "Rapor satırı: tahsil edilenler",
+      "REPORT_LINE_TRANSFERRED": "Rapor satırı: aktarılan depozitolar",
       "WEEKLY_SUMMARY": "Haftalık özet e-postası"
     },
     "help": {
@@ -1171,7 +1178,13 @@
       "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
       "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur.",
       "WEEKLY_SUMMARY": "Ekibe giden iç e-posta; acentelere gönderilmez. {balance_lines} her para birimi için bir satır, {waiting_lines} en uzun bekleyen B/L'ler için birer satırdır (yaşlandırmanın son aralığından uzun bekleyenler; {waiting_days} o sınırdır).",
-      "REPORT": "Operasyonun Raporlar ekranından şirket içi adreslere gönderdiği durum raporu; acentelere gönderilmez. Metin, önizlemede değiştirilebilen giriş bölümüdür; altına seçilen bölümlerin özet tabloları ve imza eklenir, tam listeler CSV eki olarak gider.",
+      "REPORT": "Operasyonun Raporlar ekranından şirket içi adreslere gönderdiği durum raporu; acentelere gönderilmez. Metin, önizlemede değiştirilebilen giriş bölümüdür; altına seçilen bölümlerin özeti (Rapor özeti şablonu) ve imza eklenir, tam listeler CSV eki olarak gider.",
+      "REPORT_SUMMARY": "Rapor e-postasında giriş metninin altına gelen özet; konu kullanılmaz. {…_lines} alanları, bölümün satır şablonuyla her acente ve para birimi için bir satır olarak doldurulur; kayıt yoksa \"Kayıt yok.\" yazılır. {waiting_days}, yaşlandırmanın son aralık sınırıdır.",
+      "REPORT_LINE_REQUESTED": "Rapor özetinde, dönemde talep gönderilen her acente ve para birimi için bir satır; konu kullanılmaz. {amount} para birimi olmadan yazılır.",
+      "REPORT_LINE_REMAINING": "Rapor özetinde, açık bakiyesi olan her acente ve para birimi için bir satır; konu kullanılmaz.",
+      "REPORT_LINE_TOTAL": "Rapor özetinde, kalan depozito satırlarının altında her para birimi için bir toplam satırı; konu kullanılmaz.",
+      "REPORT_LINE_COLLECTED": "Rapor özetinde, dönemde tahsilat olan her acente ve para birimi için bir satır; konu kullanılmaz.",
+      "REPORT_LINE_TRANSFERRED": "Rapor özetinde her depozito aktarımı için bir satır; konu kullanılmaz.",
       "DEDUCTION_STATEMENT": "Açıklanmayan bir kesinti için acenteden döküm istenir. Takip talepleri aynı metinle, önceki döküm talebine yanıt olarak gider (konu \"Re: …\"). Toplu e-postada bu B/L'ler [[statement]] bölümünde yer alır; satırdaki {amount} kesinti tutarıdır."
     },
     "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
@@ -1575,7 +1588,6 @@
         "TRANSFERRED": "Acentenin iade yerine başka bir B/L'ye saydığı depozitolar (aktarım tarihine göre).",
         "PROBLEMS": "Açık ve itirazlı kesintiler, gönderilemeyen talepler, en uzun bekleyen B/L'ler."
       },
-      "collectedTitle": "Tahsil edilenler ({from} – {to})",
       "agencies": "Acenteler",
       "agenciesHint": "Hiçbiri seçilmezse tüm acenteler.",
       "currency": "Para birimi",
@@ -1591,8 +1603,8 @@
       "recipients": "Kime",
       "cc": "Bilgi (CC)",
       "subject": "Konu",
-      "body": "Metin",
-      "summary": "Özet (metindeki {summary} yerine gelir)",
+      "intro": "Giriş metni",
+      "summary": "Özet (giriş metninin altına eklenir)",
       "attachments": "Ekler",
       "rows": "{count} satır",
       "sendNow": "Gönder",
@@ -1615,19 +1627,6 @@
         "problem": "Sorun",
         "amount": "Tutar",
         "detail": "Ayrıntı"
-      },
-      "lines": {
-        "requested": "{agency} · {currency}: {count} talep, depozito {amount}",
-        "transferred": "{agency}: B/L {from} → B/L {to}, {amount} ({date})",
-        "remaining": "{agency} · {currency}: {count} B/L, {amount}",
-        "total": "Toplam {currency}: {count} B/L, {amount}",
-        "collected": "{agency} · {currency}: {count} B/L, tahsil {amount}, kesinti {deductions}, silinen {writeOff}",
-        "problems": {
-          "DEDUCTION_OPEN": "Kesintisi açık: {count} B/L",
-          "DISPUTED": "İtirazlı: {count} B/L",
-          "FAILED": "Gönderilemeyen talep: {count}",
-          "WAITING": "{days} iş gününden uzun bekleyen: {count} B/L"
-        }
       },
       "problemKinds": {
         "DEDUCTION_OPEN": "Kesinti açık",
