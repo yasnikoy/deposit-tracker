@@ -295,7 +295,7 @@ test("a payment names its customer (a new one by name), file number and descript
 
   // The B/L step shows what it takes over, read-only.
   await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
-  await expect(page.getByText("Deniz İthalat", { exact: true })).toBeVisible();
+  await expect(page.getByText("Deniz İthalat", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("26-77777", { exact: true })).toBeVisible();
   await page.getByLabel(tr.bls.blNo).fill("233333333");
   await page.getByRole("button", { name: tr.bls.createOne }).click();
