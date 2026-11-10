@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { blBalance } from "@/domain/balances";
-import type { StoredBlStatus } from "@/domain/bl-lifecycle";
+import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar, type IsoDate } from "@/domain/business-days";
 import { dueState, statementDueState, type DueList, type DueState, type RequestDurations, type StatementDurations } from "@/domain/due-requests";
 import { requestRecipients, type RequestChannel } from "@/domain/agency";
@@ -422,6 +422,63 @@ export function updateBlOverrides(
         before,
         after: input.overrides,
         reason: input.reason,
+      },
+      now,
+    );
+  });
+}
+
+/**
+ * A refund request made outside the app (by phone, from another mailbox): it counts like a
+ * sent one (attempt number, status, follow-up clock) but carries no email. Not undoable,
+ * like a sent request (rule 17).
+ */
+export function recordOutsideRequest(
+  db: Db,
+  actor: AuthUser,
+  input: { blId: number; requestedOn: IsoDate; note: string | null },
+  now: Date = new Date(),
+): void {
+  const roleUsed = authorize(actor, "request.recordOutside");
+  db.transaction((tx) => {
+    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get();
+    if (!bl || bl.voidedAt) throw new DomainError("errors.notFound");
+    let status: StoredBlStatus;
+    try {
+      status = nextStatus(bl.status as StoredBlStatus, "REFUND_REQUEST_SENT");
+    } catch (error) {
+      if (error instanceof InvalidTransitionError) throw new DomainError("requests.errors.notDue");
+      throw error;
+    }
+    if (input.requestedOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
+    if (input.requestedOn < bl.paidAt) throw new DomainError("requests.errors.beforePayment");
+    const stats = requestStats(tx, [bl.id], "REFUND").get(bl.id) ?? { attempts: 0, lastRequestOn: null, sending: false };
+    if (stats.sending) throw new DomainError("requests.errors.notDue");
+    if (stats.lastRequestOn && input.requestedOn < stats.lastRequestOn) throw new DomainError("requests.errors.beforeLastRequest");
+    // Rule 14: no request is recorded without the B/L's uploaded form, nor while another user drafts it.
+    if (getSetting("rules.blockSendingWithoutForm", {}, tx) && !currentBlForm(tx, bl.id)) {
+      throw new DomainError("requests.errors.formMissing", { bl: bl.blNo });
+    }
+    const locker = activeLockers(tx, actor, now).get(bl.id);
+    if (locker) throw new DomainError("requests.errors.locked", { bl: bl.blNo, user: locker });
+
+    const at = now.toISOString();
+    const attemptNo = stats.attempts + 1;
+    tx.insert(requests)
+      .values({ blId: bl.id, type: "REFUND", channel: "EMAIL", attemptNo, sendStatus: "SENT", requestedOn: input.requestedOn, sentAt: at, createdBy: actor.id, createdAt: at })
+      .run();
+    if (status !== bl.status) tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, bl.id)).run();
+    writeAudit(
+      tx,
+      {
+        actorUserId: actor.id,
+        roleUsed,
+        action: "request.recordOutside",
+        entityType: "bill_of_lading",
+        entityId: bl.id,
+        before: { status: bl.status },
+        after: { status, attemptNo, requestedOn: input.requestedOn },
+        reason: input.note,
       },
       now,
     );

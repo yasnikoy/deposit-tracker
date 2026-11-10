@@ -18,7 +18,7 @@ import { linkMailboxMessageAction, recordReplyWithoutEmailAction, searchMailboxA
 import { EmailDialog } from "../../replies/email-dialog";
 import type { ReplyTypeOption } from "../../replies/replies-screen";
 import type { DeductionTypeOption } from "../deduction-dialog";
-import { prepareResendAction, type ResendDraft } from "../../requests/actions";
+import { prepareResendAction, recordOutsideRequestAction, type ResendDraft } from "../../requests/actions";
 import { ResendDialog } from "../../requests/email-preview-dialog";
 
 /** The B/L's email thread and recorded replies, with the two ways to add one by hand. */
@@ -30,6 +30,7 @@ export function ReplySection({
   today,
   canView,
   canRecord,
+  canRecordRequest,
   canLink,
   canRecordDeduction,
   canResend,
@@ -41,12 +42,13 @@ export function ReplySection({
   today: string;
   canView: boolean;
   canRecord: boolean;
+  canRecordRequest: boolean;
   canLink: boolean;
   canRecordDeduction: boolean;
   canResend: boolean;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"record" | "link" | null>(null);
+  const [dialog, setDialog] = useState<"record" | "request" | "link" | null>(null);
   // An email opened in place, so the user stays on the B/L.
   const [openEmail, setOpenEmail] = useState<number | null>(null);
   const closeEmail = useCallback(() => setOpenEmail(null), []);
@@ -63,11 +65,16 @@ export function ReplySection({
 
   return (
     <div className="flex flex-col gap-3">
-      {(canRecord || canLink) && (
+      {(canRecord || canRecordRequest || canLink) && (
         <div className="flex flex-wrap gap-2">
           {canRecord && (
             <Button id="record-reply" size="sm" variant="outline" onClick={() => setDialog("record")}>
               {t("blReplies.record")}
+            </Button>
+          )}
+          {canRecordRequest && (
+            <Button size="sm" variant="outline" onClick={() => setDialog("request")}>
+              {t("blReplies.recordRequest")}
             </Button>
           )}
           {canLink && (
@@ -156,6 +163,7 @@ export function ReplySection({
       </div>
 
       {dialog === "record" && <RecordReplyDialog blId={blId} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
+      {dialog === "request" && <RecordRequestDialog blId={blId} today={today} onCancel={() => setDialog(null)} onDone={done} />}
       {dialog === "link" && <MailboxLinkDialog blId={blId} onCancel={() => setDialog(null)} onDone={done} />}
       {resend && (
         <ResendDialog
@@ -258,6 +266,67 @@ function RecordReplyDialog({
             </Button>
           </DialogFooter>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** A refund request made outside the app (by phone, another mailbox); it counts like a sent one. */
+function RecordRequestDialog({ blId, today, onCancel, onDone }: { blId: number; today: string; onCancel: () => void; onDone: () => void }) {
+  const [requestedOn, setRequestedOn] = useState(today);
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    const result = await recordOutsideRequestAction({ blId, requestedOn, note });
+    setBusy(false);
+    if (!result.ok) return setError(t(result.error, result.params));
+    toast.success(t("blReplies.requestRecorded"));
+    onDone();
+  };
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent>
+        <form onSubmit={save} className="flex flex-col gap-4">
+          <DialogHeader>
+            <DialogTitle>{t("blReplies.recordRequest")}</DialogTitle>
+            <DialogDescription>{t("blReplies.recordRequestHint")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="request-date">{t("blReplies.requestDate")}</Label>
+            <Input id="request-date" type="date" value={requestedOn} max={today} onChange={(event) => setRequestedOn(event.target.value)} className="w-44" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="request-note">
+              {t("blReplies.note")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
+            </Label>
+            <textarea
+              id="request-note"
+              rows={2}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder={t("blReplies.requestNotePlaceholder")}
+              className="border-input bg-background rounded-md border px-2 py-1 text-sm"
+            />
+          </div>
+          {error && (
+            <p role="alert" className="text-destructive text-sm">
+              {error}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
+              {t("common.cancel")}
+            </Button>
+            <Button type="submit" disabled={busy}>
+              {t("blReplies.saveRequest")}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

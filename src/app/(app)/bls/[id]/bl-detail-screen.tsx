@@ -57,6 +57,7 @@ export type BlDetailPermissions = {
   forms: boolean;
   overrides: boolean;
   recordReply: boolean;
+  recordOutsideRequest: boolean;
   /** Open the B/L's emails in place (the message and its reply buttons). */
   viewEmails: boolean;
   linkEmail: boolean;
@@ -334,6 +335,8 @@ export function BlDetailScreen({
             today={today}
             canView={can.viewEmails}
             canRecord={can.recordReply && !bl.voidedAt}
+            // The statuses a refund request can still be made from.
+            canRecordRequest={can.recordOutsideRequest && !bl.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(bl.status)}
             canLink={can.linkEmail && !bl.voidedAt}
             canRecordDeduction={can.recordDeduction && !bl.voidedAt}
             // Only while the B/L is still open: a settled B/L takes no more requests.

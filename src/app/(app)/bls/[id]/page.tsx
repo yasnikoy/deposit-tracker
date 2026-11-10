@@ -33,6 +33,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         forms: can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed,
         overrides: can(user, "bl.updateOverrides").allowed,
         recordReply: can(user, "reply.record").allowed,
+        recordOutsideRequest: can(user, "request.recordOutside").allowed,
         viewEmails: can(user, "reply.view").allowed,
         linkEmail: can(user, "email.link").allowed,
         reverseAllocation: can(user, "allocation.reverse").allowed,

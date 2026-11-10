@@ -272,6 +272,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Free text on a deposit (payment or opening balance); it starts the B/L's description | *Açıklama* | *Kaynak*, *Not* |
 | An agency's office with its own recipients (e.g. per port) | *Birim*, *Mersin birimi* | *Liman*, *Şube* |
 | Sending a sent request email again (not a new request) | *Yeniden gönder*; the copy is a *Yeniden gönderim* (grey badge) | *Tekrar talep*, *Takip* |
+| A refund request made by phone or from another mailbox, recorded afterwards | *Uygulama dışı talep*, *Uygulama dışı talebi kaydet* | *Manuel durum*, *Elle talep* |
 | Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 

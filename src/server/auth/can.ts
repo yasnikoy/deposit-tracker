@@ -105,6 +105,8 @@ const rules = {
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),
   "request.sendEmail": only("OPERATIONS"),
+  // A refund request made outside the app (phone, another mailbox) counts like a sent one.
+  "request.recordOutside": only("OPERATIONS"),
   // Moving a B/L's whole deposit to another B/L (accounting or operations); accounting then books it.
   "bl.transferDeposit": only("ACCOUNTANT", "OPERATIONS"),
   // Taking a transfer back while accounting has not booked it yet.

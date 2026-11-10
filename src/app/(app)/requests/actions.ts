@@ -7,6 +7,7 @@ import {
   prepareResendSchema,
   queueEmailSchema,
   queueResendSchema,
+  recordOutsideRequestSchema,
   updateBlOverridesSchema,
 } from "@/lib/schemas/requests";
 import { runAction } from "@/server/actions";
@@ -16,7 +17,7 @@ import { cancelRequestEmails, prepareRequestEmails, type EmailDraft } from "@/se
 import { prepareResend, queueResend } from "@/server/email/resend";
 import { queueRequestEmail } from "@/server/email/send";
 import { DomainError, type ActionResult } from "@/server/errors";
-import { previewDueImpact, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
+import { previewDueImpact, recordOutsideRequest, updateBlOverrides, type DueImpact, type SettingsHypothesis } from "@/server/requests";
 
 export type ResendDraft = EmailDraft & { resendOfEmailId: number };
 
@@ -28,6 +29,11 @@ export async function prepareResendAction(input: unknown): Promise<ActionResult<
 export async function queueResendAction(input: unknown): Promise<ActionResult<number>> {
   const { user } = await requireSession();
   return runAction(queueResendSchema, input, (data) => queueResend(getDb(), user, data));
+}
+
+export async function recordOutsideRequestAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(recordOutsideRequestSchema, input, (data) => recordOutsideRequest(getDb(), user, data));
 }
 
 export async function updateBlOverridesAction(input: unknown): Promise<ActionResult<void>> {

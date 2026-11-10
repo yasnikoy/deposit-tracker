@@ -4,11 +4,11 @@ import { updateAgencyOverrides } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
 import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { auditLog } from "@/server/db/schema";
+import { auditLog, billsOfLading, requests } from "@/server/db/schema";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { uploadBlForm } from "@/server/forms";
-import { listDueRequests, previewDueImpact, updateBlOverrides } from "@/server/requests";
+import { blDueState, listDueRequests, previewDueImpact, recordOutsideRequest, updateBlOverrides } from "@/server/requests";
 import { getSetting } from "@/server/settings";
 import { createTestDb, makeUser } from "../support/db";
 import { makeAgency, makeBl, NO_OVERRIDES, PDF } from "../support/records";
@@ -109,5 +109,46 @@ describe("impact preview", () => {
     // Nothing was saved.
     expect(rows("DUE")).toEqual(["MEDU0000001"]);
     expect(() => previewDueImpact(db, ops, { settings: { "durations.firstRequestDueDays": 2 } }, NOW)).toThrow(ForbiddenError);
+  });
+});
+
+describe("request made outside the app", () => {
+  const status = (blId: number) => db.select().from(billsOfLading).where(eq(billsOfLading.id, blId)).get()!.status;
+
+  it("counts as the next request: status, attempt and follow-up clock move as for a sent one", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-01");
+    attachForm(a);
+    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-21", note: "Telefonla istendi" }, NOW);
+    expect(status(a)).toBe("REQUESTED");
+    expect(blDueState(db, a, NOW)).toMatchObject({ kind: "FOLLOW_UP", attemptNo: 2, dueDate: "2026-10-28" });
+    expect(db.select().from(requests).where(eq(requests.blId, a)).all()).toEqual([
+      expect.objectContaining({ attemptNo: 1, sendStatus: "SENT", requestedOn: "2026-10-21", emailId: null }),
+    ]);
+    expect(db.select().from(auditLog).where(eq(auditLog.action, "request.recordOutside")).get()).toMatchObject({ entityId: String(a), reason: "Telefonla istendi" });
+
+    // A follow-up made outside the app counts the same way.
+    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-22", note: null }, NOW);
+    expect(blDueState(db, a, NOW)).toMatchObject({ attemptNo: 3 });
+  });
+
+  it("refuses a future date, a date before the payment or the last request, a missing form and other roles", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-01");
+    const err = (requestedOn: string) => () => recordOutsideRequest(db, ops, { blId: a, requestedOn, note: null }, NOW);
+    expect(err("2026-10-21")).toThrow(expect.objectContaining({ messageKey: "requests.errors.formMissing" }));
+    attachForm(a);
+    expect(err("2026-10-23")).toThrow(expect.objectContaining({ messageKey: "requests.errors.futureDate" }));
+    expect(err("2026-09-30")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforePayment" }));
+    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-20", note: null }, NOW);
+    expect(err("2026-10-19")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforeLastRequest" }));
+    expect(() => recordOutsideRequest(db, acc, { blId: a, requestedOn: "2026-10-21", note: null }, NOW)).toThrow(ForbiddenError);
+  });
+
+  it("is not possible for a settled B/L", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-01");
+    attachForm(a);
+    db.update(billsOfLading).set({ status: "COLLECTED" }).where(eq(billsOfLading.id, a)).run();
+    expect(() => recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-21", note: null }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "requests.errors.notDue" }),
+    );
   });
 });
