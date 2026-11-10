@@ -7,9 +7,9 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import type { ActionResult } from "@/server/errors";
 import { updateSettings } from "@/server/settings";
-import { sendTestEmailSchema, updateEmailTemplateSchema } from "@/lib/schemas/email-settings";
+import { resetEmailTemplateSchema, sendTestEmailSchema, updateEmailTemplateSchema } from "@/lib/schemas/email-settings";
 import { sendTestEmail } from "@/server/email/send";
-import { updateEmailTemplate } from "@/server/email/templates";
+import { resetEmailTemplate, updateEmailTemplate } from "@/server/email/templates";
 import { mailTransport } from "@/server/email/transport";
 import { scheduleDailyBackup, scheduleWeeklySummary } from "@/server/recurring-jobs";
 
@@ -39,4 +39,9 @@ export async function sendTestEmailAction(input: unknown): Promise<ActionResult<
 export async function updateEmailTemplateAction(input: unknown): Promise<ActionResult<void>> {
   const { user } = await requireSession();
   return runAction(updateEmailTemplateSchema, input, (data) => updateEmailTemplate(getDb(), user, data));
+}
+
+export async function resetEmailTemplateAction(input: unknown): Promise<ActionResult<{ subject: string; body: string }>> {
+  const { user } = await requireSession();
+  return runAction(resetEmailTemplateSchema, input, (data) => resetEmailTemplate(getDb(), user, data));
 }

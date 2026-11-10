@@ -40,9 +40,9 @@ If the code and this document disagree, stop and ask which one is right.
 ```
 
 - **Header** (`src/components/app-shell/app-header.tsx`): app name and version, the work
-  menu, *Ayarlar*, global search (`/` or Ctrl+K), notifications bell with unread count, user
-  menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *İlk adımlar*, *Hata bildir / öneri gönder*,
-  *Çıkış yap*). The header wraps to a
+  menu, *Ayarlar*, the *Hata / öneri* button (opens *Hata bildir / öneri gönder*), global
+  search (`/` or Ctrl+K), notifications bell with unread count, user menu (roles, *Şifre
+  değiştir*, *Klavye kısayolları*, *İlk adımlar*, *Çıkış yap*). The header wraps to a
   second line instead of overflowing; the search box shrinks first.
 - **Badges in the menu**: count on *Silme onayları* (write-offs awaiting approval); the bell
   shows unread notifications.
@@ -283,7 +283,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Sending a sent request email again (not a new request) | *Yeniden gönder*; the copy is a *Yeniden gönderim* (grey badge) | *Tekrar talep*, *Takip* |
 | A refund request made by phone or from another mailbox, recorded afterwards | *Uygulama dışı talep*, *Uygulama dışı talebi kaydet* | *Manuel durum*, *Elle talep* |
 | Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
-| A user's bug report or feature request to the admins | *Hata bildir / öneri gönder*; kinds *Hata*, *Öneri*; the admin list *Geri bildirimler* | *Destek talebi*, *Ticket* |
+| A user's bug report or feature request to the admins | header button *Hata / öneri*, dialog *Hata bildir / öneri gönder*; kinds *Hata*, *Öneri*; the admin list *Geri bildirimler* | *Destek talebi*, *Ticket* |
 | An email dragged from Outlook onto a B/L, kept with it | *arşivlenen e-posta*; drop zone *Outlook'tan e-posta bırakın*; *Outlook'ta aç* | *Yanıt içe aktar*, *Eşleştir* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 

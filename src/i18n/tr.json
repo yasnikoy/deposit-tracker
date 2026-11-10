@@ -1160,7 +1160,10 @@
       "REPORT_LINE_TRANSFERRED": "Rapor özetinde her depozito aktarımı için bir satır; konu kullanılmaz.",
       "DEDUCTION_STATEMENT": "Açıklanmayan bir kesinti için acenteden döküm istenir. Takip talepleri aynı metinle, önceki döküm talebine yanıt olarak gider (konu \"Re: …\"). Toplu e-postada bu B/L'ler [[statement]] bölümünde yer alır; satırdaki {amount} kesinti tutarıdır."
     },
-    "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir."
+    "quoteHint": "[[cc]] … [[/cc]] bloğu, önceki e-postada bilgi (CC) alıcısı yoksa çıkarılır. Önizlemede altına önceki e-postanın metni gelir.",
+    "reset": "Varsayılana dön",
+    "resetConfirm": "Şablon, uygulamanın bu sürümle gelen metnine döner; sizin yaptığınız değişiklikler kaybolur. Sonraki sürümlerdeki metin değişiklikleri de bu şablona uygulanır.",
+    "resetDone": "Şablon varsayılan metne döndü."
   },
   "standing": {
     "title": "Sabit belgeler",
@@ -1801,7 +1804,8 @@
     "reopen": "Yeniden aç",
     "errors": {
       "body": "Bir açıklama yazın."
-    }
+    },
+    "button": "Hata / öneri"
   },
   "gettingStarted": {
     "title": "İlk adımlar",

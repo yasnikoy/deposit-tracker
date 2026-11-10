@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { EMAIL_TEMPLATE_PLACEHOLDERS, EMAIL_TEMPLATE_SAMPLES as SAMPLE, renderTemplate, type EmailTemplateKey } from "@/domain/email-templates";
 import { t } from "@/i18n";
 import type { EmailTemplate } from "@/server/email/templates";
-import { updateEmailTemplateAction } from "../settings/actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { resetEmailTemplateAction, updateEmailTemplateAction } from "../settings/actions";
 
 /** Line and summary parts: they have no subject of their own. */
 const NO_SUBJECT = new Set<EmailTemplateKey>(["BATCH_LINE", "REPLY_QUOTE", "REPORT_SUMMARY", "REPORT_LINE_REQUESTED", "REPORT_LINE_REMAINING", "REPORT_LINE_TOTAL", "REPORT_LINE_COLLECTED", "REPORT_LINE_TRANSFERRED"]);
@@ -63,6 +64,7 @@ function TemplateCard({ template, signature, lineTemplate, bodies }: { template:
   const [body, setBody] = useState(template.body);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
   const key = template.key;
   const values = sampleValues(key, signature, key === "BATCH_LINE" ? body : lineTemplate, bodies);
   const changed = subject !== template.subject || body !== template.body;
@@ -73,6 +75,16 @@ function TemplateCard({ template, signature, lineTemplate, bodies }: { template:
     setSaving(false);
     if (!result.ok) return void toast.error(t(result.error, result.params));
     toast.success(t("templates.saved"));
+    router.refresh();
+  };
+
+  const reset = async (resetReason: string) => {
+    const result = await resetEmailTemplateAction({ key, reason: resetReason || reason });
+    if (!result.ok) return void toast.error(t(result.error, result.params));
+    setSubject(result.data.subject);
+    setBody(result.data.body);
+    setConfirmReset(false);
+    toast.success(t("templates.resetDone"));
     router.refresh();
   };
 
@@ -117,6 +129,12 @@ function TemplateCard({ template, signature, lineTemplate, bodies }: { template:
             <Button size="sm" onClick={save} disabled={saving || !changed || body.trim() === ""}>
               {t("templates.save")}
             </Button>
+            {/* Only an admin-edited template has a default to go back to. */}
+            {template.updatedBy !== null && (
+              <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setConfirmReset(true)}>
+                {t("templates.reset")}
+              </Button>
+            )}
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -127,6 +145,18 @@ function TemplateCard({ template, signature, lineTemplate, bodies }: { template:
           </div>
         </div>
       </CardContent>
+      {confirmReset && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setConfirmReset(false)}
+          title={t("templates.reset")}
+          description={t("templates.resetConfirm")}
+          items={[t(`templates.keys.${key}`)]}
+          confirmLabel={t("templates.reset")}
+          destructive
+          onConfirm={reset}
+        />
+      )}
     </Card>
   );
 }

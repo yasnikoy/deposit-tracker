@@ -4,6 +4,8 @@ import { reasonSchema } from "./holidays";
 
 export const sendTestEmailSchema = z.object({ to: z.string().trim().toLowerCase().pipe(z.email()) });
 
+export const resetEmailTemplateSchema = z.object({ key: z.enum(EMAIL_TEMPLATE_KEYS), reason: reasonSchema });
+
 export const updateEmailTemplateSchema = z.object({
   key: z.enum(EMAIL_TEMPLATE_KEYS),
   // The batch line has no subject.

@@ -100,6 +100,9 @@ export function AppHeader({
         )}
       </nav>
       <div className="ml-auto flex min-w-72 flex-1 items-center justify-end gap-2">
+        <Button variant="outline" size="sm" title={t("feedback.title")} onClick={() => setFeedbackOpen(true)}>
+          <MessageSquareWarning /> {t("feedback.button")}
+        </Button>
         <GlobalSearch />
         <Link
           href="/notifications"
@@ -132,9 +135,6 @@ export function AppHeader({
               <Link href="/getting-started">
                 <ListChecks /> {t("gettingStarted.title")}
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>
-              <MessageSquareWarning /> {t("feedback.title")}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => logoutAction()}>
               <LogOut /> {t("nav.logout")}
