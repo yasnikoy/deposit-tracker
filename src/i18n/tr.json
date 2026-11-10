@@ -1814,7 +1814,13 @@
     "from": "Gelen:",
     "to": "Giden:",
     "title": "Depozitoyu başka B/L'ye aktar",
-    "hint": "Acente bu B/L için ödenen depozitoyu iade etmek yerine başka bir B/L'ye saydığında kullanılır. Depozitonun tamamı aktarılır; bu B/L kapanır ve muhasebe kaydını bekler.",
+    "hint": "Acente bu B/L için ödenen depozitoyu iade etmek yerine başka bir B/L'ye saydığında kullanılır. Depozitonun tamamı aktarılır, gerekirse birden çok hedefe bölünerek; bu B/L kapanır ve muhasebe kaydını bekler.",
+    "bulkHint": "Seçili B/L'lerin depozitolarının tamamı tek bir hedef B/L'ye aktarılır; her biri kapanır ve muhasebe kaydını bekler.",
+    "sources": "Aktarılacak B/L'ler",
+    "addTarget": "Hedef ekle",
+    "removeTarget": "Hedefi çıkar",
+    "targetAmount": "Tutar",
+    "splitRemaining": "Dağıtılmayan: {amount}",
     "amount": "Aktarılacak tutar",
     "targetBlNo": "Hedef B/L no",
     "targetNew": "Yeni B/L oluşturulur; ilk iade talebi aktarım tarihinden sayılır ve bu B/L'nin dekontu eklenir.",
@@ -1823,6 +1829,7 @@
     "note": "Not",
     "save": "Aktar",
     "saved": "Depozito aktarıldı: {bl}",
+    "bulkSaved": "{count} B/L'nin depozitosu {bl} kaydına aktarıldı.",
     "reverse": "Aktarımı geri al",
     "reverseHint": "Muhasebe kaydı yapılmadan önce, yanlış aktarım için. Aktarımla oluşturulan B/L iptal edilir.",
     "reversed": "Aktarım geri alındı.",
@@ -1837,7 +1844,12 @@
       "joinFields": "Depozito mevcut B/L {bl} kaydına eklenir; müşteri, dosya no ve birim o B/L'de kalır.",
       "noTransfer": "B/L {bl} için geri alınacak bir aktarım yok.",
       "targetMovedOn": "Hedef B/L {bl} için talep gönderilmiş veya iade dağıtılmış; aktarım geri alınamaz.",
-      "booked": "B/L {bl} aktarımının muhasebe kaydı yapılmış; aktarım geri alınamaz."
+      "booked": "B/L {bl} aktarımının muhasebe kaydı yapılmış; aktarım geri alınamaz.",
+      "mixedSources": "B/L {bl} başka bir acentenin veya para biriminin; birlikte aktarılan B/L'ler aynı acente ve para biriminde olmalı.",
+      "manyToMany": "Birden çok B/L tek bir hedefe, ya da tek B/L birden çok hedefe aktarılabilir; ikisi birden olmaz.",
+      "duplicateTarget": "Aynı hedef B/L iki kez yazılmış.",
+      "split": "Her hedef için sıfırdan büyük bir tutar girin.",
+      "splitTotal": "Hedeflerin toplamı aktarılacak depozitoya ({total}) eşit olmalı."
     }
   }
 }

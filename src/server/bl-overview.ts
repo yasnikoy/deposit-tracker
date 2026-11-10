@@ -289,7 +289,7 @@ export type BlDetail = {
   } | null;
   /** Deposit transfers not reversed: where this B/L's deposit went, and what came in from other B/Ls. */
   transfers: {
-    out: { blId: number; blNo: string; amountMinor: number; currency: string; transferredOn: string } | null;
+    out: { blId: number; blNo: string; amountMinor: number; currency: string; transferredOn: string }[];
     in: { blId: number; blNo: string; amountMinor: number; currency: string; transferredOn: string }[];
   };
   /** Additional deposits ("ek depozito") paid later for the same B/L, oldest first. */
@@ -562,8 +562,7 @@ function blTransfers(db: DbOrTx, blId: number): BlDetail["transfers"] {
       )
     : new Map<number, string>();
   const view = (e: (typeof entries)[number]) => ({ blId: e.transferBlId!, blNo: others.get(e.transferBlId!) ?? "", amountMinor: e.amountMinor, currency: e.currency, transferredOn: e.entryDate });
-  const out = entries.find((e) => e.type === "TRANSFER_OUT");
-  return { out: out ? view(out) : null, in: entries.filter((e) => e.type === "TRANSFER_IN").map(view) };
+  return { out: entries.filter((e) => e.type === "TRANSFER_OUT").map(view), in: entries.filter((e) => e.type === "TRANSFER_IN").map(view) };
 }
 
 function blReplies(db: DbOrTx, blId: number): BlReply[] {

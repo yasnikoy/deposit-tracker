@@ -6,6 +6,9 @@ import { requireSession } from "@/server/auth/current-user";
 import { listAllBls } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
 import { getTableLayout } from "@/server/preferences";
+import { istanbulToday } from "@/domain/business-days";
+import { activeUnitOptions } from "@/server/agencies";
+import { listCustomers } from "@/server/customers";
 import { AllBlsScreen } from "./all-bls-screen";
 
 export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
@@ -27,6 +30,15 @@ export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
         canEdit={can(user, "bl.update").allowed}
         canEditDescription={can(user, "bl.editDescription").allowed}
         canVoid={can(user, "bl.void").allowed}
+        transfer={
+          can(user, "bl.transferDeposit").allowed
+            ? {
+                customers: listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active })),
+                units: activeUnitOptions(db),
+                today: istanbulToday(),
+              }
+            : null
+        }
       />
     </>
   );

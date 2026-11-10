@@ -37,7 +37,7 @@ export async function previewTransferAction(input: unknown): Promise<ActionResul
   return runAction(previewTransferSchema, input, (data) => previewTransfer(getDb(), user, data));
 }
 
-export async function transferDepositAction(input: unknown): Promise<ActionResult<{ targetBlId: number; created: boolean }>> {
+export async function transferDepositAction(input: unknown): Promise<ActionResult<{ targets: { blId: number; blNo: string; created: boolean }[] }>> {
   const { user } = await requireSession();
   return runAction(transferDepositSchema, input, (data) => transferDeposit(getDb(), user, data));
 }

@@ -20,16 +20,26 @@ import { joinableBl } from "./payments";
 
 type Bl = typeof billsOfLading.$inferSelect;
 
-export type TransferInput = {
-  sourceBlId: number;
+export type TransferTarget = {
   /** A new B/L number, or the number of an open B/L of the same agency and currency. */
-  targetBlNo: string;
-  /** When the agency moved the deposit; the new B/L's request clock starts here. */
-  transferredOn: string;
+  blNo: string;
+  /** Splitting one source over several targets: this target's part. Otherwise null (the whole deposit). */
+  amountMinor: number | null;
   /** For a new B/L only: prefilled from the source in the dialog. */
   customerId: number | null;
   fileNo: string | null;
   unitId: number | null;
+};
+
+/**
+ * One source to one or several targets (its whole deposit split over them), or several
+ * sources of the same agency and currency to one target. Never several to several.
+ */
+export type TransferInput = {
+  sourceBlIds: number[];
+  targets: TransferTarget[];
+  /** When the agency moved the deposit; a new B/L's request clock starts here. */
+  transferredOn: string;
   note: string | null;
 };
 
@@ -60,12 +70,21 @@ export type TransferPreview = {
   existing: { blId: number; blNo: string; depositMinor: number } | null;
 };
 
-/** What a transfer to this number would do, shown in the dialog before saving. */
-export function previewTransfer(db: DbOrTx, actor: AuthUser, input: { sourceBlId: number; targetBlNo: string }): TransferPreview {
+/** What a transfer of these sources to this number would do, shown in the dialog before saving. */
+export function previewTransfer(db: DbOrTx, actor: AuthUser, input: { sourceBlIds: number[]; targetBlNo: string }): TransferPreview {
   authorize(actor, "bl.transferDeposit");
-  const source = requireBl(db, input.sourceBlId);
-  const amountMinor = transferable(db, source);
-  return { amountMinor, currency: source.currency, existing: target(db, source, input.targetBlNo) };
+  const sources = input.sourceBlIds.map((id) => requireBl(db, id));
+  sameAgencyAndCurrency(sources);
+  const amountMinor = sources.reduce((sum, source) => sum + transferable(db, source), 0);
+  for (const source of sources.slice(1)) if (normalizeBlNumber(input.targetBlNo) === source.blNo) throw new DomainError("transfers.errors.same");
+  return { amountMinor, currency: sources[0].currency, existing: target(db, sources[0], input.targetBlNo) };
+}
+
+/** Sources moved together share one agency and currency, as their target must (rule 2). */
+function sameAgencyAndCurrency(sources: Bl[]): void {
+  const [first] = sources;
+  const odd = sources.find((s) => s.agencyId !== first.agencyId || s.currency !== first.currency);
+  if (odd) throw new DomainError("transfers.errors.mixedSources", { bl: odd.blNo });
 }
 
 /** The open B/L a transfer joins, or null for a new B/L; refuses one it cannot join. */
@@ -82,131 +101,199 @@ function target(tx: DbOrTx, source: Bl, blNo: string) {
 const appended = (description: string | null, line: string) => (description ? `${description}\n${line}` : line);
 
 /**
- * Moves a B/L's whole outstanding deposit to another B/L, when the agency applied it there
- * instead of refunding it (accounting or operations). The source settles and waits for the
- * accounting entry (then TRANSFERRED); the target is a new B/L that starts like any other,
- * its request clock from the transfer date, or an open B/L the deposit joins. No money leaves
- * or arrives: a TRANSFER_OUT on the source and a TRANSFER_IN of the same amount on the target.
- * Requests of the target attach the source's receipt, under the source's name.
+ * Moves deposits to other B/Ls, when the agency applied them there instead of refunding
+ * (accounting or operations): one source's whole outstanding deposit to one target or split
+ * over several, or several sources to one target. Each source settles and waits for the
+ * accounting entry (then TRANSFERRED); a target is a new B/L that starts like any other, its
+ * request clock from the transfer date, or an open B/L the deposit joins. No money leaves or
+ * arrives: each leg is a TRANSFER_OUT on its source and a TRANSFER_IN of the same amount on
+ * its target. Requests of a target attach its sources' receipts, under the sources' names.
  */
-export function transferDeposit(db: Db, actor: AuthUser, input: TransferInput, now: Date = new Date()): { targetBlId: number; created: boolean } {
+export function transferDeposit(db: Db, actor: AuthUser, input: TransferInput, now: Date = new Date()): { targets: { blId: number; blNo: string; created: boolean }[] } {
   const roleUsed = authorize(actor, "bl.transferDeposit");
+  if (input.sourceBlIds.length === 0 || input.targets.length === 0) throw new DomainError("transfers.errors.split");
+  if (input.sourceBlIds.length > 1 && input.targets.length > 1) throw new DomainError("transfers.errors.manyToMany");
   return db.transaction((tx) => {
-    const source = requireBl(tx, input.sourceBlId);
-    const amountMinor = transferable(tx, source);
+    const sources = [...new Set(input.sourceBlIds)].map((id) => requireBl(tx, id));
+    sameAgencyAndCurrency(sources);
+    const whole = new Map(sources.map((source) => [source.id, transferable(tx, source)]));
+    for (const source of sources) {
+      if (input.transferredOn < source.paidAt) throw new DomainError("transfers.errors.beforePayment");
+    }
     if (input.transferredOn > istanbulToday(now)) throw new DomainError("payments.errors.futureDate");
-    if (input.transferredOn < source.paidAt) throw new DomainError("transfers.errors.beforePayment");
-    // Not while someone drafts a request for it (rule 14).
-    lockForDraft(tx, actor, [source.id], now);
-    releaseDraftLocks(tx, actor, [source.id]);
+    const targetNos = input.targets.map((x) => normalizeBlNumber(x.blNo));
+    if (new Set(targetNos).size !== targetNos.length) throw new DomainError("transfers.errors.duplicateTarget");
+    for (const source of sources) if (targetNos.includes(source.blNo)) throw new DomainError("transfers.errors.same");
+
+    // The legs: each source's whole deposit to the one target, or one source split over its targets.
+    const legs: { source: Bl; target: TransferTarget; amountMinor: number }[] =
+      input.targets.length === 1
+        ? sources.map((source) => ({ source, target: input.targets[0], amountMinor: whole.get(source.id)! }))
+        : input.targets.map((target) => ({ source: sources[0], target, amountMinor: target.amountMinor ?? 0 }));
+    if (input.targets.length > 1) {
+      // The whole deposit is split: no part stays behind on the source (partial transfers are not built).
+      if (legs.some((leg) => leg.amountMinor <= 0)) throw new DomainError("transfers.errors.split");
+      const total = legs.reduce((sum, leg) => sum + leg.amountMinor, 0);
+      if (total !== whole.get(sources[0].id)) {
+        throw new DomainError("transfers.errors.splitTotal", { total: formatMoney(whole.get(sources[0].id)!, sources[0].currency) });
+      }
+    }
+    // Not while someone drafts a request for a source (rule 14).
+    const sourceIds = sources.map((source) => source.id);
+    lockForDraft(tx, actor, sourceIds, now);
+    releaseDraftLocks(tx, actor, sourceIds);
 
     const at = now.toISOString();
-    const money = formatMoney(amountMinor, source.currency);
     const date = formatBusinessDate(input.transferredOn);
-    const existing = target(tx, source, input.targetBlNo);
-    let targetBl: Bl;
-    if (existing) {
-      if (input.customerId !== null || input.fileNo || input.unitId !== null) throw new DomainError("transfers.errors.joinFields", { bl: existing.blNo });
-      targetBl = requireBl(tx, existing.blId);
-    } else {
-      if (input.customerId !== null && !tx.select({ active: customers.active }).from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
-        throw new DomainError("customers.errors.unknown");
-      }
-      const unitError = unitChoiceError(tx, source.agencyId, input.unitId);
-      if (unitError) throw new DomainError(unitError);
-      targetBl = tx
-        .insert(billsOfLading)
-        .values({
-          blNo: normalizeBlNumber(input.targetBlNo),
-          depositPaymentId: null,
-          agencyId: source.agencyId,
-          currency: source.currency,
-          depositAmountMinor: amountMinor,
-          // The request clock of the new B/L starts at the transfer.
-          paidAt: input.transferredOn,
-          status: "PAID",
-          customerId: input.customerId,
-          fileNo: input.fileNo,
-          unitId: input.unitId,
-          createdBy: actor.id,
-          createdAt: at,
-          updatedAt: at,
-        })
-        .returning()
-        .get();
+    const detail = { currency: sources[0].currency, transferredOn: input.transferredOn };
+    const targets = input.targets.map((x) =>
+      resolveTarget(tx, actor, roleUsed, sources[0], x, legs.filter((leg) => leg.target === x).reduce((sum, leg) => sum + leg.amountMinor, 0), input, now),
+    );
+    const statusBefore = new Map(sources.map((source) => [source.id, source.status]));
+
+    for (const leg of legs) {
+      const targetBl = targets[input.targets.indexOf(leg.target)].bl;
+      const source = requireBl(tx, leg.source.id);
+      const fresh = requireBl(tx, targetBl.id);
+      addLedgerEntry(tx, { blId: source.id, type: "TRANSFER_OUT", amountMinor: leg.amountMinor, currency: source.currency, entryDate: input.transferredOn, transferBlId: fresh.id, createdBy: actor.id }, now);
+      addLedgerEntry(tx, { blId: fresh.id, type: "TRANSFER_IN", amountMinor: leg.amountMinor, currency: source.currency, entryDate: input.transferredOn, transferBlId: source.id, createdBy: actor.id }, now);
+      const money = formatMoney(leg.amountMinor, source.currency);
+      tx.update(billsOfLading)
+        .set({ description: appended(source.description, t("transfers.descriptionOut", { amount: money, bl: fresh.blNo, date })), updatedAt: at })
+        .where(eq(billsOfLading.id, source.id))
+        .run();
+      const deposit = blBalance(ledgerOf(tx, fresh.id), fresh.currency).depositMinor;
+      tx.update(billsOfLading)
+        .set({ depositAmountMinor: deposit, description: appended(fresh.description, t("transfers.descriptionIn", { amount: money, bl: source.blNo, date })), updatedAt: at })
+        .where(eq(billsOfLading.id, fresh.id))
+        .run();
+      const sourceStatus = nextStatus(statusBefore.get(source.id) as StoredBlStatus, "DEPOSIT_TRANSFERRED");
+      writeAudit(
+        tx,
+        {
+          actorUserId: actor.id,
+          roleUsed,
+          action: "bl.transferOut",
+          entityType: "bill_of_lading",
+          entityId: source.id,
+          // The status before the transfer, the same on every leg: a reversal returns to it.
+          before: { status: statusBefore.get(source.id) },
+          after: { ...detail, amountMinor: leg.amountMinor, status: sourceStatus, targetBlId: fresh.id, targetBlNo: fresh.blNo },
+          reason: input.note,
+        },
+        now,
+      );
+      writeAudit(
+        tx,
+        {
+          actorUserId: actor.id,
+          roleUsed,
+          action: "bl.transferIn",
+          entityType: "bill_of_lading",
+          entityId: fresh.id,
+          before: { depositAmountMinor: fresh.depositAmountMinor },
+          after: { ...detail, amountMinor: leg.amountMinor, sourceBlId: source.id, sourceBlNo: source.blNo, depositAmountMinor: deposit },
+          reason: input.note,
+        },
+        now,
+      );
     }
-
-    addLedgerEntry(tx, { blId: source.id, type: "TRANSFER_OUT", amountMinor, currency: source.currency, entryDate: input.transferredOn, transferBlId: targetBl.id, createdBy: actor.id }, now);
-    addLedgerEntry(tx, { blId: targetBl.id, type: "TRANSFER_IN", amountMinor, currency: source.currency, entryDate: input.transferredOn, transferBlId: source.id, createdBy: actor.id }, now);
-
-    const sourceStatus = nextStatus(source.status as StoredBlStatus, "DEPOSIT_TRANSFERRED");
-    const outLine = t("transfers.descriptionOut", { amount: money, bl: targetBl.blNo, date });
-    const inLine = t("transfers.descriptionIn", { amount: money, bl: source.blNo, date });
-    tx.update(billsOfLading)
-      .set({ status: sourceStatus, description: appended(source.description, outLine), updatedAt: at })
-      .where(eq(billsOfLading.id, source.id))
-      .run();
-    const deposit = blBalance(ledgerOf(tx, targetBl.id), targetBl.currency).depositMinor;
-    tx.update(billsOfLading)
-      .set({ depositAmountMinor: deposit, description: appended(targetBl.description, inLine), updatedAt: at })
-      .where(eq(billsOfLading.id, targetBl.id))
-      .run();
-
-    const detail = { amountMinor, currency: source.currency, transferredOn: input.transferredOn };
-    writeAudit(
-      tx,
-      {
-        actorUserId: actor.id,
-        roleUsed,
-        action: "bl.transferOut",
-        entityType: "bill_of_lading",
-        entityId: source.id,
-        before: { status: source.status },
-        after: { ...detail, status: sourceStatus, targetBlId: targetBl.id, targetBlNo: targetBl.blNo, created: !existing },
-        reason: input.note,
-      },
-      now,
-    );
-    writeAudit(
-      tx,
-      {
-        actorUserId: actor.id,
-        roleUsed,
-        action: existing ? "bl.transferIn" : "bl.createFromTransfer",
-        entityType: "bill_of_lading",
-        entityId: targetBl.id,
-        before: existing ? { depositAmountMinor: targetBl.depositAmountMinor } : null,
-        after: { ...detail, sourceBlId: source.id, sourceBlNo: source.blNo, depositAmountMinor: deposit, ...(existing ? {} : { blNo: targetBl.blNo, customerId: targetBl.customerId, fileNo: targetBl.fileNo, unitId: targetBl.unitId }) },
-        reason: input.note,
-      },
-      now,
-    );
-    return { targetBlId: targetBl.id, created: !existing };
+    for (const source of sources) {
+      const status = nextStatus(statusBefore.get(source.id) as StoredBlStatus, "DEPOSIT_TRANSFERRED");
+      tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, source.id)).run();
+    }
+    return { targets: targets.map(({ bl, created }) => ({ blId: bl.id, blNo: bl.blNo, created })) };
   });
 }
 
 /**
+ * The B/L a target number names: an open one of the source's agency and currency, which keeps
+ * its own details, or a new one with the given customer, file number and unit (audited as
+ * created by the transfer, with the deposit its legs bring).
+ */
+function resolveTarget(
+  tx: DbOrTx,
+  actor: AuthUser,
+  roleUsed: ReturnType<typeof authorize>,
+  source: Bl,
+  input: TransferTarget,
+  incomingMinor: number,
+  transfer: TransferInput,
+  now: Date,
+): { bl: Bl; created: boolean } {
+  const existing = target(tx, source, input.blNo);
+  if (existing) {
+    if (input.customerId !== null || input.fileNo || input.unitId !== null) throw new DomainError("transfers.errors.joinFields", { bl: existing.blNo });
+    return { bl: requireBl(tx, existing.blId), created: false };
+  }
+  if (input.customerId !== null && !tx.select({ active: customers.active }).from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
+    throw new DomainError("customers.errors.unknown");
+  }
+  const unitError = unitChoiceError(tx, source.agencyId, input.unitId);
+  if (unitError) throw new DomainError(unitError);
+  const at = now.toISOString();
+  const bl = tx
+    .insert(billsOfLading)
+    .values({
+      blNo: normalizeBlNumber(input.blNo),
+      depositPaymentId: null,
+      agencyId: source.agencyId,
+      currency: source.currency,
+      depositAmountMinor: incomingMinor,
+      // The request clock of the new B/L starts at the transfer.
+      paidAt: transfer.transferredOn,
+      status: "PAID",
+      customerId: input.customerId,
+      fileNo: input.fileNo,
+      unitId: input.unitId,
+      createdBy: actor.id,
+      createdAt: at,
+      updatedAt: at,
+    })
+    .returning()
+    .get();
+  writeAudit(
+    tx,
+    {
+      actorUserId: actor.id,
+      roleUsed,
+      action: "bl.createFromTransfer",
+      entityType: "bill_of_lading",
+      entityId: bl.id,
+      after: { blNo: bl.blNo, customerId: bl.customerId, fileNo: bl.fileNo, unitId: bl.unitId, transferredOn: transfer.transferredOn },
+      reason: transfer.note,
+    },
+    now,
+  );
+  return { bl, created: true };
+}
+
+/**
  * An admin takes a transfer back (wrong B/L, entered by mistake) while accounting has not
- * booked it: both entries are compensated, the source returns to its status before, and a B/L
- * the transfer created is voided. Refused once the target has requests or a refund since.
+ * booked it: every leg of the source is compensated on both sides, the source returns to its
+ * status before, and a B/L the transfer created is voided once nothing else is left on it.
+ * Refused once a target has requests or a refund since.
  */
 export function reverseTransfer(db: Db, actor: AuthUser, input: { sourceBlId: number; reason: string }, now: Date = new Date()): void {
   const roleUsed = authorize(actor, "bl.reverseTransfer");
   db.transaction((tx) => {
     const source = requireBl(tx, input.sourceBlId);
-    const [out] = activeLedgerEntries(tx, source.id, ["TRANSFER_OUT"]);
-    if (!out) throw new DomainError("transfers.errors.noTransfer", { bl: source.blNo });
-    const targetBl = requireBl(tx, out.transferBlId!);
-    const incoming = activeLedgerEntries(tx, targetBl.id, ["TRANSFER_IN"]).find((e) => e.transferBlId === source.id);
-    if (!incoming) throw new DomainError("transfers.errors.noTransfer", { bl: source.blNo });
-    if (hasConfirmedAllocation(tx, targetBl.id)) throw new DomainError("transfers.errors.targetMovedOn", { bl: targetBl.blNo });
-    const requested = tx
-      .select({ id: requests.id })
-      .from(requests)
-      .where(and(eq(requests.blId, targetBl.id), gte(requests.createdAt, incoming.createdAt)))
-      .get();
-    if (requested) throw new DomainError("transfers.errors.targetMovedOn", { bl: targetBl.blNo });
-    const out_audit = tx
+    const outs = activeLedgerEntries(tx, source.id, ["TRANSFER_OUT"]);
+    if (outs.length === 0) throw new DomainError("transfers.errors.noTransfer", { bl: source.blNo });
+    const legs = outs.map((out) => {
+      const targetBl = requireBl(tx, out.transferBlId!);
+      const incoming = activeLedgerEntries(tx, targetBl.id, ["TRANSFER_IN"]).find((e) => e.transferBlId === source.id);
+      if (!incoming) throw new DomainError("transfers.errors.noTransfer", { bl: source.blNo });
+      if (hasConfirmedAllocation(tx, targetBl.id)) throw new DomainError("transfers.errors.targetMovedOn", { bl: targetBl.blNo });
+      const requested = tx
+        .select({ id: requests.id })
+        .from(requests)
+        .where(and(eq(requests.blId, targetBl.id), gte(requests.createdAt, incoming.createdAt)))
+        .get();
+      if (requested) throw new DomainError("transfers.errors.targetMovedOn", { bl: targetBl.blNo });
+      return { out, incoming, targetBl };
+    });
+    const outAudit = tx
       .select({ before: auditLog.before })
       .from(auditLog)
       .where(and(eq(auditLog.action, "bl.transferOut"), eq(auditLog.entityId, String(source.id))))
@@ -214,41 +301,48 @@ export function reverseTransfer(db: Db, actor: AuthUser, input: { sourceBlId: nu
       .get();
     let status: StoredBlStatus;
     try {
-      status = statusAfterTransferReversal(source.status as StoredBlStatus, (out_audit?.before as { status: StoredBlStatus } | null)?.status ?? "PAID");
+      status = statusAfterTransferReversal(source.status as StoredBlStatus, (outAudit?.before as { status: StoredBlStatus } | null)?.status ?? "PAID");
     } catch (error) {
       if (error instanceof InvalidTransitionError) throw new DomainError("transfers.errors.booked", { bl: source.blNo });
       throw error;
     }
 
-    compensateLedgerEntry(tx, out, actor.id, now);
-    compensateLedgerEntry(tx, incoming, actor.id, now);
     const at = now.toISOString();
     tx.update(billsOfLading).set({ status, updatedAt: at }).where(eq(billsOfLading.id, source.id)).run();
-    // A B/L that only existed for this transfer goes with it; one the deposit joined keeps its own.
-    const createdByTransfer = targetBl.depositPaymentId === null && blBalance(ledgerOf(tx, targetBl.id), targetBl.currency).depositMinor === 0;
-    const deposit = blBalance(ledgerOf(tx, targetBl.id), targetBl.currency).depositMinor;
-    tx.update(billsOfLading)
-      .set(
-        createdByTransfer
-          ? { voidedAt: at, voidedBy: actor.id, voidReason: input.reason, updatedAt: at }
-          : { depositAmountMinor: deposit, updatedAt: at },
-      )
-      .where(eq(billsOfLading.id, targetBl.id))
-      .run();
-    writeAudit(
-      tx,
-      { actorUserId: actor.id, roleUsed, action: "bl.transferReversed", entityType: "bill_of_lading", entityId: source.id, before: { status: source.status }, after: { status, targetBlId: targetBl.id }, reason: input.reason },
-      now,
-    );
+    for (const { out, incoming, targetBl } of legs) {
+      compensateLedgerEntry(tx, out, actor.id, now);
+      compensateLedgerEntry(tx, incoming, actor.id, now);
+      // A B/L that only existed for this transfer goes with it; one the deposit joined keeps its own.
+      const deposit = blBalance(ledgerOf(tx, targetBl.id), targetBl.currency).depositMinor;
+      const createdByTransfer = targetBl.depositPaymentId === null && deposit === 0;
+      tx.update(billsOfLading)
+        .set(createdByTransfer ? { voidedAt: at, voidedBy: actor.id, voidReason: input.reason, updatedAt: at } : { depositAmountMinor: deposit, updatedAt: at })
+        .where(eq(billsOfLading.id, targetBl.id))
+        .run();
+      writeAudit(
+        tx,
+        {
+          actorUserId: actor.id,
+          roleUsed,
+          action: createdByTransfer ? "bl.void" : "bl.transferInReversed",
+          entityType: "bill_of_lading",
+          entityId: targetBl.id,
+          after: { sourceBlId: source.id, depositAmountMinor: deposit },
+          reason: input.reason,
+        },
+        now,
+      );
+    }
     writeAudit(
       tx,
       {
         actorUserId: actor.id,
         roleUsed,
-        action: createdByTransfer ? "bl.void" : "bl.transferInReversed",
+        action: "bl.transferReversed",
         entityType: "bill_of_lading",
-        entityId: targetBl.id,
-        after: { sourceBlId: source.id, depositAmountMinor: deposit },
+        entityId: source.id,
+        before: { status: source.status },
+        after: { status, targetBlIds: legs.map((leg) => leg.targetBl.id) },
         reason: input.reason,
       },
       now,

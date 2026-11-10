@@ -22,6 +22,12 @@ import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
 import { BalanceStrip } from "./balance-strip";
 import { BulkDescriptionDialog } from "./bulk-description-dialog";
 import { DescriptionEditor } from "./description-editor";
+import { TransferDialog } from "./[id]/transfer-dialog";
+import type { CustomerOption } from "@/components/customer-combobox";
+
+/** A deposit moves on while the B/L is open and nothing was refunded on it (as on the B/L detail). */
+const transferable = (b: BlOverview) =>
+  !b.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(b.status) && b.expectedMinor > 0 && b.collectedMinor === 0;
 
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
@@ -140,6 +146,7 @@ export function AllBlsScreen({
   canEdit,
   canVoid,
   canEditDescription,
+  transfer,
 }: {
   bls: BlOverview[];
   layout: TableLayout | null;
@@ -148,6 +155,8 @@ export function AllBlsScreen({
   canEdit: boolean;
   canVoid: boolean;
   canEditDescription: boolean;
+  /** What the bulk deposit transfer needs; null for users who cannot transfer. */
+  transfer: { customers: CustomerOption[]; units: Record<number, { id: number; name: string }[]>; today: string } | null;
 }) {
   const router = useRouter();
   const [showVoided, setShowVoided] = useState(false);
@@ -157,6 +166,7 @@ export function AllBlsScreen({
   const [dialog, setDialog] = useState<Dialog>(null);
   const columns = useMemo(() => buildColumns(canEdit), [canEdit]);
   const [describeFor, setDescribeFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
+  const [transferFor, setTransferFor] = useState<{ bls: BlOverview[]; clear: () => void } | null>(null);
   const shown = useMemo(() => (showVoided ? bls : bls.filter((b) => !b.voidedAt)), [bls, showVoided]);
   const open = bls.find((b) => b.id === openId) ?? null;
   const done = () => {
@@ -191,13 +201,28 @@ export function AllBlsScreen({
             : undefined
         }
         bulkActions={
-          canEditDescription
+          canEditDescription || transfer
             ? (selected, clear) => {
                 const active = selected.filter((b) => !b.voidedAt);
                 return (
-                  <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setDescribeFor({ bls: active, clear })}>
-                    {t("description.bulk")}
-                  </Button>
+                  <>
+                    {canEditDescription && (
+                      <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setDescribeFor({ bls: active, clear })}>
+                        {t("description.bulk")}
+                      </Button>
+                    )}
+                    {transfer && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        // The server checks each B/L again; the button only offers what can work.
+                        disabled={selected.length === 0 || !selected.every((b) => transferable(b) && b.agencyId === selected[0].agencyId && b.currency === selected[0].currency)}
+                        onClick={() => setTransferFor({ bls: selected, clear })}
+                      >
+                        {t("transfers.action")}
+                      </Button>
+                    )}
+                  </>
                 );
               }
             : undefined
@@ -216,6 +241,22 @@ export function AllBlsScreen({
           onDone={() => {
             describeFor.clear();
             setDescribeFor(null);
+            router.refresh();
+          }}
+        />
+      )}
+      {transfer && transferFor && (
+        <TransferDialog
+          sources={transferFor.bls.map((b) => ({ id: b.id, blNo: b.blNo, amountMinor: b.expectedMinor }))}
+          currency={transferFor.bls[0].currency}
+          defaults={transferFor.bls[0]}
+          customers={transfer.customers}
+          units={transfer.units[transferFor.bls[0].agencyId] ?? []}
+          today={transfer.today}
+          onCancel={() => setTransferFor(null)}
+          onDone={() => {
+            transferFor.clear();
+            setTransferFor(null);
             router.refresh();
           }}
         />

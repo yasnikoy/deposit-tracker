@@ -26,16 +26,28 @@ let ops: AuthUser;
 let msc: number;
 let source: { paymentId: number; blId: number };
 
-const input = (overrides: Partial<TransferInput> = {}): TransferInput => ({
-  sourceBlId: source.blId,
-  targetBlNo: "MEDU2000001",
-  transferredOn: "2026-10-20",
-  customerId: testCustomer(db),
-  fileNo: "26-20001",
-  unitId: null,
-  note: "Acente depozitoyu yeni sevkiyata saydı",
-  ...overrides,
-});
+type Single = { sourceBlId: number; targetBlNo: string; transferredOn: string; customerId: number | null; fileNo: string | null; unitId: number | null; note: string | null };
+/** One source to one target, the common case. */
+const input = (overrides: Partial<Single> = {}): TransferInput => {
+  const v: Single = {
+    sourceBlId: source.blId,
+    targetBlNo: "MEDU2000001",
+    transferredOn: "2026-10-20",
+    customerId: testCustomer(db),
+    fileNo: "26-20001",
+    unitId: null,
+    note: "Acente depozitoyu yeni sevkiyata saydı",
+    ...overrides,
+  };
+  return {
+    sourceBlIds: [v.sourceBlId],
+    targets: [{ blNo: v.targetBlNo, amountMinor: null, customerId: v.customerId, fileNo: v.fileNo, unitId: v.unitId }],
+    transferredOn: v.transferredOn,
+    note: v.note,
+  };
+};
+const one = (result: ReturnType<typeof transferDeposit>) => ({ targetBlId: result.targets[0].blId, created: result.targets[0].created });
+const newTarget = (blNo: string, amountMinor: number | null = null) => ({ blNo, amountMinor, customerId: testCustomer(db), fileNo: null, unitId: null });
 const status = (blId: number) => db.select({ s: billsOfLading.status }).from(billsOfLading).where(eq(billsOfLading.id, blId)).get()!.s;
 
 beforeEach(async () => {
@@ -52,8 +64,8 @@ beforeEach(async () => {
 
 describe("transferring a B/L's deposit to a new B/L", () => {
   it("settles the source for the accounting entry and starts a new B/L from the transfer date", () => {
-    expect(previewTransfer(db, ops, { sourceBlId: source.blId, targetBlNo: "MEDU2000001" })).toEqual({ amountMinor: 300000, currency: "USD", existing: null });
-    const { targetBlId, created } = transferDeposit(db, ops, input(), NOW);
+    expect(previewTransfer(db, ops, { sourceBlIds: [source.blId], targetBlNo: "MEDU2000001" })).toEqual({ amountMinor: 300000, currency: "USD", existing: null });
+    const { targetBlId, created } = one(transferDeposit(db, ops, input(), NOW));
     expect(created).toBe(true);
 
     const from = getBlDetail(db, ops, source.blId, NOW);
@@ -62,7 +74,7 @@ describe("transferring a B/L's deposit to a new B/L", () => {
     const to = getBlDetail(db, ops, targetBlId, NOW);
     expect(to.bl).toMatchObject({ blNo: "MEDU2000001", status: "PAID", paidAt: "2026-10-20", depositMinor: 300000, expectedMinor: 300000, fileNo: "26-20001", attempts: 0 });
     expect(to.bl.description).toBe("20.10.2026: B/L MEDU1000001 için ödenen 3.000,00 USD depozito bu B/L'ye aktarıldı.");
-    expect(to.timeline[0]).toMatchObject({ action: "bl.createFromTransfer", reason: "Acente depozitoyu yeni sevkiyata saydı" });
+    expect(to.timeline.find((e) => e.action === "bl.createFromTransfer")).toMatchObject({ reason: "Acente depozitoyu yeni sevkiyata saydı" });
 
     // Only the new B/L is open: no money is counted twice.
     const open = positions(db, ops, NOW).filter((p) => p.open);
@@ -75,7 +87,7 @@ describe("transferring a B/L's deposit to a new B/L", () => {
   });
 
   it("sends the new B/L's first request with the source's receipt, as a brand-new B/L", () => {
-    const { targetBlId } = transferDeposit(db, acc, input(), NOW);
+    const { targetBlId } = one(transferDeposit(db, acc, input(), NOW));
     // Due after the first-request delay from the transfer date, not from the original payment.
     expect(listDueRequests(db, ops, NOW).DUE.flatMap((g) => g.rows).some((r) => r.blId === targetBlId)).toBe(false);
     const later = new Date("2026-11-20T09:00:00Z");
@@ -87,7 +99,7 @@ describe("transferring a B/L's deposit to a new B/L", () => {
 
   it("joins an open B/L of the same agency and currency instead, which keeps its own details", () => {
     const other = makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU3000001", amountMinor: 100000, paidAt: "2026-10-01" }, NOW);
-    expect(previewTransfer(db, ops, { sourceBlId: source.blId, targetBlNo: "medu3000001" }).existing).toEqual({ blId: other.blId, blNo: "MEDU3000001", depositMinor: 100000 });
+    expect(previewTransfer(db, ops, { sourceBlIds: [source.blId], targetBlNo: "medu3000001" }).existing).toEqual({ blId: other.blId, blNo: "MEDU3000001", depositMinor: 100000 });
     expect(() => transferDeposit(db, ops, input({ targetBlNo: "MEDU3000001" }), NOW)).toThrow(expect.objectContaining({ messageKey: "transfers.errors.joinFields" }));
     transferDeposit(db, ops, input({ targetBlNo: "MEDU3000001", customerId: null, fileNo: null }), NOW);
     expect(getBlDetail(db, ops, other.blId, NOW).bl).toMatchObject({ depositMinor: 400000, expectedMinor: 400000 });
@@ -109,7 +121,7 @@ describe("transferring a B/L's deposit to a new B/L", () => {
   });
 
   it("freezes both B/Ls' money records: no voiding, no payment correction", () => {
-    const { targetBlId } = transferDeposit(db, ops, input(), NOW);
+    const { targetBlId } = one(transferDeposit(db, ops, input(), NOW));
     expect(() => voidBl(db, ops, { id: targetBlId, reason: "Yanlış" }, NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.transferred" }));
     expect(() => voidBl(db, ops, { id: source.blId, reason: "Yanlış" }, NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.transferred" }));
     expect(() =>
@@ -118,9 +130,71 @@ describe("transferring a B/L's deposit to a new B/L", () => {
   });
 });
 
+describe("several B/Ls to one, and one B/L split over several", () => {
+  it("moves several B/Ls' whole deposits to one new B/L; each source waits for accounting", () => {
+    const second = makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU1000002", amountMinor: 50000, paidAt: "2026-09-10" }, NOW);
+    expect(previewTransfer(db, ops, { sourceBlIds: [source.blId, second.blId], targetBlNo: "MEDU2000001" })).toMatchObject({ amountMinor: 350000, existing: null });
+    const result = transferDeposit(db, ops, { sourceBlIds: [source.blId, second.blId], targets: [newTarget("MEDU2000001")], transferredOn: "2026-10-20", note: null }, NOW);
+    const target = result.targets[0];
+    expect(target.created).toBe(true);
+    expect(getBlDetail(db, ops, target.blId, NOW).bl).toMatchObject({ depositMinor: 350000, expectedMinor: 350000, status: "PAID" });
+    expect(getBlDetail(db, ops, target.blId, NOW).transfers.in.map((x) => x.blNo).sort()).toEqual(["MEDU1000001", "MEDU1000002"]);
+    expect([status(source.blId), status(second.blId)]).toEqual(["ACCOUNTING_PENDING", "ACCOUNTING_PENDING"]);
+
+    // Reversing one source leaves the other's deposit on the target.
+    reverseTransfer(db, admin, { sourceBlId: second.blId, reason: "Yanlış" }, NOW);
+    expect(getBlDetail(db, ops, target.blId, NOW).bl).toMatchObject({ depositMinor: 300000, voidedAt: null });
+    expect(status(second.blId)).toBe("PAID");
+  });
+
+  it("refuses sources of different agencies and several sources to several targets", () => {
+    const hapag = makeAgency(db, ops, "Hapag");
+    const other = makeBl(db, { acc, ops }, { agencyId: hapag, blNo: "HLCU1000001", amountMinor: 100000, paidAt: "2026-10-01" }, NOW);
+    const both = { sourceBlIds: [source.blId, other.blId], transferredOn: "2026-10-20", note: null };
+    expect(() => transferDeposit(db, ops, { ...both, targets: [newTarget("MEDU2000001")] }, NOW)).toThrow(expect.objectContaining({ messageKey: "transfers.errors.mixedSources" }));
+    expect(() => transferDeposit(db, ops, { ...both, targets: [newTarget("MEDU2000001"), newTarget("MEDU2000002")] }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "transfers.errors.manyToMany" }),
+    );
+  });
+
+  it("splits one deposit over several targets; the parts must add up to the whole", () => {
+    const other = makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU3000001", amountMinor: 100000, paidAt: "2026-10-01" }, NOW);
+    const split = (a: number, b: number) => ({
+      sourceBlIds: [source.blId],
+      targets: [newTarget("MEDU2000001", a), { blNo: "MEDU3000001", amountMinor: b, customerId: null, fileNo: null, unitId: null }],
+      transferredOn: "2026-10-20",
+      note: null,
+    });
+    expect(() => transferDeposit(db, ops, split(200000, 50000), NOW)).toThrow(expect.objectContaining({ messageKey: "transfers.errors.splitTotal" }));
+    expect(() => transferDeposit(db, ops, split(300000, 0), NOW)).toThrow(expect.objectContaining({ messageKey: "transfers.errors.split" }));
+    expect(() => transferDeposit(db, ops, { ...split(150000, 150000), targets: [newTarget("MEDU2000001", 150000), newTarget("medu2000001", 150000)] }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "transfers.errors.duplicateTarget" }),
+    );
+
+    const [created, joined] = transferDeposit(db, ops, split(200000, 100000), NOW).targets;
+    expect(created).toMatchObject({ blNo: "MEDU2000001", created: true });
+    expect(joined).toMatchObject({ blId: other.blId, created: false });
+    expect(getBlDetail(db, ops, created.blId, NOW).bl).toMatchObject({ depositMinor: 200000 });
+    expect(getBlDetail(db, ops, other.blId, NOW).bl).toMatchObject({ depositMinor: 200000 });
+    const from = getBlDetail(db, ops, source.blId, NOW);
+    expect(from.bl).toMatchObject({ status: "ACCOUNTING_PENDING", expectedMinor: 0 });
+    expect(from.transfers.out.map((x) => [x.blNo, x.amountMinor])).toEqual([
+      ["MEDU2000001", 200000],
+      ["MEDU3000001", 100000],
+    ]);
+    expect(transfersInPeriod(db, "2026-10-01", "2026-10-31")).toHaveLength(2);
+
+    // The reversal takes back every leg: the created target is voided, the joined one keeps its own deposit.
+    reverseTransfer(db, admin, { sourceBlId: source.blId, reason: "Yanlış bölme" }, NOW);
+    expect(getBlDetail(db, ops, source.blId, NOW).bl).toMatchObject({ status: "REQUESTED", expectedMinor: 300000 });
+    expect(listAllBls(db, ops, NOW).find((b) => b.id === created.blId)).toMatchObject({ voidReason: "Yanlış bölme" });
+    expect(getBlDetail(db, ops, other.blId, NOW).bl).toMatchObject({ depositMinor: 100000 });
+  });
+});
+
 describe("reversing a transfer (admin)", () => {
   it("restores the source and voids the B/L the transfer created", () => {
-    const { targetBlId } = transferDeposit(db, ops, input(), NOW);
+    const { targetBlId } = one(transferDeposit(db, ops, input(), NOW));
     expect(() => reverseTransfer(db, ops, { sourceBlId: source.blId, reason: "Yanlış B/L" }, NOW)).toThrow(ForbiddenError);
     reverseTransfer(db, admin, { sourceBlId: source.blId, reason: "Yanlış B/L" }, NOW);
     expect(getBlDetail(db, ops, source.blId, NOW).bl).toMatchObject({ status: "REQUESTED", expectedMinor: 300000 });

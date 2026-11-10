@@ -74,15 +74,21 @@ export const uploadFormSchema = z.object({
   documentId: z.number().int().positive(),
 });
 
-/** Moving a B/L's whole deposit to a new B/L (number free) or an open one of the same agency and currency. */
-export const transferDepositSchema = z.object({
-  sourceBlId: z.number().int().positive(),
-  targetBlNo: blNumberSchema,
-  transferredOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
+const transferTargetSchema = z.object({
+  blNo: blNumberSchema,
+  // Splitting one source over several targets: this target's part; otherwise the whole deposit.
+  amountMinor: z.number().int().positive().nullable().default(null),
   // For a new B/L only; prefilled from the source.
   customerId: z.number().int().positive().nullable().default(null),
   fileNo: fileNoSchema.nullable().default(null),
   unitId: z.number().int().positive().nullable().default(null),
+});
+
+/** Moving whole deposits: one B/L to one or several targets, or several B/Ls to one target. */
+export const transferDepositSchema = z.object({
+  sourceBlIds: z.array(z.number().int().positive()).min(1).max(100),
+  targets: z.array(transferTargetSchema).min(1).max(20),
+  transferredOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
   note: z
     .string()
     .trim()
@@ -91,6 +97,6 @@ export const transferDepositSchema = z.object({
     .transform((value) => value || null),
 });
 
-export const previewTransferSchema = z.object({ sourceBlId: z.number().int().positive(), targetBlNo: z.string().trim().min(3).max(60) });
+export const previewTransferSchema = z.object({ sourceBlIds: z.array(z.number().int().positive()).min(1).max(100), targetBlNo: z.string().trim().min(3).max(60) });
 
 export const reverseTransferSchema = z.object({ sourceBlId: z.number().int().positive(), reason: z.string().trim().min(1, msg("payments.errors.reason")).max(500) });

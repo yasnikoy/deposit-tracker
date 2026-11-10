@@ -122,7 +122,7 @@ export function BlDetailScreen({
   // A deposit moves on while the B/L is open and nothing was refunded on it.
   const canTransfer =
     can.transfer && !bl.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(bl.status) && bl.expectedMinor > 0 && bl.collectedMinor === 0;
-  const canReverseTransfer = can.reverseTransfer && !bl.voidedAt && bl.status === "ACCOUNTING_PENDING" && detail.transfers.out !== null;
+  const canReverseTransfer = can.reverseTransfer && !bl.voidedAt && bl.status === "ACCOUNTING_PENDING" && detail.transfers.out.length > 0;
   const opening = detail.openingBalance;
   const depositParts = (payment ? 1 : 0) + detail.additionalPayments.length + (opening?.entries.length ?? 0);
   // Deposits moved from Excel: each amount with its date, their receipts, and a drop for a missing one.
@@ -233,7 +233,7 @@ export function BlDetailScreen({
             <dd>
               <ContainersField key={bl.containers.join(",")} blId={bl.id} containers={bl.containers} editable={can.edit && !bl.voidedAt} />
             </dd>
-            {(detail.transfers.out || detail.transfers.in.length > 0) && (
+            {(detail.transfers.out.length > 0 || detail.transfers.in.length > 0) && (
               <>
                 <dt className="text-muted-foreground">{t("transfers.label")}</dt>
                 <dd className="flex flex-col gap-0.5" data-testid="bl-transfers">
@@ -246,15 +246,15 @@ export function BlDetailScreen({
                       · {formatMoney(tr.amountMinor, tr.currency)} · {formatBusinessDate(tr.transferredOn)}
                     </span>
                   ))}
-                  {detail.transfers.out && (
-                    <span>
+                  {detail.transfers.out.map((tr) => (
+                    <span key={tr.blId}>
                       {t("transfers.to")}{" "}
-                      <Link href={`/bls/${detail.transfers.out.blId}`} className="font-mono underline">
-                        {detail.transfers.out.blNo}
+                      <Link href={`/bls/${tr.blId}`} className="font-mono underline">
+                        {tr.blNo}
                       </Link>{" "}
-                      · {formatMoney(detail.transfers.out.amountMinor, detail.transfers.out.currency)} · {formatBusinessDate(detail.transfers.out.transferredOn)}
+                      · {formatMoney(tr.amountMinor, tr.currency)} · {formatBusinessDate(tr.transferredOn)}
                     </span>
-                  )}
+                  ))}
                 </dd>
               </>
             )}
@@ -476,15 +476,18 @@ export function BlDetailScreen({
       {dialog === "void" && <VoidBlDialog bl={bl} onCancel={() => setDialog(null)} onVoided={done} />}
       {dialog === "transfer" && (
         <TransferDialog
-          bl={bl}
-          amountMinor={bl.expectedMinor}
+          sources={[{ id: bl.id, blNo: bl.blNo, amountMinor: bl.expectedMinor }]}
+          currency={bl.currency}
+          defaults={bl}
           customers={customers}
           units={units}
           today={today}
           onCancel={() => setDialog(null)}
-          onDone={(targetBlId) => {
+          onDone={(targets) => {
             setDialog(null);
-            router.push(`/bls/${targetBlId}`);
+            // One target opens; a split stays here, where the detail links every target.
+            if (targets.length === 1) router.push(`/bls/${targets[0].blId}`);
+            else router.refresh();
           }}
         />
       )}
@@ -494,7 +497,7 @@ export function BlDetailScreen({
           onOpenChange={(open) => !open && setDialog(null)}
           title={t("transfers.reverse")}
           description={t("transfers.reverseHint")}
-          items={detail.transfers.out ? [`${bl.blNo} → ${detail.transfers.out.blNo}`] : []}
+          items={detail.transfers.out.map((tr) => `${bl.blNo} → ${tr.blNo}`)}
           confirmLabel={t("transfers.reverse")}
           destructive
           requireReason
