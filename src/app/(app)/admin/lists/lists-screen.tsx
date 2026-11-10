@@ -19,8 +19,8 @@ import { Label } from "@/components/ui/label";
 import { isTranslationKey, t } from "@/i18n";
 import { bankAccountInputSchema, currencyInputSchema } from "@/lib/schemas/lists";
 import type { ActionResult } from "@/server/errors";
-import type { BankAccount, Currency, DeductionType, ReplyType } from "@/server/lists";
-import { saveBankAccountAction, saveCurrencyAction, saveDeductionTypeAction, saveReplyTypeAction } from "./actions";
+import type { BankAccount, Currency, DeductionType, HoldReason, ReplyType } from "@/server/lists";
+import { saveBankAccountAction, saveCurrencyAction, saveDeductionTypeAction, saveHoldReasonAction, saveReplyTypeAction } from "./actions";
 import { CodedTypesCard } from "./coded-types-card";
 
 type Editing = { kind: "currency"; currency: Currency | null } | { kind: "account"; account: BankAccount | null } | null;
@@ -30,11 +30,13 @@ export function ListsScreen({
   bankAccounts,
   replyTypes,
   deductionTypes,
+  holdReasons,
 }: {
   currencies: Currency[];
   bankAccounts: BankAccount[];
   replyTypes: ReplyType[];
   deductionTypes: DeductionType[];
+  holdReasons: HoldReason[];
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState<Editing>(null);
@@ -120,6 +122,15 @@ export function ListsScreen({
         types={deductionTypes}
         effectOf={(code) => (code ? t(`lists.deductionTypeEffects.${code as NonNullable<DeductionType["code"]>}`) : t("lists.customDeductionType"))}
         save={saveDeductionTypeAction}
+        onDone={done}
+      />
+      <CodedTypesCard
+        title={t("lists.holdReasons")}
+        hint={t("lists.holdReasonsHint")}
+        addLabel={t("lists.addHoldReason")}
+        types={holdReasons}
+        effectOf={() => ""}
+        save={saveHoldReasonAction}
         onDone={done}
       />
 

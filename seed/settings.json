@@ -110,6 +110,29 @@
         "code": "WRITE_OFF",
         "name": "Silinen (tahsil edilemeyen)"
       }
+    ],
+    "holdReasons": [
+      {
+        "name": "Acente kapandı veya iflas etti"
+      },
+      {
+        "name": "Hukuki takipte (avukat)"
+      },
+      {
+        "name": "Acente ileride faturaya mahsup edecek"
+      },
+      {
+        "name": "Müşteri kendisi takip ediyor"
+      },
+      {
+        "name": "Müşteriden belge bekleniyor"
+      },
+      {
+        "name": "Konteyner gümrükte veya limanda bekliyor"
+      },
+      {
+        "name": "Acente beklememizi istedi"
+      }
     ]
   },
   "emailTemplates": {

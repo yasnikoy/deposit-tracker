@@ -3,7 +3,7 @@ import { t } from "@/i18n";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
-import { listBankAccounts, listCurrencies, listDeductionTypes, listReplyTypes } from "@/server/lists";
+import { listBankAccounts, listCurrencies, listDeductionTypes, listHoldReasons, listReplyTypes } from "@/server/lists";
 import { ListsScreen } from "./lists-screen";
 
 export default async function ListsPage() {
@@ -18,6 +18,7 @@ export default async function ListsPage() {
         bankAccounts={listBankAccounts(db, user)}
         replyTypes={listReplyTypes(db, user)}
         deductionTypes={listDeductionTypes(db, user)}
+        holdReasons={listHoldReasons(db, user)}
       />
     </>
   );

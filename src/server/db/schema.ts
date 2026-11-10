@@ -418,6 +418,13 @@ export const billsOfLading = sqliteTable(
     description: text("description"),
     // The agency's unit the requests go to; required while the agency has active units.
     unitId: integer("unit_id"),
+    // On hold (Beklemeye al): out of the request work lists while the money stays outstanding.
+    // Not a status; ends on hold_until (computed on read) or when operations lifts it.
+    holdReasonId: integer("hold_reason_id").references((): AnySQLiteColumn => holdReasons.id),
+    holdNote: text("hold_note"),
+    holdUntil: text("hold_until"),
+    heldBy: integer("held_by").references(() => users.id),
+    heldAt: timestamp("held_at"),
     createdBy: integer("created_by")
       .notNull()
       .references(() => users.id),
@@ -427,6 +434,12 @@ export const billsOfLading = sqliteTable(
   },
   (t) => [
     check("bills_of_lading_amount", sql`${t.depositAmountMinor} > 0`),
+    check(
+      "bills_of_lading_hold",
+      sql`(${t.holdReasonId} IS NULL) = (${t.heldAt} IS NULL) AND (${t.holdReasonId} IS NULL) = (${t.heldBy} IS NULL)
+        AND (${t.holdReasonId} IS NOT NULL OR (${t.holdNote} IS NULL AND ${t.holdUntil} IS NULL))
+        AND (${t.holdUntil} IS NULL OR ${t.holdUntil} GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')`,
+    ),
     index("bills_of_lading_customer").on(t.customerId),
     check("bills_of_lading_status", sql`${t.status} IN (${sqlList(BL_STATUSES.filter((s) => s !== "DUE"))})`),
     voidCheck("bills_of_lading_void", t),
@@ -682,6 +695,22 @@ export const serviceStatus = sqliteTable(
     updatedAt: timestamp("updated_at").notNull(),
   },
   (t) => [check("service_status_service", sql`${t.service} IN (${sqlList(MAIL_SERVICES)})`)],
+);
+
+/** Why a B/L is on hold (e.g. the agency closed); admins keep the list. No system types. */
+export const holdReasons = sqliteTable(
+  "hold_reasons",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // Always null: the shared list code expects the column; hold reasons have no system types.
+    code: text("code"),
+    name: text("name").notNull(),
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at").notNull(),
+    updatedAt: timestamp("updated_at").notNull(),
+  },
+  (t) => [check("hold_reasons_code", sql`${t.code} IS NULL`)],
 );
 
 // ---- Build step 5: agency replies ----

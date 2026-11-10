@@ -29,6 +29,9 @@ import type { CustomerOption } from "@/components/customer-combobox";
 const transferable = (b: BlOverview) =>
   !b.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(b.status) && b.expectedMinor > 0 && b.collectedMinor === 0;
 
+/** The hold column's value: one word to filter on; the cell shows the reason. */
+export const HELD = "HELD";
+
 const STATUS_OPTIONS = BL_STATUSES.map((status) => ({ value: status, label: `bls.statuses.${status}` as const }));
 
 const col = dataTableColumns<BlOverview>();
@@ -77,7 +80,29 @@ const buildColumns = (canEdit: boolean) => col.columns([
   col.accessor("status", {
     meta: { label: "bls.status", filter: { options: STATUS_OPTIONS }, toText: (v) => t(`bls.statuses.${v as BlOverview["status"]}`) },
     sortFn: "turkishText",
-    cell: ({ row }) => <BlStatusBadge status={row.original.status} voided={!!row.original.voidedAt} voidReason={row.original.voidReason} />,
+    cell: ({ row }) => (
+      <span className="inline-flex items-center gap-1">
+        <BlStatusBadge status={row.original.status} voided={!!row.original.voidedAt} voidReason={row.original.voidReason} />
+        {row.original.hold && (
+          <Badge variant="secondary" title={row.original.hold.reason}>
+            {t("holds.chip")}
+          </Badge>
+        )}
+      </span>
+    ),
+  }),
+  // On hold (Beklemeye al): the reason, and when it comes back; filter to see them all.
+  col.accessor((b) => (b.hold ? HELD : ""), {
+    id: "hold",
+    meta: { label: "holds.label", filter: { options: [{ value: HELD, label: "holds.chip" }] }, toText: (v) => (v ? t("holds.chip") : "") },
+    sortFn: "basic",
+    cell: ({ row }) =>
+      row.original.hold && (
+        <span className="text-xs">
+          {row.original.hold.reason}
+          {row.original.hold.until && <span className="text-muted-foreground"> · {formatBusinessDate(row.original.hold.until)}</span>}
+        </span>
+      ),
   }),
   col.accessor("paidAt", {
     meta: { label: "bls.paidAt", toText: (v) => formatBusinessDate(v as string) },
@@ -143,6 +168,7 @@ export function AllBlsScreen({
   bls,
   layout,
   status,
+  held,
   canEdit,
   canVoid,
   canEditDescription,
@@ -152,6 +178,8 @@ export function AllBlsScreen({
   layout: TableLayout | null;
   /** A status the page was opened with (e.g. from the dashboard): the list starts filtered to it. */
   status: BlOverview["status"] | null;
+  /** Opened from the dashboard's on-hold count: the list starts filtered to B/Ls on hold. */
+  held: boolean;
   canEdit: boolean;
   canVoid: boolean;
   canEditDescription: boolean;
@@ -182,9 +210,9 @@ export function AllBlsScreen({
         columns={columns}
         getRowId={(b) => String(b.id)}
         initialLayout={layout}
-        initialFilters={status ? [{ id: "status", value: status }] : undefined}
+        initialFilters={status ? [{ id: "status", value: status }] : held ? [{ id: "hold", value: HELD }] : undefined}
         // Beklenen equals Depozito until money comes in; request count and last reply are on the row panel.
-        hiddenByDefault={["unit", "expectedMinor", "attempts", "lastReply", "containers"]}
+        hiddenByDefault={["unit", "expectedMinor", "attempts", "lastReply", "containers", "hold"]}
         onOpenRow={(b, visible) => {
           setOrder(visible.map((v) => String(v.id)));
           setOpenId(b.id);

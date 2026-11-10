@@ -5,6 +5,7 @@ import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domai
 import { businessDaysBetween, istanbulToday, type BusinessCalendar, type IsoDate } from "@/domain/business-days";
 import { dueState, statementDueState, type DueList, type DueState, type RequestDurations, type StatementDurations } from "@/domain/due-requests";
 import { requestRecipients, type RequestChannel } from "@/domain/agency";
+import { isOnHold } from "@/domain/hold";
 import type { RequestType } from "@/domain/records";
 import { parseSettingValue, type OverridableSettingKey, type SettingKey } from "@/domain/settings/definitions";
 import { resolveSetting } from "@/domain/settings/resolve";
@@ -148,6 +149,8 @@ export function dueEntries(db: DbOrTx, now: Date, hypothesis: SettingsHypothesis
   const none: RequestStats = { attempts: 0, lastRequestOn: null, sending: false };
   const entries: DueEntry[] = [];
   for (const { bl, agency } of rows) {
+    // On hold: no request is due (and none can be prepared) until it is lifted or its review date.
+    if (isOnHold(bl, today)) continue;
     const durations = timing(bl, agency);
     const lastReplyOn = history.get(bl.id)?.lastAnswerOn ?? null;
     let state: DueState | null;

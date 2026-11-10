@@ -100,3 +100,17 @@ export const transferDepositSchema = z.object({
 export const previewTransferSchema = z.object({ sourceBlIds: z.array(z.number().int().positive()).min(1).max(100), targetBlNo: z.string().trim().min(3).max(60) });
 
 export const reverseTransferSchema = z.object({ sourceBlId: z.number().int().positive(), reason: z.string().trim().min(1, msg("payments.errors.reason")).max(500) });
+
+export const holdBlSchema = z.object({
+  blId: z.number().int().positive(),
+  reasonId: z.number().int().positive(),
+  until: z.string().refine(isValidIsoDate, msg("payments.errors.date")).nullable(),
+  note: z
+    .string()
+    .trim()
+    .max(1000)
+    .nullish()
+    .transform((value) => value || null),
+});
+
+export const releaseHoldSchema = z.object({ blId: z.number().int().positive() });

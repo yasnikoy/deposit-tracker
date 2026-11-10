@@ -99,7 +99,7 @@ export function AppHeader({
           </Link>
         )}
       </nav>
-      <div className="ml-auto flex min-w-72 flex-1 items-center justify-end gap-2">
+      <div className="ml-auto flex min-w-[27rem] flex-1 items-center justify-end gap-2">
         <Button variant="outline" size="sm" title={t("feedback.title")} onClick={() => setFeedbackOpen(true)}>
           <MessageSquareWarning /> {t("feedback.button")}
         </Button>

@@ -522,3 +522,29 @@ test("a request email sent to the wrong address goes again from the B/L detail, 
   await expect(page.getByText(tr.blReplies.resent, { exact: true })).toBeVisible();
   await expect(page.getByText(tr.timeline.actions.request.resend, { exact: true })).toBeVisible();
 });
+
+test("a B/L is put on hold with a reason and taken back into follow-up", async ({ page }) => {
+  await login(page, OPS.username, OPS.final);
+  await page.getByRole("combobox", { name: tr.search.label }).fill(PORTAL_BL_NO);
+  await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+  await expect(page.getByRole("heading", { name: PORTAL_BL_NO })).toBeVisible();
+
+  await page.getByRole("button", { name: tr.holds.action }).click();
+  const dialog = page.getByRole("dialog", { name: tr.holds.title });
+  await dialog.getByRole("button", { name: tr.holds.save }).click();
+  await expect(dialog.getByText(tr.holds.errors.reason)).toBeVisible();
+  await dialog.getByLabel(tr.holds.reason).selectOption({ label: "Hukuki takipte (avukat)" });
+  await dialog.getByLabel(tr.holds.note).fill("Dosya avukatta.");
+  await dialog.getByRole("button", { name: tr.holds.save }).click();
+  await expect(page.getByText(tr.holds.saved)).toBeVisible();
+  await expect(page.getByTestId("bl-hold")).toContainText("Hukuki takipte (avukat)");
+
+  await page.goto("/bls?hold=1");
+  await expect(page.getByRole("row").filter({ hasText: PORTAL_BL_NO })).toContainText(tr.holds.chip);
+
+  await page.getByRole("row").filter({ hasText: PORTAL_BL_NO }).click();
+  await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await page.getByRole("button", { name: tr.holds.release }).click();
+  await expect(page.getByText(tr.holds.released)).toBeVisible();
+  await expect(page.getByTestId("bl-hold")).toHaveCount(0);
+});

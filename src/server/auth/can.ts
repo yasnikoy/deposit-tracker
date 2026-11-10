@@ -101,6 +101,8 @@ const rules = {
   "bl.uploadForm": only("OPERATIONS"),
   // B/L setting overrides are settings, like agency overrides.
   "bl.updateOverrides": only("ADMIN"),
+  // Beklemeye al / Takibe geri al: out of the work lists, money still outstanding.
+  "bl.hold": only("OPERATIONS"),
   "request.view": only("OPERATIONS", "ACCOUNTANT"),
   // Preparing a request email locks its B/Ls; queueing it sends.
   "request.prepareEmail": only("OPERATIONS"),

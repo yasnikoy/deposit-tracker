@@ -1,6 +1,6 @@
 "use server";
 
-import { blSearchSchema, createBlsSchema, generateFormSchema, previewTransferSchema, reverseTransferSchema, setBlCustomerSchema, setBlUnitSchema, transferDepositSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
+import { blSearchSchema, createBlsSchema, generateFormSchema, holdBlSchema, releaseHoldSchema, previewTransferSchema, reverseTransferSchema, setBlCustomerSchema, setBlUnitSchema, transferDepositSchema, updateBlSchema, uploadFormSchema } from "@/lib/schemas/bls";
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
 import { appendBlDescriptionSchema, updateBlDescriptionSchema } from "@/lib/schemas/descriptions";
 import { voidSchema } from "@/lib/schemas/payments";
@@ -16,6 +16,7 @@ import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
 import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
 import { getEmailDetail, recordReplyWithoutEmail, type EmailDetail } from "@/server/replies";
+import { holdBl, releaseHold } from "@/server/holds";
 import { proposeWriteOff } from "@/server/write-offs";
 import { previewTransfer, reverseTransfer, transferDeposit, type TransferPreview } from "@/server/transfers";
 
@@ -114,4 +115,14 @@ export async function emailDetailAction(input: unknown): Promise<ActionResult<Em
 export async function recordReplyWithoutEmailAction(input: unknown): Promise<ActionResult<number[]>> {
   const { user } = await requireSession();
   return runAction(recordReplyWithoutEmailSchema, input, (data) => recordReplyWithoutEmail(getDb(), user, data));
+}
+
+export async function holdBlAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(holdBlSchema, input, (data) => holdBl(getDb(), user, data));
+}
+
+export async function releaseHoldAction(input: unknown): Promise<ActionResult<void>> {
+  const { user } = await requireSession();
+  return runAction(releaseHoldSchema, input, (data) => releaseHold(getDb(), user, data));
 }

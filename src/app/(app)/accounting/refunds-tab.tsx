@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, MoreHorizontal } from "lucide-react";
+import { FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PAYMENT_KINDS, type PaymentKind } from "@/domain/records";
@@ -311,19 +310,15 @@ export function RefundRecords({ refunds, refs, layout, currentUserId }: { refund
                 own && !refund.voidedAt && <EvidenceDrop refundId={refund.id} kind={refund.kind} compact />
               )}
               {own && !refund.voidedAt && refund.allocatedMinor === 0 && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-7" aria-label={t("common.actions")}>
-                      <MoreHorizontal />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => setDialog({ kind: "correct", refund })}>{t("payments.correct")}</DropdownMenuItem>
-                    <DropdownMenuItem variant="destructive" onSelect={() => setDialog({ kind: "void", refund })}>
-                      {t("payments.void")}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                // Visible, not in a menu: users looked for them and did not find them.
+                <span className="ml-1 flex gap-1">
+                  <Button variant="outline" size="sm" className="h-6 px-2 text-xs" onClick={() => setDialog({ kind: "correct", refund })}>
+                    {t("payments.correct")}
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-destructive h-6 px-2 text-xs" onClick={() => setDialog({ kind: "void", refund })}>
+                    {t("payments.void")}
+                  </Button>
+                </span>
               )}
             </div>
           );

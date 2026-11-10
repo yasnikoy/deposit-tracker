@@ -196,8 +196,7 @@ test("the accountant corrects and voids own records; receipts open from the list
   expect(response.headers()["content-type"]).toBe("application/pdf");
 
   const queued = table.getByRole("row").filter({ hasText: "1.500,00" });
-  await queued.getByRole("button", { name: tr.common.actions }).click();
-  await page.getByRole("menuitem", { name: tr.payments.correct }).click();
+  await queued.getByRole("button", { name: tr.payments.correct }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel(tr.payments.amount).fill("1.600");
   await dialog.getByRole("button", { name: tr.payments.correct }).click();
@@ -210,14 +209,13 @@ test("the accountant corrects and voids own records; receipts open from the list
   // The payment whose B/L was voided can now be voided itself.
   const awaiting = table.getByRole("row").filter({ hasText: tr.payments.statuses.awaitingBl });
   await expect(awaiting).toHaveCount(1);
-  await awaiting.getByRole("button", { name: tr.common.actions }).click();
-  await page.getByRole("menuitem", { name: tr.payments.void }).click();
+  await awaiting.getByRole("button", { name: tr.payments.void }).click();
   await page.getByRole("dialog").getByLabel(tr.common.reasonRequired).fill("Mükerrer ödeme kaydı");
   await page.getByRole("dialog").getByRole("button", { name: tr.payments.void }).click();
   await expect(page.getByText(tr.payments.voided)).toBeVisible();
   await expect(table.getByRole("row").filter({ hasText: tr.payments.statuses.awaitingBl })).toHaveCount(0);
   await page.getByLabel(tr.payments.showVoided).check();
-  await expect(table.getByRole("row").filter({ hasText: tr.payments.statuses.voided })).toHaveCount(1);
+  await expect(table.getByRole("row").filter({ has: page.getByText(tr.payments.statuses.voided, { exact: true }) })).toHaveCount(1);
 });
 
 test("a payment for an agency not in the system adds it by name, marked as missing details", async ({ page }) => {

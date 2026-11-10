@@ -659,7 +659,10 @@
     "deductionTypeEffects": {
       "UNEXPLAINED": "Sistem: B/L \"Kesinti açık\" kalır; fark açıklanana kadar kapanmaz",
       "WRITE_OFF": "Sistem: yönetici onaylı silme; onaylanınca B/L kapanır"
-    }
+    },
+    "holdReasons": "Bekletme nedenleri",
+    "holdReasonsHint": "B/L beklemeye alınırken seçilen nedenler (ör. acente kapandı, hukuki takip). Kullanılan bir neden silinmez, pasif yapılır.",
+    "addHoldReason": "Neden ekle"
   },
   "payments": {
     "accountingEntries": {
@@ -921,7 +924,9 @@
         "overrides": "B/L ayar istisnaları değişti",
         "additionalPayment": "Ek depozito eklendi",
         "additionalPaymentVoided": "Ek depozito iptal edildi",
-        "additionalOpeningBalance": "Ek depozito eklendi (açılış bakiyesi)"
+        "additionalOpeningBalance": "Ek depozito eklendi (açılış bakiyesi)",
+        "hold": "B/L beklemeye alındı",
+        "releaseHold": "B/L takibe geri alındı"
       },
       "payment": {
         "create": "Depozito ödemesi kaydedildi",
@@ -1884,6 +1889,31 @@
       "type": "Yalnızca Outlook e-posta dosyaları (.eml, .msg) arşivlenebilir.",
       "unreadable": "Dosya bir e-posta olarak okunamadı.",
       "alreadyLinked": "Bu e-posta B/L {bl} kaydında zaten arşivli."
+    }
+  },
+  "holds": {
+    "action": "Beklemeye al",
+    "release": "Takibe geri al",
+    "chip": "Beklemede",
+    "title": "B/L'yi beklemeye al",
+    "hint": "B/L talep listelerinden ve günlük işlerden çıkar; parası açık alacak olarak bakiyede ve raporlarda kalır, durumu değişmez. Gelen iade yine dağıtılabilir.",
+    "reason": "Neden",
+    "reasonPick": "Neden seçin",
+    "until": "Tekrar bakılacak tarih",
+    "untilHint": "(isteğe bağlı) Bu gün B/L kendiliğinden talep listelerine döner.",
+    "note": "Not",
+    "save": "Beklemeye al",
+    "saved": "B/L beklemeye alındı.",
+    "released": "B/L takibe geri alındı.",
+    "label": "Bekletme",
+    "summary": "{reason} · {by}, {at}",
+    "untilText": "{date} tarihinde takibe döner",
+    "dashboard": "Beklemedeki B/L'ler",
+    "errors": {
+      "notOpen": "B/L {bl} kapanmış; beklemeye alınamaz.",
+      "reason": "Listeden bir neden seçin.",
+      "untilPast": "Tekrar bakılacak tarih bugünden sonra olmalı.",
+      "notHeld": "B/L {bl} beklemede değil."
     }
   }
 }

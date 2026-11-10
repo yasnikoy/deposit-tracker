@@ -98,6 +98,8 @@ export default async function DashboardPage() {
           items={[
             { label: "dashboard.deductionOpen", count: problems.deductionOpen, href: "/bls?status=DEDUCTION_OPEN" },
             { label: "dashboard.disputed", count: problems.disputed, href: "/bls?status=DISPUTED" },
+            // Parked on purpose: listed here so they are not forgotten, but not as work for today.
+            { label: "holds.dashboard", count: summary.onHold, href: "/bls?hold=1" },
           ]}
         />
       </div>

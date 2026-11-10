@@ -229,7 +229,7 @@ One scheme everywhere; add a new status to this table before using it.
 | outline | normal course | *Depozito yatırıldı*, *Talep edildi*, *Konteyner dönüşü bekleniyor*, *Aktif*, open refunds, *B/L bekliyor* (payment), send-mode badges |
 | warning (amber) | someone has to act | *Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*, write-off *Onay bekliyor*, missing receipt on a due request, *Birim seçilmedi* (a B/L of an agency with units names none) |
 | destructive (red) | problem or voided | *İtirazlı*, *İptal*, locked user, agency *Bilgi eksik*, backup problems |
-| secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Aktarıldı*, *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
+| secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Aktarıldı*, *Beklemede* (B/L on hold, next to its status), *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
 
 Variants live in `components/ui/badge.tsx`; B/L statuses map in `bl-status-badge.tsx`.
 Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings under a field).
@@ -285,6 +285,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
 | A user's bug report or feature request to the admins | header button *Hata / öneri*, dialog *Hata bildir / öneri gönder*; kinds *Hata*, *Öneri*; the admin list *Geri bildirimler* | *Destek talebi*, *Ticket* |
 | An email dragged from Outlook onto a B/L, kept with it | *arşivlenen e-posta*; drop zone *Outlook'tan e-posta bırakın*; *Outlook'ta aç* | *Yanıt içe aktar*, *Eşleştir* |
+| Taking an open B/L out of the work lists, money still outstanding | *Beklemeye al*, *Beklemede*, *Takibe geri al*; reasons *Bekletme nedenleri* | *Ertele*, *Dondur*, *Manuel durum* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 
 ## 11. Checklist for a UI change

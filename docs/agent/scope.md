@@ -2,7 +2,7 @@
 
 Check before proposing or adding any feature. Do not add these.
 
-- Removed after review: escalation, snooze, auto-confirm of allocations,
+- Removed after review: escalation, auto-confirm of allocations,
   bank-fee tolerance.
 - Not in the domain: partial refunds, FX conversion, deposit tariff tables,
   container-level return tracking.

@@ -5,7 +5,7 @@ import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getBlDetail } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
-import { listDeductionTypes, listReplyTypes } from "@/server/lists";
+import { listDeductionTypes, listHoldReasons, listReplyTypes } from "@/server/lists";
 import { DomainError } from "@/server/errors";
 import { BlDetailScreen } from "./bl-detail-screen";
 import { listCustomers } from "@/server/customers";
@@ -34,6 +34,7 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
         overrides: can(user, "bl.updateOverrides").allowed,
         recordReply: can(user, "reply.record").allowed,
         recordOutsideRequest: can(user, "request.recordOutside").allowed,
+        hold: can(user, "bl.hold").allowed,
         viewEmails: can(user, "reply.view").allowed,
         linkEmail: can(user, "email.link").allowed,
         reverseAllocation: can(user, "allocation.reverse").allowed,
@@ -58,6 +59,9 @@ export default async function BlDetailPage({ params }: PageProps<"/bls/[id]">) {
       replyTypes={listReplyTypes(getDb(), user)
         .filter((type) => type.active)
         .map(({ id, name, code }) => ({ id, name, code }))}
+      holdReasons={listHoldReasons(getDb(), user)
+        .filter((r) => r.active)
+        .map(({ id, name }) => ({ id, name }))}
       today={istanbulToday()}
     />
   );

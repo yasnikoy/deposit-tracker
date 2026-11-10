@@ -15,7 +15,9 @@ export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
   const { user } = await requireSession();
   if (!can(user, "bl.view").allowed) return <Forbidden />;
   const db = getDb();
-  const requested = (await searchParams).status;
+  const params = await searchParams;
+  const requested = params.status;
+  const held = params.hold === "1";
   const status = BL_STATUSES.find((s) => s === requested) ?? null;
 
   return (
@@ -23,8 +25,9 @@ export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
       <h1 className="text-lg font-semibold">{t("bls.allTitle")}</h1>
       {/* A new status link starts the table afresh with that filter. */}
       <AllBlsScreen
-        key={status ?? ""}
+        key={`${status ?? ""}${held ? "-held" : ""}`}
         status={status}
+        held={held}
         bls={listAllBls(db, user)}
         layout={getTableLayout(db, user.id, "all-bls")}
         canEdit={can(user, "bl.update").allowed}

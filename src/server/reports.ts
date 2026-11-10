@@ -129,6 +129,8 @@ export type DashboardSummary = {
     writeOffsAwaiting: Count;
   };
   problems: { deductionOpen: Count; disputed: Count };
+  /** Open B/Ls on hold: out of the work lists, still outstanding. */
+  onHold: Count;
 };
 
 /** The dashboard: money at a glance and the counts of each work list the viewer can open. */
@@ -176,5 +178,6 @@ export function dashboardSummary(db: DbOrTx, actor: AuthUser, now: Date = new Da
       deductionOpen: allowed("bl.view") ? all.filter((p) => p.status === "DEDUCTION_OPEN").length : null,
       disputed: allowed("bl.view") ? all.filter((p) => p.status === "DISPUTED").length : null,
     },
+    onHold: allowed("bl.view") ? all.filter((p) => p.hold).length : null,
   };
 }

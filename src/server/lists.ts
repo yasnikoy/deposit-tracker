@@ -8,7 +8,7 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
-import { bankAccounts, currencies, deductionTypes, replyTypes } from "./db/schema";
+import { bankAccounts, currencies, deductionTypes, holdReasons, replyTypes } from "./db/schema";
 import { DomainError } from "./errors";
 import { SEED_FILE } from "./settings";
 
@@ -16,6 +16,7 @@ export type Currency = typeof currencies.$inferSelect;
 export type BankAccount = typeof bankAccounts.$inferSelect;
 export type ReplyType = typeof replyTypes.$inferSelect;
 export type DeductionType = typeof deductionTypes.$inferSelect;
+export type HoldReason = typeof holdReasons.$inferSelect;
 
 /** Loads the seed currencies on first start (when the list is still empty). */
 export function seedLists(db: Db, seedFile: string = SEED_FILE): string[] {
@@ -125,10 +126,10 @@ export function saveBankAccount(
 // ---- Coded type lists: reply types and deduction types ----
 
 type CodedList<Code extends string> = {
-  table: typeof replyTypes | typeof deductionTypes;
+  table: typeof replyTypes | typeof deductionTypes | typeof holdReasons;
   codes: readonly Code[];
-  seedKey: "replyTypes" | "deductionTypes";
-  entity: "replyType" | "deductionType";
+  seedKey: "replyTypes" | "deductionTypes" | "holdReasons";
+  entity: "replyType" | "deductionType" | "holdReason";
 };
 
 const REPLY_TYPES: CodedList<ReplyTypeCode> = { table: replyTypes, codes: REPLY_TYPE_CODES, seedKey: "replyTypes", entity: "replyType" };
@@ -139,6 +140,9 @@ const DEDUCTION_TYPES: CodedList<DeductionTypeCode> = {
   seedKey: "deductionTypes",
   entity: "deductionType",
 };
+
+// Hold reasons have no system types: all are seeded into an empty list, then kept by admins.
+const HOLD_REASONS: CodedList<never> = { table: holdReasons, codes: [], seedKey: "holdReasons", entity: "holdReason" };
 
 /**
  * Loads seed types missing from the database. System types (with a code) are added once
@@ -244,4 +248,17 @@ export function listDeductionTypes(db: DbOrTx, actor: AuthUser): DeductionType[]
 
 export function saveDeductionType(db: Db, actor: AuthUser, input: TypeInput, now: Date = new Date()): number {
   return saveCodedType(db, actor, DEDUCTION_TYPES, input, now);
+}
+
+export function seedHoldReasons(db: Db, seedFile: string = SEED_FILE, now: Date = new Date()): string[] {
+  return seedCodedList(db, HOLD_REASONS, seedFile, now);
+}
+
+export function listHoldReasons(db: DbOrTx, actor: AuthUser): HoldReason[] {
+  authorize(actor, "lists.view");
+  return db.select().from(holdReasons).orderBy(asc(holdReasons.sortOrder), asc(holdReasons.id)).all();
+}
+
+export function saveHoldReason(db: Db, actor: AuthUser, input: TypeInput, now: Date = new Date()): number {
+  return saveCodedType(db, actor, HOLD_REASONS as CodedList<string>, input, now);
 }

@@ -4,6 +4,7 @@ import { blBalance, type BlBalance } from "@/domain/balances";
 import { displayStatus } from "@/domain/bl-status";
 import { businessDaysBetween, istanbulToday, type BusinessCalendar } from "@/domain/business-days";
 import { isSettled, type StoredBlStatus } from "@/domain/bl-lifecycle";
+import { isOnHold } from "@/domain/hold";
 import type { AllocationState, BlStatus, DeductionSource, DeductionTypeCode, LedgerType, PaymentKind } from "@/domain/records";
 import { OVERRIDABLE_SETTING_KEYS, type OverridableSettingKey } from "@/domain/settings/definitions";
 import { matchBl, parseBlSearch, type BlMatchField } from "@/lib/bl-search";
@@ -13,7 +14,7 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
 import type { DbOrTx } from "./db/client";
-import { agencies, agencyUnits, auditLog, billsOfLading, containers, customers, deductionTypes, depositPayments, documents, emailAttachments, emailBlLinks, emails, ledgerEntries, refundAllocations, refunds, replies, replyTypes, requests, users } from "./db/schema";
+import { agencies, agencyUnits, auditLog, billsOfLading, containers, customers, deductionTypes, depositPayments, holdReasons, documents, emailAttachments, emailBlLinks, emails, ledgerEntries, refundAllocations, refunds, replies, replyTypes, requests, users } from "./db/schema";
 import { activeLockers } from "./draft-locks";
 import { DomainError } from "./errors";
 import { currentBlForm } from "./forms";
@@ -61,6 +62,8 @@ export type BlOverview = BlBalance & {
   createdAt: string;
   voidedAt: string | null;
   voidReason: string | null;
+  /** On hold today (Beklemeye al), while the B/L is open; null otherwise. */
+  hold: { reason: string; note: string | null; until: string | null; byName: string; at: string } | null;
 };
 
 type BlRow = typeof billsOfLading.$inferSelect & { agencyName: string; customerName: string | null; unitName: string | null };
@@ -83,6 +86,8 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
     .where(inArray(ledgerEntries.blId, ids))
     .all();
   const containerRows = db.select().from(containers).where(inArray(containers.blId, ids)).orderBy(containers.id).all();
+  const reasonNames = new Map(db.select({ id: holdReasons.id, name: holdReasons.name }).from(holdReasons).all().map((r) => [r.id, r.name]));
+  const userNames = new Map(db.select({ id: users.id, name: users.displayName }).from(users).all().map((u) => [u.id, u.name]));
 
   return rows.map((row) => {
     const status = displayStatus(
@@ -119,6 +124,10 @@ function toOverviews(db: DbOrTx, viewer: AuthUser | null, rows: BlRow[], now: Da
       createdAt: row.createdAt,
       voidedAt: row.voidedAt,
       voidReason: row.voidReason,
+      hold:
+        open && isOnHold(row, today)
+          ? { reason: reasonNames.get(row.holdReasonId!) ?? "", note: row.holdNote, until: row.holdUntil, byName: userNames.get(row.heldBy!) ?? "", at: row.heldAt! }
+          : null,
     };
   });
 }

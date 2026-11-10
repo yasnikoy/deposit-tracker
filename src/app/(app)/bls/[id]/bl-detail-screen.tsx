@@ -33,7 +33,10 @@ import { CustomerField } from "./customer-field";
 import { UnitField } from "./unit-field";
 import { recordAccountingEntryAction } from "../../accounting/actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { reverseTransferAction } from "../actions";
+import { releaseHoldAction, reverseTransferAction } from "../actions";
+import { HoldDialog } from "./hold-dialog";
+import { Badge } from "@/components/ui/badge";
+import { HOLDABLE } from "@/domain/hold";
 import { TransferDialog } from "./transfer-dialog";
 import { toastWithUndo } from "@/components/undo-toast";
 
@@ -58,6 +61,7 @@ export type BlDetailPermissions = {
   overrides: boolean;
   recordReply: boolean;
   recordOutsideRequest: boolean;
+  hold: boolean;
   /** Open the B/L's emails in place (the message and its reply buttons). */
   viewEmails: boolean;
   linkEmail: boolean;
@@ -87,6 +91,7 @@ export function BlDetailScreen({
   deductionTypes,
   customers,
   units,
+  holdReasons,
   today,
 }: {
   detail: BlDetail;
@@ -96,10 +101,12 @@ export function BlDetailScreen({
   customers: CustomerOption[];
   /** The agency's active units; empty for agencies without units. */
   units: { id: number; name: string }[];
+  /** Active reasons for putting the B/L on hold. */
+  holdReasons: { id: number; name: string }[];
   today: string;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"edit" | "void" | "transfer" | "reverseTransfer" | null>(null);
+  const [dialog, setDialog] = useState<"edit" | "void" | "transfer" | "reverseTransfer" | "hold" | null>(null);
 
   // R records a reply, N starts a note (when the viewer may), outside text fields and dialogs.
   useEffect(() => {
@@ -156,6 +163,7 @@ export function BlDetailScreen({
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="font-mono text-lg font-semibold">{bl.blNo}</h1>
         <BlStatusBadge status={bl.status} voided={!!bl.voidedAt} voidReason={bl.voidReason} />
+        {bl.hold && <Badge variant="secondary">{t("holds.chip")}</Badge>}
         <span>{bl.agencyName}</span>
         <div className="ml-auto flex gap-2">
           {can.recordAccounting && bl.status === "ACCOUNTING_PENDING" && !bl.voidedAt && (
@@ -169,6 +177,25 @@ export function BlDetailScreen({
               }}
             >
               {t("payments.accountingEntries.record")}
+            </Button>
+          )}
+          {can.hold && !bl.voidedAt && bl.hold && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                const result = await releaseHoldAction({ blId: bl.id });
+                if (!result.ok) return void toast.error(t(result.error, result.params));
+                toast.success(t("holds.released"));
+                router.refresh();
+              }}
+            >
+              {t("holds.release")}
+            </Button>
+          )}
+          {can.hold && !bl.voidedAt && !bl.hold && (HOLDABLE as readonly string[]).includes(bl.status) && (
+            <Button size="sm" variant="outline" onClick={() => setDialog("hold")}>
+              {t("holds.action")}
             </Button>
           )}
           {canTransfer && (
@@ -215,6 +242,16 @@ export function BlDetailScreen({
                 <dt className="text-muted-foreground">{t("bls.unit")}</dt>
                 <dd>
                   <UnitField key={bl.unitId ?? 0} blId={bl.id} unitId={bl.unitId} unitName={bl.unitName} units={units} editable={can.edit && !bl.voidedAt} />
+                </dd>
+              </>
+            )}
+            {bl.hold && (
+              <>
+                <dt className="text-muted-foreground">{t("holds.label")}</dt>
+                <dd data-testid="bl-hold">
+                  {t("holds.summary", { reason: bl.hold.reason, by: bl.hold.byName, at: formatTimestamp(bl.hold.at) })}
+                  {bl.hold.until && <div className="text-muted-foreground text-xs">{t("holds.untilText", { date: formatBusinessDate(bl.hold.until) })}</div>}
+                  {bl.hold.note && <div className="text-xs italic">{bl.hold.note}</div>}
                 </dd>
               </>
             )}
@@ -486,6 +523,18 @@ export function BlDetailScreen({
             // One target opens; a split stays here, where the detail links every target.
             if (targets.length === 1) router.push(`/bls/${targets[0].blId}`);
             else router.refresh();
+          }}
+        />
+      )}
+      {dialog === "hold" && (
+        <HoldDialog
+          blId={bl.id}
+          reasons={holdReasons}
+          today={today}
+          onCancel={() => setDialog(null)}
+          onDone={() => {
+            setDialog(null);
+            router.refresh();
           }}
         />
       )}
