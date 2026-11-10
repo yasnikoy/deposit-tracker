@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, CircleUser, KeyRound, LogOut, MessageSquareWarning, Settings } from "lucide-react";
+import { Bell, CircleUser, KeyRound, ListChecks, LogOut, MessageSquareWarning, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -126,6 +126,11 @@ export function AppHeader({
             <DropdownMenuItem asChild>
               <Link href="/change-password">
                 <KeyRound /> {t("nav.changePassword")}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/getting-started">
+                <ListChecks /> {t("gettingStarted.title")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>

@@ -1887,5 +1887,73 @@
     "errors": {
       "body": "Bir açıklama yazın."
     }
+  },
+  "gettingStarted": {
+    "title": "İlk adımlar",
+    "hint": "Rolünüzdeki günlük işin ana akışı. Her adım ilgili ekranı açar. Bu sayfaya kullanıcı menüsünden yeniden ulaşabilirsiniz.",
+    "steps": {
+      "ACCOUNTANT": {
+        "payment": {
+          "title": "Depozito ödemesini kaydedin",
+          "text": "Muhasebe → Ödemeler: dekontları bırakın; form dekonttan dolar. Acente, müşteri, tutar ve B/L numarasını kontrol edip kaydedin."
+        },
+        "refund": {
+          "title": "Gelen iadeyi girin",
+          "text": "Muhasebe → İadeler: acentenin yaptığı iadeyi tutar, tarih ve müşteriyle girin. Operasyon iadeyi B/L'lere dağıtır."
+        },
+        "entries": {
+          "title": "Muhasebe kaydını işaretleyin",
+          "text": "Kesinti, mahsup veya depozito aktarımıyla kapanan B/L'ler Muhasebe kaydı sekmesinde bekler. Muhasebe programına girince işaretleyin."
+        },
+        "follow": {
+          "title": "B/L'leri izleyin",
+          "text": "B/L'ler listesinde her depozitonun durumunu görün; açıklamayı güncel tutun."
+        }
+      },
+      "OPERATIONS": {
+        "createBls": {
+          "title": "Ödemelerden B/L oluşturun",
+          "text": "B/L oluştur: B/L'si olmayan ödemelere B/L numarasını yazın veya Excel'den yapıştırın."
+        },
+        "form": {
+          "title": "İade talep formunu hazırlayın",
+          "text": "B/L ayrıntısında doldurulmuş formu indirin; imzalanıp kaşelenmiş taramayı aynı yere yükleyin."
+        },
+        "send": {
+          "title": "Talepleri gönderin",
+          "text": "Talepler: zamanı gelen B/L'leri seçin, e-postayı önizleyip gönderin. Takipler de buradan gider."
+        },
+        "reply": {
+          "title": "Acentenin cevabını kaydedin",
+          "text": "B/L ayrıntısında Yanıt kaydet ile cevabı işleyin; telefonla yapılan talepleri Uygulama dışı talebi kaydet ile girin."
+        },
+        "allocate": {
+          "title": "Gelen iadeyi dağıtın",
+          "text": "İade dağıtımı: muhasebenin girdiği iadeyi önerilere bakarak B/L'lere dağıtın; farkı kesinti olarak sınıflandırın."
+        }
+      },
+      "ADMIN": {
+        "mail": {
+          "title": "E-posta ve uygulama ayarları",
+          "text": "Uygulama ayarları: posta sunucusu, gönderen adresi, süreler ve kurallar."
+        },
+        "users": {
+          "title": "Kullanıcılar ve roller",
+          "text": "Kullanıcılar: herkese bir hesap ve rol (muhasebe, operasyon, yönetici) verin; geçici şifre ilk girişte değişir."
+        },
+        "agencies": {
+          "title": "Acenteler",
+          "text": "Acenteler: alıcı adresleri, B/L numara kalıpları ve iade formu şablonu."
+        },
+        "customers": {
+          "title": "Müşteriler ve sabit belgeler",
+          "text": "Müşteriler: kod, diğer adlar, imza sirküleri ve vekaletname."
+        },
+        "system": {
+          "title": "Yedek ve sistem durumu",
+          "text": "Sistem durumu: yedeklerin alındığını, posta sunucusunun çalıştığını ve güncellemeleri kontrol edin. Geri bildirimler de Yönetim altında."
+        }
+      }
+    }
   }
 }

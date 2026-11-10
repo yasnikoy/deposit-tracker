@@ -75,3 +75,21 @@ export function customerScope(db: DbOrTx, viewer: AuthUser): (customerId: number
   const followed = new Set(getCustomerFilter(db, viewer.id));
   return (customerId) => followed.size === 0 || customerId === null || followed.has(customerId);
 }
+
+const GETTING_STARTED = "gettingStarted";
+
+/**
+ * Whether the user still has to see the getting-started guide, which the dashboard opens
+ * once; marking it seen is a personal setting, not audited.
+ */
+export function takeGettingStarted(db: DbOrTx, user: AuthUser, now: Date = new Date()): boolean {
+  authorize(user, "preferences.saveOwn");
+  const seen = db
+    .select({ key: userPreferences.key })
+    .from(userPreferences)
+    .where(and(eq(userPreferences.userId, user.id), eq(userPreferences.key, GETTING_STARTED)))
+    .get();
+  if (seen) return false;
+  db.insert(userPreferences).values({ userId: user.id, key: GETTING_STARTED, value: { seenAt: now.toISOString() }, updatedAt: now.toISOString() }).onConflictDoNothing().run();
+  return true;
+}

@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { t, type TranslationKey } from "@/i18n";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
+import { takeGettingStarted } from "@/server/preferences";
 import { dashboardSummary, type CurrencyTotal } from "@/server/reports";
 
 type Item = { label: TranslationKey; count: number | null; href: string; alert?: boolean; detail?: string };
@@ -51,6 +53,8 @@ function Column({ title, items }: { title: TranslationKey; items: Item[] }) {
 
 export default async function DashboardPage() {
   const { user } = await requireSession();
+  // The first visit opens the getting-started guide once; it stays in the user menu.
+  if (takeGettingStarted(getDb(), user)) redirect("/getting-started");
   const summary = dashboardSummary(getDb(), user);
   const { todaysWork: work, pending, problems } = summary;
   const money = (totals: CurrencyTotal[]) => totals.map((x) => formatMoney(x.amountMinor, x.currency)).join(" · ");

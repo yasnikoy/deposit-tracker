@@ -41,7 +41,8 @@ If the code and this document disagree, stop and ask which one is right.
 
 - **Header** (`src/components/app-shell/app-header.tsx`): app name and version, the work
   menu, *Ayarlar*, global search (`/` or Ctrl+K), notifications bell with unread count, user
-  menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *Hata bildir / öneri gönder*, *Çıkış yap*). The header wraps to a
+  menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *İlk adımlar*, *Hata bildir / öneri gönder*,
+  *Çıkış yap*). The header wraps to a
   second line instead of overflowing; the search box shrinks first.
 - **Badges in the menu**: red count on *Yanıtlar* (unprocessed replies) and on *Silme
   onayları* (write-offs awaiting approval); the bell shows unread notifications.
@@ -67,6 +68,7 @@ roles allow them. A user with several roles sees the union.
 | Açılış bakiyesi | `/admin/opening-balance` | admin | Entry page |
 | Ayarlar | `/settings` and the pages below | everyone | Settings area |
 | Bildirimler | `/notifications` (bell) | everyone | Simple list |
+| İlk adımlar | `/getting-started` (user menu; opened once at the first visit) | everyone | Guide page |
 
 **Settings area** (`settings-frame.tsx`): a side menu grouped *Kişisel* (Kişisel ayarlar),
 *Genel* (Acenteler, Müşteriler) and *Yönetim* (Uygulama ayarları, E-posta şablonları,
@@ -142,6 +144,14 @@ count in red. Cards appear only for the roles they concern.
 A plain table with inputs per row for bulk entry, Excel paste filling rows downwards, errors
 and warnings under the row's input, and one save button bottom right that names what it saves
 and how many (*B/L numarası girilen satırları kaydet (3)*). Example: B/L oluştur.
+
+### 3.8 Guide page
+
+Title and hint, then one bordered card per role the user holds (in the `xl:grid-cols-2` grid,
+`max-w-5xl`), titled with the role name, holding a numbered list of steps: each step a link
+(the step's title, to its screen) and one muted line saying what to do there. Only the core
+workflow, never every function. Text lives in `tr.json` like any other. Example: İlk adımlar
+(`/getting-started`), which the dashboard opens once at a user's first visit.
 
 ## 4. Shared components (reuse, do not re-create)
 
