@@ -254,6 +254,8 @@ export type BlEmail = {
   sendStatus: "QUEUED" | "SENT" | "FAILED" | null;
   /** A request email sent again: the original it repeats. */
   resendOfEmailId: number | null;
+  /** The message as a file (.eml, or the .msg an Outlook user archived), to open in Outlook; null until sent. */
+  rawDocumentId: number | null;
 };
 
 export type BlReply = { id: number; typeName: string; repliedOn: string; byName: string; emailId: number | null; note: string | null; undone: boolean };
@@ -542,6 +544,7 @@ function blEmails(db: DbOrTx, blId: number): BlEmail[] {
       dryRun: email.dryRun,
       sendStatus: email.sendStatus,
       resendOfEmailId: email.resendOfEmailId,
+      rawDocumentId: email.rawDocumentId,
       // Our own attachments are the B/L's documents already; the agency's are shown here.
       attachments: email.direction === "IN" ? files.filter((f) => f.emailId === email.id).map(({ id, originalName }) => ({ id, originalName })) : [],
     }))

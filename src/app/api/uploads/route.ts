@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { z } from "zod";
 import { getCurrentSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
+import { archiveEmail } from "@/server/email/archive";
 import { DomainError, ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { logger } from "@/server/logger";
@@ -11,8 +12,10 @@ import { parseReceipt } from "@/server/receipts/parser";
 // Uploads bypass the proxy (see proxy.ts) so large files are not buffered there;
 // authentication and can() run here.
 const fieldsSchema = z.object({
-  kind: z.enum(["RECEIPT", "INVOICE", "FORM", "FORM_TEMPLATE", "STANDING", "DEDUCTION_STATEMENT"]),
+  kind: z.enum(["RECEIPT", "INVOICE", "FORM", "FORM_TEMPLATE", "STANDING", "DEDUCTION_STATEMENT", "EMAIL"]),
   queue: z.enum(["0", "1"]).default("0"),
+  // EMAIL: the B/L an email from Outlook is archived on.
+  blId: z.coerce.number().int().positive().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -21,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   const form = await request.formData();
   const file = form.get("file");
-  const fields = fieldsSchema.safeParse({ kind: form.get("kind"), queue: form.get("queue") ?? undefined });
+  const fields = fieldsSchema.safeParse({ kind: form.get("kind"), queue: form.get("queue") ?? undefined, blId: form.get("blId") ?? undefined });
   if (!(file instanceof File) || !fields.success) {
     return Response.json({ ok: false, error: "errors.validation" }, { status: 400 });
   }
@@ -29,6 +32,10 @@ export async function POST(request: NextRequest) {
   try {
     const db = getDb();
     const content = Buffer.from(await file.arrayBuffer());
+    if (fields.data.kind === "EMAIL") {
+      if (!fields.data.blId) return Response.json({ ok: false, error: "errors.validation" }, { status: 400 });
+      return Response.json({ ok: true, auditIds: await archiveEmail(db, session.user, { blId: fields.data.blId, fileName: file.name, content }) });
+    }
     const document = storeUpload(db, session.user, { originalName: file.name, content, kind: fields.data.kind });
     const extraction = fields.data.kind === "RECEIPT" ? await parseReceipt(content, document.mimeType) : { parser: "none" };
 

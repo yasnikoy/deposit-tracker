@@ -128,7 +128,6 @@ export function SystemScreen({ health, canBackup }: { health: SystemHealth; canB
               )}
             </Row>
           ))}
-          <Row label={t("system.lastPoll")}>{when(health.lastMailboxPollAt)}</Row>
         </CardContent>
       </Card>
 

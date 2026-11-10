@@ -77,7 +77,7 @@ describe("dashboard", () => {
     expect(dashboardSummary(db, ops, NOW).pending).toMatchObject({ unallocated: { count: 1, totals: [{ currency: "USD", amountMinor: usd(500) }] }, writeOffsAwaiting: null });
 
     const forAccountant = dashboardSummary(db, acc, NOW);
-    expect(forAccountant.pending).toMatchObject({ refundsToAllocate: null, unallocated: null, unprocessedReplies: null, paymentsWithoutBl: 0 });
+    expect(forAccountant.pending).toMatchObject({ refundsToAllocate: null, unallocated: null, paymentsWithoutBl: 0 });
     // The overpaid refund closed D; the EUR follow-up is left.
     expect(forAccountant.todaysWork.due).toBe(1);
 

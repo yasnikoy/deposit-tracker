@@ -224,50 +224,40 @@ test("operations previews and sends a request email; the scheduler sends it (dry
   }).toPass({ timeout: 30_000 });
 });
 
-/**
- * Plays the mailbox poller: stores an agency reply in the B/L's thread, as an IMAP import
- * would (there is no mailbox in e2e runs).
- */
-function importReply(blNo: string, subject: string, text: string) {
-  const db = new Database(path.join(E2E_DATA_DIR, "deposit.sqlite"));
-  try {
-    const bl = db.prepare("SELECT id, agency_id FROM bills_of_lading WHERE bl_no = ?").get(blNo) as { id: number; agency_id: number };
-    const at = new Date().toISOString();
-    const email = db
-      .prepare(
-        `INSERT INTO emails (direction, agency_id, message_id, from_address, "to", subject, body_text, received_at, created_at)
-         VALUES ('IN', ?, ?, 'iade@example.com', '["depozito@firma.example"]', ?, ?, ?, ?)`,
-      )
-      .run(bl.agency_id, `<e2e-${blNo}-${Date.now()}@example.com>`, subject, text, at, at);
-    db.prepare("INSERT INTO email_bl_links (email_id, bl_id, linked_by, created_at) VALUES (?, ?, 'THREAD', ?)").run(email.lastInsertRowid, bl.id, at);
-  } finally {
-    db.close();
-  }
+/** An agency's answer as Outlook saves it (.eml), in the B/L's request thread. */
+function agencyEml(subject: string, text: string) {
+  const raw = [
+    "From: Hapag Iade <iade@example.com>",
+    "To: depozito@firma.example",
+    `Subject: =?UTF-8?B?${Buffer.from(subject).toString("base64")}?=`,
+    `Message-ID: <e2e-${Date.now()}@example.com>`,
+    "Date: Mon, 09 Nov 2026 09:00:00 +0300",
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=utf-8",
+    "Content-Transfer-Encoding: 8bit",
+    "",
+    text,
+    "",
+  ].join("\r\n");
+  return { name: "cevap.eml", mimeType: "message/rfc822", buffer: Buffer.from(raw) };
 }
 
-test("bulk reply: two agency replies get 'container not yet returned' in one confirmed action", async ({ page }) => {
-  importReply(BL_NO, `RE: Depozito İade Talebi – ${BL_NO}`, "Konteynerler henüz boş dönmedi.");
-  importReply(PORTAL_BL_NO, "Portal başvurunuz", "Konteyner sahada.");
+test("an agency's email is archived on the B/L from Outlook; the answer is recorded there and moves the B/L", async ({ page }) => {
   await login(page, OPS.username, OPS.final);
-  const repliesLink = page.getByRole("link", { name: new RegExp(tr.nav.replies) });
-  await expect(repliesLink).toContainText("2");
-  await repliesLink.click();
-
-  await page.getByRole("row").filter({ hasText: "Portal başvurunuz" }).click();
-  await expect(page.getByRole("dialog")).toContainText("Konteyner sahada.");
-  await page.keyboard.press("Escape");
-
   for (const blNo of [BL_NO, PORTAL_BL_NO]) {
-    await page.getByRole("row").filter({ hasText: blNo }).getByRole("checkbox").check();
+    await page.getByRole("combobox", { name: tr.search.label }).fill(blNo);
+    await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
+    await expect(page.getByRole("heading", { name: blNo })).toBeVisible();
+    if (blNo === BL_NO) {
+      await page.getByLabel(tr.archive.drop).setInputFiles(agencyEml(`RE: Depozito İade Talebi – ${BL_NO}`, "Konteynerler henüz boş dönmedi."));
+      await expect(page.getByText(tr.archive.saved)).toBeVisible();
+      await expect(page.getByRole("button", { name: `RE: Depozito İade Talebi – ${BL_NO}` })).toBeVisible();
+    }
+    await page.getByRole("button", { name: tr.blReplies.record }).click();
+    const replyDialog = page.getByRole("dialog", { name: tr.blReplies.record });
+    await replyDialog.getByRole("button", { name: "Konteyner henüz dönmedi" }).click();
+    await expect(page.getByText(tr.blReplies.recorded)).toBeVisible();
   }
-  const notReturned = "Konteyner henüz dönmedi";
-  await page.getByRole("button", { name: notReturned }).first().click();
-  const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText(BL_NO);
-  await expect(dialog).toContainText(PORTAL_BL_NO);
-  await dialog.getByRole("button", { name: tr.replies.confirmRecord }).click();
-  await expect(page.getByText("2 B/L için yanıt kaydedildi.")).toBeVisible();
-  await expect(page.getByText(tr.replies.empty.TO_PROCESS)).toBeVisible();
 
   await page.goto("/bls");
   for (const blNo of [BL_NO, PORTAL_BL_NO]) {
@@ -491,7 +481,7 @@ test("B/L detail: emails open in place, with the message; the customer is change
   await page.goto(`/bls/${id}`);
   const url = page.url();
 
-  // The agency's reply: the message and its recorded reply type, without leaving the B/L.
+  // The agency's email archived from Outlook: the message, without leaving the B/L.
   await page.getByRole("button", { name: `RE: Depozito İade Talebi – ${BL_NO}` }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Konteynerler henüz boş dönmedi.")).toBeVisible();

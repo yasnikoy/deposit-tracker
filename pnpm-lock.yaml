@@ -11,6 +11,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^6.0.0
         version: 6.0.0(ajv-formats@2.1.1(ajv@8.20.0))(ajv@8.20.0)(react-hook-form@7.90.0(@types/react@19.3.0)(react@19.3.0))(zod@4.6.7)
+      '@kenjiuno/msgreader':
+        specifier: 1.29.0
+        version: 1.29.0
       '@node-rs/argon2':
         specifier: ^2.2.2
         version: 2.2.2
@@ -1085,6 +1088,13 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@kenjiuno/decompressrtf@0.1.4':
+    resolution: {integrity: sha512-v9c/iFz17jRWyd2cRnrvJg4VOg/4I/VCk+bG8JnoX2gJ9sAesPzo3uTqcmlVXdpasTI8hChpBVw00pghKe3qTQ==}
+
+  '@kenjiuno/msgreader@1.29.0':
+    resolution: {integrity: sha512-03kBR44FIO965Z2s/KpY7y6daBu+GOpK10/AmVEZ4e/iZqSdOfSTI8cfk+DJnO/iTVncUF2Y8j2l1pwJ7ZvEFA==}
+    engines: {node: '>= 10'}
 
   '@modelcontextprotocol/sdk@1.32.1':
     resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
@@ -5838,6 +5848,13 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
+
+  '@kenjiuno/decompressrtf@0.1.4': {}
+
+  '@kenjiuno/msgreader@1.29.0':
+    dependencies:
+      '@kenjiuno/decompressrtf': 0.1.4
+      iconv-lite: 0.6.3
 
   '@modelcontextprotocol/sdk@1.32.1(supports-color@7.2.0)(zod@4.6.7)':
     dependencies:

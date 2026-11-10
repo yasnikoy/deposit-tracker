@@ -10,7 +10,6 @@
     "durations.followUpDays": 5,
     "durations.statementRequestDays": 2,
     "durations.statementFollowUpDays": 5,
-    "durations.unprocessedReplyWarningDays": 1,
     "durations.agingBucketEdges": [
       20,
       40,
@@ -44,21 +43,15 @@
     "email.fromAddress": "",
     "email.fromName": "",
     "email.sentFolder": "Sent",
-    "email.inboxFolder": "INBOX",
-    "email.pollIntervalMinutes": 5,
     "email.defaultCc": [],
     "email.defaultBcc": [],
     "email.signature": "",
     "email.maxAttachmentMb": 25,
-    "notifications.dailyUnprocessedEmail": false,
-    "notifications.dailyUnprocessedTime": "09:00",
-    "notifications.dailyUnprocessedRecipients": [],
     "notifications.weeklySummaryEmail": false,
     "notifications.weeklySummaryWeekday": 1,
     "notifications.weeklySummaryTime": "09:00",
     "notifications.weeklySummaryRecipients": [],
     "notifications.inAppCorrection": true,
-    "notifications.inAppUnprocessedReply": true,
     "notifications.inAppWriteOff": true,
     "notifications.inAppNewAgency": true,
     "notifications.inAppNewCustomer": true,
@@ -144,13 +137,9 @@
       "subject": "",
       "body": "\n\n-----Özgün İleti-----\nKimden: {from}\nGönderildi: {sent_at}\nKime: {to}\n[[cc]]\nBilgi: {cc_section}\n[[/cc]]\nKonu: {subject}\n\n"
     },
-    "DAILY_UNPROCESSED": {
-      "subject": "Depozito Takip – işlenmemiş {count} yanıt",
-      "body": "Merhaba,\n\nAşağıdaki acentelerden gelen ve {warning_days} iş gününden uzun süredir işlenmemiş yanıtlar var:\n{agency_lines}\n\nYanıtlar ekranı: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
-    },
     "WEEKLY_SUMMARY": {
       "subject": "Depozito Takip – haftalık özet {date}",
-      "body": "Merhaba,\n\n{date} itibarıyla haftalık depozito özeti:\n\nAçık bakiye:\n{balance_lines}\n\n{waiting_days} iş gününden uzun bekleyen B/L sayısı: {waiting_count}\n{waiting_lines}\n\nİşlenmemiş yanıt: {unprocessed_count} (uyarı süresini geçen: {overdue_count})\n\nUygulama: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
+      "body": "Merhaba,\n\n{date} itibarıyla haftalık depozito özeti:\n\nAçık bakiye:\n{balance_lines}\n\n{waiting_days} iş gününden uzun bekleyen B/L sayısı: {waiting_count}\n{waiting_lines}\n\nUygulama: {link}\n\nBu e-posta Depozito Takip uygulaması tarafından otomatik gönderildi."
     },
     "REPORT": {
       "subject": "Depozito durum raporu – {date}",

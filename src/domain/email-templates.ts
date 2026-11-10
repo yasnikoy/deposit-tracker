@@ -11,7 +11,6 @@ export const EMAIL_TEMPLATE_KEYS = [
   "BATCH",
   "BATCH_LINE",
   "REPLY_QUOTE",
-  "DAILY_UNPROCESSED",
   "REPORT",
   "REPORT_SUMMARY",
   "REPORT_LINE_REQUESTED",
@@ -35,7 +34,6 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   // Header above the quoted earlier email in a reply; the earlier text follows it.
   REPLY_QUOTE: ["from", "sent_at", "to", "cc_section", "subject"],
   // Internal reminder to our own team; never sent to agencies.
-  DAILY_UNPROCESSED: ["count", "warning_days", "agency_lines", "link"],
   // Operations report to internal addresses: the body is the intro; section summaries and the signature follow it.
   REPORT: ["date"],
   // The section summaries below the report intro: a `[[section]] … [[/section]]` block per section,
@@ -63,7 +61,7 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS: Record<EmailTemplateKey, readonly stri
   // One line per transfer.
   REPORT_LINE_TRANSFERRED: ["agency", "from_bl", "to_bl", "amount", "currency", "date"],
   // Optional weekly email to our own team; never sent to agencies.
-  WEEKLY_SUMMARY: ["date", "balance_lines", "waiting_days", "waiting_count", "waiting_lines", "unprocessed_count", "overdue_count", "link"],
+  WEEKLY_SUMMARY: ["date", "balance_lines", "waiting_days", "waiting_count", "waiting_lines", "link"],
 };
 
 /**
@@ -86,15 +84,12 @@ export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   cc_section: "muhasebe@ornek-denizcilik.com",
   subject: "Depozito İade Talebi – B/L MEDU1000001",
   count: "3",
-  warning_days: "1",
-  agency_lines: "• Örnek Denizcilik: 2\n• Deniz Hatları: 1",
-  link: "http://DEPOZITO-PC:3000/replies",
+  link: "http://DEPOZITO-PC:3000/",
   date: "16.10.2026",
   balance_lines: "• 45.250,00 USD (12 B/L)\n• 3.800,00 EUR (2 B/L)",
   waiting_days: "30",
   waiting_count: "2",
   waiting_lines: "• MEDU1234567 · Örnek Denizcilik · 42 iş günü · 3.000,00 USD\n• MEDU7654321 · Deniz Hatları · 35 iş günü · 1.500,00 USD",
-  unprocessed_count: "3",
   agency: "Örnek Denizcilik",
   deductions: "700,00",
   write_off: "0,00",
@@ -107,7 +102,6 @@ export const EMAIL_TEMPLATE_SAMPLES: Record<string, string> = {
   disputed: "0",
   failed: "0",
   waiting: "2",
-  overdue_count: "1",
 };
 
 /** Section blocks of the batched template; `[[refund]]` depends on `{refund_section}`. */

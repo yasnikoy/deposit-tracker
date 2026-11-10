@@ -11,7 +11,6 @@ import { billsOfLading, deductionTypes, ledgerEntries, refundAllocations, refund
 import { openUnexplained } from "./deductions";
 import { countPaymentsAwaitingBl } from "./payments";
 import { listRefundsToAllocate, listRefundsWithRemainder } from "./refunds";
-import { unprocessedSummary } from "./replies";
 import { listDueRequests } from "./requests";
 import { getSetting } from "./settings";
 import { pendingWriteOffCount } from "./write-offs";
@@ -126,7 +125,6 @@ export type DashboardSummary = {
     refundsToAllocate: Count;
     /** Settled B/Ls waiting for the accountant's accounting entry. */
     accountingEntries: Count;
-    unprocessedReplies: { count: number; overdue: number } | null;
     unallocated: { count: number; totals: CurrencyTotal[] } | null;
     writeOffsAwaiting: Count;
   };
@@ -156,7 +154,6 @@ export function dashboardSummary(db: DbOrTx, actor: AuthUser, now: Date = new Da
   const due = allowed("request.view") ? listDueRequests(db, actor, now) : null;
   const dueRows = due ? due.DUE.flatMap((g) => g.rows) : [];
   const remainder = allowed("allocation.view") ? listRefundsWithRemainder(db, actor) : null;
-  const unprocessed = allowed("reply.view") ? unprocessedSummary(db, now) : null;
 
   return {
     openBalance: totalsByCurrency(all.filter((p) => p.open).map((p) => ({ currency: p.currency, amountMinor: p.outstandingMinor }))),
@@ -172,7 +169,6 @@ export function dashboardSummary(db: DbOrTx, actor: AuthUser, now: Date = new Da
       paymentsWithoutBl: allowed("bl.viewAwaiting") ? countPaymentsAwaitingBl(db) : null,
       refundsToAllocate: allowed("allocation.view") ? listRefundsToAllocate(db, actor).length : null,
       accountingEntries: allowed("bl.recordAccounting") ? all.filter((p) => p.status === "ACCOUNTING_PENDING").length : null,
-      unprocessedReplies: unprocessed ? { count: unprocessed.count, overdue: unprocessed.overdue } : null,
       unallocated: remainder ? { count: remainder.length, totals: totalsByCurrency(remainder.map((r) => ({ currency: r.currency, amountMinor: r.remainderMinor }))) } : null,
       writeOffsAwaiting: allowed("writeOff.view") ? pendingWriteOffCount(db) : null,
     },

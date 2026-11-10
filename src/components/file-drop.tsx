@@ -20,14 +20,17 @@ export type UploadResponse =
         fileNo: string | null;
       };
       parser?: string;
+      /** EMAIL: the archived email's link, for undo. */
+      auditIds?: number[];
     }
   | { ok: false; error: string; params?: TranslationParams };
 
-async function uploadOne(file: File, kind: string, queue: boolean): Promise<UploadResponse> {
+async function uploadOne(file: File, kind: string, queue: boolean, blId?: number): Promise<UploadResponse> {
   const body = new FormData();
   body.set("file", file);
   body.set("kind", kind);
   body.set("queue", queue ? "1" : "0");
+  if (blId !== undefined) body.set("blId", String(blId));
   try {
     const response = await fetch("/api/uploads", { method: "POST", body });
     return (await response.json()) as UploadResponse;
@@ -47,9 +50,15 @@ export function FileDrop({
   queue = false,
   label,
   compact = false,
+  blId,
+  accept,
   onUploaded,
 }: {
-  kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE" | "STANDING" | "DEDUCTION_STATEMENT";
+  kind: "RECEIPT" | "INVOICE" | "FORM" | "FORM_TEMPLATE" | "STANDING" | "DEDUCTION_STATEMENT" | "EMAIL";
+  /** EMAIL: the B/L the email is archived on. */
+  blId?: number;
+  /** File types the picker offers, e.g. ".eml,.msg". */
+  accept?: string;
   multiple?: boolean;
   queue?: boolean;
   label: string;
@@ -65,7 +74,7 @@ export function FileDrop({
     if (files.length === 0) return;
     setBusy(true);
     const results = [];
-    for (const file of multiple ? files : files.slice(0, 1)) results.push({ file, response: await uploadOne(file, kind, queue) });
+    for (const file of multiple ? files : files.slice(0, 1)) results.push({ file, response: await uploadOne(file, kind, queue, blId) });
     setBusy(false);
     if (input.current) input.current.value = "";
     onUploaded(results);
@@ -101,6 +110,7 @@ export function FileDrop({
         ref={input}
         type="file"
         multiple={multiple}
+        accept={accept}
         // The drop zone itself is the one keyboard stop; it opens this picker.
         tabIndex={-1}
         className="sr-only"

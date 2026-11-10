@@ -68,7 +68,8 @@ Read it before any UI change and follow its checklist (section 11).
     actions or undo. Money fields and statuses are never inline-editable.
     Every bulk action shows a confirmation listing the affected B/Ls.
 12. **Mailbox safety:** never move, delete, flag or mark as read any message in
-    the shared mailbox. IMAP is read-only; processed UIDs are tracked in the DB.
+    the shared mailbox. IMAP is used only to copy sent emails to the sent folder;
+    the app does not read the mailbox (emails are archived from Outlook by hand).
 13. **Email in development:** `EMAIL_MODE=dry-run` by default outside
     production; dry-run logs and stores emails but never sends. Never send to
     real agency addresses from a non-production environment.

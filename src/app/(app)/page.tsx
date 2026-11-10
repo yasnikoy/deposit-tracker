@@ -85,13 +85,6 @@ export default async function DashboardPage() {
             { label: "dashboard.refundsToAllocate", count: pending.refundsToAllocate, href: "/allocations" },
             { label: "dashboard.accountingEntries", count: pending.accountingEntries, href: "/accounting?tab=entries" },
             {
-              label: "dashboard.unprocessedReplies",
-              count: pending.unprocessedReplies?.count ?? null,
-              href: "/replies",
-              alert: (pending.unprocessedReplies?.overdue ?? 0) > 0,
-              detail: pending.unprocessedReplies?.overdue ? t("dashboard.overdueReplies", { count: pending.unprocessedReplies.overdue }) : undefined,
-            },
-            {
               label: "dashboard.unallocated",
               count: pending.unallocated?.count ?? null,
               href: "/allocations#remainder",

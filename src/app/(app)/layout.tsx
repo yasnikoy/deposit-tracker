@@ -10,7 +10,6 @@ import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { getEnv } from "@/server/env";
 import { updateState } from "@/server/updates";
-import { unprocessedSummary } from "@/server/replies";
 import { unreadNotificationCount } from "@/server/notifications";
 import { mailOutages } from "@/server/service-status";
 import { pendingWriteOffCount } from "@/server/write-offs";
@@ -22,7 +21,6 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/", label: "nav.dashboard", visible: true },
     { href: "/accounting", label: "nav.accounting", visible: can(user, "payment.create").allowed },
     { href: "/requests", label: "nav.dueRequests", visible: can(user, "request.view").allowed },
-    { href: "/replies", label: "nav.replies", visible: can(user, "reply.view").allowed },
     { href: "/allocations", label: "nav.allocations", visible: can(user, "allocation.view").allowed },
     { href: "/bls", label: "nav.allBls", visible: can(user, "bl.view").allowed },
     { href: "/bls/new", label: "nav.createBls", visible: can(user, "bl.viewAwaiting").allowed },
@@ -42,16 +40,11 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/admin/feedback", label: "nav.feedback", section: "admin", visible: can(user, "feedback.manage").allowed },
   ];
   const db = getDb();
-  const unprocessed = can(user, "reply.view").allowed ? unprocessedSummary(db) : null;
   const writeOffsWaiting = can(user, "writeOff.view").allowed ? pendingWriteOffCount(db) : 0;
   const nav: NavItem[] = items
     .filter((item) => item.visible)
     .map(({ visible: _visible, ...item }): NavItem =>
-      item.href === "/replies" && unprocessed
-        ? { ...item, badge: { count: unprocessed.count, alert: unprocessed.overdue > 0, label: "nav.unprocessedBadge" } }
-        : item.href === "/admin/write-offs" && writeOffsWaiting > 0
-          ? { ...item, badge: { count: writeOffsWaiting, alert: false, label: "nav.writeOffsBadge" } }
-          : item,
+      item.href === "/admin/write-offs" && writeOffsWaiting > 0 ? { ...item, badge: { count: writeOffsWaiting, alert: false, label: "nav.writeOffsBadge" } } : item,
     );
   const outages = mailOutages(db);
   const dryRun = getEnv().EMAIL_MODE !== "live";

@@ -46,8 +46,6 @@
     "allBls": "B/L'ler",
     "dueRequests": "Talepler",
     "templates": "E-posta şablonları",
-    "replies": "Yanıtlar",
-    "unprocessedBadge": "{count} işlenmemiş yanıt",
     "allocations": "İade dağıtımı",
     "writeOffs": "Silme onayları",
     "writeOffsBadge": "Onay bekleyen {count} silme önerisi",
@@ -121,8 +119,6 @@
     "paymentsWithoutBl": "B/L'si oluşturulmamış ödemeler",
     "accountingEntries": "Muhasebe kaydı bekleyen B/L",
     "refundsToAllocate": "Dağıtılacak iadeler",
-    "unprocessedReplies": "İşlenmemiş yanıtlar",
-    "overdueReplies": "{count} tanesi uyarı süresini geçti",
     "unallocated": "Dağıtılmadan bırakılan iade tutarları",
     "writeOffsAwaiting": "Onay bekleyen silmeler",
     "problems": "Sorunlu B/L'ler",
@@ -278,10 +274,6 @@
           "label": "Döküm talebi tekrar aralığı",
           "help": "Kesinti dökümü talepleri arasında kaç iş günü olsun."
         },
-        "unprocessedReplyWarningDays": {
-          "label": "İşlenmemiş yanıt uyarısı",
-          "help": "Bağlanan bir yanıt kaç iş günü işlenmezse uyarı verilsin."
-        },
         "agingBucketEdges": {
           "label": "Yaşlandırma raporu aralıkları",
           "help": "Aralık sınırları, virgülle ayrılmış (ör. 20, 40, 60 → 0–20, 21–40, 41–60, 60+)."
@@ -396,10 +388,6 @@
           "label": "Gönderilmiş klasörü",
           "help": "Gönderilen e-postaların kopyası bu IMAP klasörüne eklenir (Outlook'ta görünür)."
         },
-        "pollIntervalMinutes": {
-          "label": "Gelen kutusu kontrol aralığı",
-          "help": "Acente yanıtları bu aralıkla okunur (5. adımda devreye girer)."
-        },
         "defaultCc": {
           "label": "Varsayılan bilgi (CC)",
           "help": "Her talep e-postasına bilgi olarak eklenir."
@@ -415,25 +403,9 @@
         "maxAttachmentMb": {
           "label": "En büyük ek toplamı",
           "help": "Bir e-postadaki eklerin toplam üst sınırı."
-        },
-        "inboxFolder": {
-          "label": "Gelen kutusu klasörü",
-          "help": "Acente yanıtları bu klasörden yalnızca okunur; uygulama hiçbir iletiyi taşımaz, silmez veya okundu işaretlemez."
         }
       },
       "notifications": {
-        "dailyUnprocessedEmail": {
-          "label": "Günlük işlenmemiş yanıt e-postası",
-          "help": "Açıkken, uyarı süresini geçmiş işlenmemiş yanıt varsa aşağıdaki alıcılara her gün kısa bir özet gönderilir."
-        },
-        "dailyUnprocessedTime": {
-          "label": "Günlük e-posta saati",
-          "help": "Bilgisayar bu saatte kapalıysa e-posta açılışta gönderilir."
-        },
-        "dailyUnprocessedRecipients": {
-          "label": "Günlük e-posta alıcıları",
-          "help": "Yalnızca şirket içi adresler."
-        },
         "weeklySummaryEmail": {
           "label": "Haftalık özet e-postası",
           "help": "Açıkken her hafta seçilen gün ve saatte açık bakiye, en uzun bekleyen B/L'ler ve işlenmemiş yanıtların özeti gönderilir."
@@ -453,10 +425,6 @@
         "inAppCorrection": {
           "label": "Bildirim: ödeme düzeltmesi",
           "help": "Muhasebe bir B/L'nin ödemesini düzelttiğinde, o B/L'de çalışmış operasyon kullanıcıları (yoksa tüm operasyon) bildirim alır."
-        },
-        "inAppUnprocessedReply": {
-          "label": "Bildirim: işlenmemiş yanıt",
-          "help": "Bir acente yanıtı uyarı süresini geçtiğinde her operasyon kullanıcısı bir kez bildirim alır."
         },
         "inAppWriteOff": {
           "label": "Bildirim: silme onayı",
@@ -1166,7 +1134,6 @@
       "BATCH": "Toplu e-posta",
       "BATCH_LINE": "Toplu e-posta satırı",
       "REPLY_QUOTE": "Alıntı başlığı (yanıtlarda)",
-      "DAILY_UNPROCESSED": "Günlük işlenmemiş yanıt e-postası",
       "DEDUCTION_STATEMENT": "Kesinti dökümü talebi",
       "REPORT": "Rapor e-postası",
       "REPORT_SUMMARY": "Rapor özeti",
@@ -1183,7 +1150,6 @@
       "BATCH": "Toplu gönderim yapan acentelerde birden fazla B/L tek e-postada.",
       "BATCH_LINE": "Toplu e-postada her B/L için bir satır; konu kullanılmaz.",
       "REPLY_QUOTE": "Takip e-postalarında yeni metnin altına, Outlook'taki \"Tümünü yanıtla\" gibi önceki e-posta eklenir. Bu başlık önceki e-postanın üstüne yazılır; konu kullanılmaz.",
-      "DAILY_UNPROCESSED": "Ekibe giden iç e-posta; acentelere gönderilmez. {agency_lines} her acente için bir satır (acente: yanıt sayısı) olarak doldurulur.",
       "WEEKLY_SUMMARY": "Ekibe giden iç e-posta; acentelere gönderilmez. {balance_lines} her para birimi için bir satır, {waiting_lines} en uzun bekleyen B/L'ler için birer satırdır (yaşlandırmanın son aralığından uzun bekleyenler; {waiting_days} o sınırdır).",
       "REPORT": "Operasyonun Raporlar ekranından şirket içi adreslere gönderdiği durum raporu; acentelere gönderilmez. Metin, önizlemede değiştirilebilen giriş bölümüdür; altına seçilen bölümlerin özeti (Rapor özeti şablonu) ve imza eklenir, tam listeler CSV eki olarak gider.",
       "REPORT_SUMMARY": "Rapor e-postasında giriş metninin altına gelen özet; konu kullanılmaz. {…_lines} alanlarındaki satırların metni bu şablonda değil, aşağıdaki \"Rapor satırı\" şablonlarındadır (her acente ve para birimi için bir satır); kayıt yoksa \"Kayıt yok.\" yazılır. {waiting_days}, yaşlandırmanın son aralık sınırıdır.",
@@ -1217,73 +1183,28 @@
   "replies": {
     "errors": {
       "voided": "B/L {bl} iptal edilmiş.",
-      "suggestionGone": "Bu öneri artık açık değil; liste yenilendi.",
       "replyType": "Yanıt türü bulunamadı veya pasif.",
       "noRequest": "B/L {bl} için henüz talep gönderilmedi; yanıt kaydedilemez.",
       "notReturnedStatus": "B/L {bl} bu durumda \"konteyner henüz dönmedi\" yanıtı alamaz.",
-      "notLinked": "E-posta bu B/L'ye bağlı değil.",
-      "alreadyRecorded": "B/L {bl} için bu e-postanın yanıt türü zaten kaydedilmiş.",
       "futureDate": "Yanıt tarihi ileri bir tarih olamaz.",
-      "beforePayment": "Yanıt tarihi ödeme tarihinden önce olamaz.",
-      "noMailbox": "Posta kutusu ayarlanmamış (e-posta ayarlarında IMAP sunucusu, kullanıcı ve şifre).",
-      "messageGone": "İleti posta kutusunda artık bulunamadı; aramayı yenileyin.",
-      "ownEmail": "Bu, uygulamanın gönderdiği bir e-posta; zaten ilgili B/L'lere bağlı."
-    },
-    "title": "Yanıtlar",
-    "tabs": {
-      "TO_PROCESS": "İşlenecek",
-      "MATCHES": "Olası eşleşmeler",
-      "PROCESSED": "İşlenmiş"
-    },
-    "hints": {
-      "TO_PROCESS": "Bilinen bir talep zincirindeki veya bir B/L'ye bağlanan yanıtlar. Her B/L için yanıt türünü kaydedin; uygulama yanıtı yorumlamaz.",
-      "MATCHES": "Bilinen bir zincirde olmayan ama açık bir B/L numarası geçen e-postalar. Yalnızca onayladığınızda bağlanır.",
-      "PROCESSED": "Bağlı tüm B/L'leri için yanıt türü kaydedilmiş e-postalar."
-    },
-    "empty": {
-      "TO_PROCESS": "İşlenecek yanıt yok.",
-      "MATCHES": "Olası eşleşme yok.",
-      "PROCESSED": "Henüz işlenmiş yanıt yok."
+      "beforePayment": "Yanıt tarihi ödeme tarihinden önce olamaz."
     },
     "sentAt": "Gönderildi",
-    "receivedAt": "Alındı",
     "agency": "Acente",
     "from": "Kimden",
     "to": "Kime",
     "cc": "Bilgi",
-    "subject": "Konu",
-    "bls": "B/L'ler",
     "noSubject": "(konu yok)",
     "noText": "(metin yok)",
-    "hasAttachments": "Ekli",
-    "overdue": "Gecikmiş",
-    "linkedBls": "Bağlı B/L'ler",
-    "linkedBy": {
-      "THREAD": "talep zincirinden",
-      "SUGGESTION": "öneri onaylandı",
-      "MANUAL": "elle bağlandı"
-    },
-    "applyToAll": "Tümüne uygula:",
-    "bulkRecord": "Seçili yanıtların bekleyen B/L'lerine:",
-    "confirmTitle": "Yanıt türü kaydedilsin mi: {type}",
-    "confirmDescription": "{count} B/L için bu yanıt türü kaydedilecek.",
-    "confirmRecord": "Kaydet",
-    "recorded": "{count} B/L için yanıt kaydedildi.",
-    "suggestions": "Olası eşleşmeler",
-    "suggestionsHint": "E-postada bu açık B/L numaraları geçiyor. Doğruysa bağlayın; değilse reddedin.",
-    "accept": "Bağla",
-    "dismiss": "Reddet",
-    "linked": "E-posta B/L'ye bağlandı.",
-    "dismissed": "Öneri reddedildi.",
     "attachments": "Ekler",
-    "downloadEml": "Özgün iletiyi indir (.eml)",
     "message": "İleti",
-    "allProcessed": "İşlenecek yanıt kalmadı."
+    "date": "Tarih",
+    "bls": "B/L'ler"
   },
   "blReplies": {
     "sectionTitle": "E-postalar ve yanıtlar",
     "record": "Yanıt kaydet",
-    "recordHint": "E-postayla gelmeyen bir yanıt (ör. portalda görülen durum). E-postayla gelen yanıtlar Yanıtlar ekranından işlenir.",
+    "recordHint": "Acentenin cevabı (e-postayla, telefonla veya portalda). Yanıt türü durumu ve takip süresini belirler.",
     "type": "Yanıt türü",
     "typeSaves": "(tıklayınca kaydedilir)",
     "date": "Yanıt tarihi",
@@ -1296,11 +1217,6 @@
     "requestNotePlaceholder": "Kiminle, nasıl konuşuldu?",
     "saveRequest": "Talebi kaydet",
     "requestRecorded": "Talep kaydedildi.",
-    "linkFromMailbox": "Posta kutusundan bağla",
-    "linkHint": "Ortak posta kutusunda gönderen ve konuya göre arayın, bu B/L ile ilgili e-postayı bağlayın. Sonraki yanıtları otomatik alınır.",
-    "search": "Ara",
-    "noResults": "Eşleşen ileti bulunamadı.",
-    "alreadyLinked": "Bağlı",
     "emails": "E-postalar",
     "noEmails": "Henüz e-posta yok.",
     "sent": "Gönderilen",
@@ -1451,7 +1367,7 @@
       "total": "Toplam {amount}",
       "linesInvalid": "Her satır için bir tür ve geçerli bir tutar girin.",
       "statement": "Kesinti dökümü",
-            "noStatement": "Döküm ekleme",
+      "noStatement": "Döküm ekleme",
       "uploadStatement": "Dökümü yükleyin (sürükleyin veya seçin)",
       "note": "Not",
       "clearNote": "İtiraz kapatma notu"
@@ -1772,7 +1688,6 @@
     "mailServers": "Sunucular",
     "mailFailing": "{since} tarihinden beri hata",
     "mailOk": "Çalışıyor (son başarılı: {at})",
-    "lastPoll": "Gelen kutusu son okuma",
     "jobs": "Zamanlanmış işler",
     "jobsPending": "Bekleyen",
     "jobsFailed": "Son 7 günde başarısız",
@@ -1954,6 +1869,17 @@
           "text": "Sistem durumu: yedeklerin alındığını, posta sunucusunun çalıştığını ve güncellemeleri kontrol edin. Geri bildirimler de Yönetim altında."
         }
       }
+    }
+  },
+  "archive": {
+    "drop": "Outlook'tan e-posta bırakın (.eml veya .msg)",
+    "hint": "Klasik Outlook'ta iletiyi önce masaüstüne sürükleyin, oluşan .msg dosyasını buraya bırakın.",
+    "saved": "E-posta arşivlendi.",
+    "openInOutlook": "Outlook'ta aç",
+    "errors": {
+      "type": "Yalnızca Outlook e-posta dosyaları (.eml, .msg) arşivlenebilir.",
+      "unreadable": "Dosya bir e-posta olarak okunamadı.",
+      "alreadyLinked": "Bu e-posta B/L {bl} kaydında zaten arşivli."
     }
   }
 }

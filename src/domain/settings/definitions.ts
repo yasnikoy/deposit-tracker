@@ -101,7 +101,6 @@ export const settingDefinitions = {
     schema: int(1, 365),
     agencyColumn: "statement_follow_up_days",
   },
-  "durations.unprocessedReplyWarningDays": { group: "durations", kind: "businessDays", schema: int(0, 60) },
   "durations.agingBucketEdges": { group: "durations", kind: "bucketEdges", schema: bucketEdges },
 
   "rules.blockSendingWithoutForm": { group: "rules", kind: "boolean", schema: z.boolean() },
@@ -126,24 +125,17 @@ export const settingDefinitions = {
   "email.fromAddress": { group: "email", kind: "text", schema: z.union([z.literal(""), emailAddress]) },
   "email.fromName": { group: "email", kind: "text", schema: z.string().trim().max(100) },
   "email.sentFolder": { group: "email", kind: "text", schema: z.string().trim().min(1).max(100) },
-  /** The folder the poller reads agency replies from, read-only (rule 12). */
-  "email.inboxFolder": { group: "email", kind: "text", schema: z.string().trim().min(1).max(100) },
-  "email.pollIntervalMinutes": { group: "email", kind: "minutes", schema: int(1, 1440) },
   "email.defaultCc": { group: "email", kind: "emailList", schema: emailList },
   "email.defaultBcc": { group: "email", kind: "emailList", schema: emailList },
   "email.signature": { group: "email", kind: "longText", schema: z.string().max(2000) },
   "email.maxAttachmentMb": { group: "email", kind: "megabytes", schema: int(1, 100) },
 
-  "notifications.dailyUnprocessedEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
-  "notifications.dailyUnprocessedTime": { group: "notifications", kind: "time", schema: time },
-  "notifications.dailyUnprocessedRecipients": { group: "notifications", kind: "emailList", schema: emailList },
   "notifications.weeklySummaryEmail": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.weeklySummaryWeekday": { group: "notifications", kind: "weekday", schema: int(1, 7) },
   "notifications.weeklySummaryTime": { group: "notifications", kind: "time", schema: time },
   "notifications.weeklySummaryRecipients": { group: "notifications", kind: "emailList", schema: emailList },
   /** In-app notifications are always on; these choose which events notify. */
   "notifications.inAppCorrection": { group: "notifications", kind: "boolean", schema: z.boolean() },
-  "notifications.inAppUnprocessedReply": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppWriteOff": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppNewAgency": { group: "notifications", kind: "boolean", schema: z.boolean() },
   "notifications.inAppNewCustomer": { group: "notifications", kind: "boolean", schema: z.boolean() },

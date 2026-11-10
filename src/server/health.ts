@@ -8,7 +8,7 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { backupStatus, type BackupStatus } from "./backups";
 import { DATABASE_FILE_NAME, type Db } from "./db/client";
-import { jobs, mailboxState, serviceStatus } from "./db/schema";
+import { jobs, serviceStatus } from "./db/schema";
 import { getEnv } from "./env";
 import { appBaseUrl, lanAddresses } from "./network";
 
@@ -29,7 +29,6 @@ export type SystemHealth = {
   diskFreeBytes: number | null;
   jobs: { pending: number; failedRecently: { kind: JobKind; at: string; error: string }[] };
   mail: { service: string; failingSince: string | null; lastError: string | null; lastOkAt: string | null }[];
-  lastMailboxPollAt: string | null;
   backups: BackupStatus;
 };
 
@@ -70,7 +69,6 @@ export function systemHealth(db: Db, actor: AuthUser, now: Date = new Date()): S
         .map((j) => ({ ...j, error: j.error ?? "" })),
     },
     mail: db.select().from(serviceStatus).all(),
-    lastMailboxPollAt: db.select({ at: sql<string | null>`max(${mailboxState.lastPolledAt})` }).from(mailboxState).get()?.at ?? null,
     backups: backupStatus(db, env.dataDir),
   };
 }

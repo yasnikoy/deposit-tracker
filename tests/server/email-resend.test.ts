@@ -4,9 +4,8 @@ import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail, listAllBls } from "@/server/bl-overview";
 import { voidBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { emailBlLinks, emails, requests } from "@/server/db/schema";
+import { emails, requests } from "@/server/db/schema";
 import { prepareRequestEmails, type EmailDraft } from "@/server/email/compose";
-import { importMessage } from "@/server/email/inbound";
 import { prepareResend, queueResend } from "@/server/email/resend";
 import { emailJobHandlers, queueRequestEmail } from "@/server/email/send";
 import type { Envelope, MailTransport } from "@/server/email/transport";
@@ -159,18 +158,6 @@ describe("resending a request email", () => {
     const [followUp] = prepareRequestEmails(db, ops, { blIds: [a] }, new Date("2026-10-29T09:00:00Z"));
     expect(followUp).toMatchObject({ thread: { messageId: resend.messageId }, items: [{ attemptNo: 2 }] });
     expect(followUp.body).toContain("Kime: dogru@msc.example");
-
-    db.transaction((tx) =>
-      importMessage(
-        tx,
-        { messageId: "<cevap-1@msc.example>", inReplyTo: resend.messageId, references: [resend.messageId], from: "dogru@msc.example", to: ["depozito@firma.com.tr"], cc: [], subject: `Re: ${resend.subject}`, text: "Konteynerler henüz dönmedi.", attachments: [] },
-        { raw: Buffer.from("raw"), receivedAt: later(3) },
-        {},
-        later(3),
-      ),
-    );
-    const reply = db.select().from(emails).where(eq(emails.messageId, "<cevap-1@msc.example>")).get()!;
-    expect(db.select().from(emailBlLinks).where(eq(emailBlLinks.emailId, reply.id)).all()).toEqual([expect.objectContaining({ blId: a, linkedBy: "THREAD" })]);
   });
 
   it("is refused for emails that were not sent requests, foreign attachments and closed B/Ls", async () => {

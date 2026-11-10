@@ -23,7 +23,7 @@ import { loadCalendar } from "@/server/calendar";
 import { getDb, type Db } from "@/server/db/client";
 import { emails, users } from "@/server/db/schema";
 import { prepareRequestEmails } from "@/server/email/compose";
-import { importMessage, parseMessage } from "@/server/email/inbound";
+import { archiveEmail } from "@/server/email/archive";
 import { emailJobHandlers, queueRequestEmail } from "@/server/email/send";
 import { mailTransport } from "@/server/email/transport";
 import { getEnv } from "@/server/env";
@@ -330,7 +330,7 @@ async function seed(db: Db) {
 
   // Kuzey Konteyner (portal agency: the first request is filed on the portal, its documents go by email)
   record({ ...K, blNo: "KZYU3000001", amountMinor: 500000, currency: "USD", daysAgo: 10, form: true, containers: [container("KZYU", "300001")] });
-  record({ ...K, blNo: "KZYU3000002", amountMinor: 330000, currency: "USD", daysAgo: 20, form: true, containers: [container("KZYU", "300002")] });
+  const kzyu2 = record({ ...K, blNo: "KZYU3000002", amountMinor: 330000, currency: "USD", daysAgo: 20, form: true, containers: [container("KZYU", "300002")] });
 
   // Ege Hatları (misconfigured agency)
   record({ ...E, blNo: "EGEU4000001", amountMinor: 120000, currency: "USD", daysAgo: 12, form: true, containers: [container("EGEU", "400001")] });
@@ -357,10 +357,10 @@ async function seed(db: Db) {
   );
   await runDueJobs(db, emailJobHandlers(db, () => mailTransport(db)) as JobHandlers, () => sentOn);
 
-  // Agency emails as the mailbox poller would import them: a reply in MEDU1000004's thread
-  // (to process, past the warning), and a portal agency's email naming KZYU3000002 (possible match).
+  // Agency emails archived from Outlook on their B/Ls: a reply in MEDU1000004's thread and a
+  // portal agency's email about KZYU3000002.
   const sentMessageId = db.select({ messageId: emails.messageId }).from(emails).where(eq(emails.direction, "OUT")).get()!.messageId;
-  await importDemoEmail(db, {
+  await archiveDemoEmail(db, ops2, medu4.blId!, {
     from: `Akdeniz Iade <iade@${recipientDomain}>`,
     subject: `RE: ${draft.subject}`,
     text: "Merhaba,\n\nMEDU1000004 kapsamındaki konteyner henüz boş olarak teslim edilmedi. Teslim sonrası iade süreci başlatılacaktır.\n\nSaygılarımızla",
@@ -368,7 +368,7 @@ async function seed(db: Db) {
     receivedAt: new Date(`${businessDaysAgo(2)}T08:15:00Z`),
     attachment: { filename: "konteyner-durum.pdf", content: pdf(["KONTEYNER DURUM RAPORU", "TGHU4000046: sahada"]) },
   });
-  await importDemoEmail(db, {
+  await archiveDemoEmail(db, ops, kzyu2.blId!, {
     from: `Kuzey Operasyon <ops@${recipientDomain}>`,
     subject: "Depozito iade başvurusu KZYU3000002",
     text: "Portal başvurunuz (KZ-2026-0815) incelemeye alınmıştır.",
@@ -378,8 +378,10 @@ async function seed(db: Db) {
   return { users: ["yonetici", "muhasebe", "operasyon", "operasyon2", "cift"] };
 }
 
-async function importDemoEmail(
+async function archiveDemoEmail(
   db: Db,
+  user: AuthUser,
+  blId: number,
   input: { from: string; subject: string; text: string; inReplyTo?: string; receivedAt: Date; attachment?: { filename: string; content: Buffer } },
 ) {
   const raw = await new MailComposer({
@@ -394,8 +396,7 @@ async function importDemoEmail(
   })
     .compile()
     .build();
-  const parsed = await parseMessage(raw);
-  db.transaction((tx) => importMessage(tx, parsed, { raw, receivedAt: input.receivedAt }, {}, input.receivedAt));
+  await archiveEmail(db, user, { blId, fileName: `${input.subject}.eml`, content: raw }, input.receivedAt);
 }
 
 if (getEnv().EMAIL_MODE === "live") throw new Error("Run the demo seed in dry-run mode.");

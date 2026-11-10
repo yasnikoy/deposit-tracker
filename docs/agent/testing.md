@@ -2,7 +2,7 @@
 
 - Vitest for unit/domain tests (`pnpm test`); Playwright for e2e
   (`pnpm test:e2e`, own server on :3100, fresh `data-e2e/`) covering create
-  B/L, send request, allocate refund, bulk reply.
+  B/L, send request, allocate refund, archive an email and record the reply.
 - Test-first for `src/domain` and the receipt parser, especially the
   business-day engine and the allocation engine. Use the scenarios in
   ARCHITECTURE.md as test cases, e.g.:

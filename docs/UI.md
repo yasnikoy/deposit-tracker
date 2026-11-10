@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — UI structure and conventions
 
-Nov 2, 2026 (after the third UI review) · updated Nov 3, 2026 (agency units, resend, shared deposit forms, deposit transfers)
+Nov 2, 2026 (after the third UI review) · updated Nov 10, 2026 (Replies screen removed, archived emails, feedback, guide page)
 
 This document fixes how the interface is put together: where things live, which page
 patterns exist, which shared components build them, and the visual and wording rules.
@@ -30,7 +30,7 @@ If the code and this document disagree, stop and ask which one is right.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────┐
-│ Depozito Takip v0.x  Panel Muhasebe Talepler Yanıtlar(1) … ⚙ Ayarlar  [Ara… /] 🔔 👤 │  header (sticky)
+│ Depozito Takip v0.x  Panel Muhasebe Talepler İade dağıtımı … ⚙ Ayarlar  [Ara… /] 🔔 👤 │  header (sticky)
 ├───────────────────────────────────────────────────────────────────────────────┤
 │ Deneme modu: e-postalar kaydedilir ama gönderilmez.                           │  banners (dry-run, mail outage)
 ├───────────────────────────────────────────────────────────────────────────────┤
@@ -44,8 +44,8 @@ If the code and this document disagree, stop and ask which one is right.
   menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *İlk adımlar*, *Hata bildir / öneri gönder*,
   *Çıkış yap*). The header wraps to a
   second line instead of overflowing; the search box shrinks first.
-- **Badges in the menu**: red count on *Yanıtlar* (unprocessed replies) and on *Silme
-  onayları* (write-offs awaiting approval); the bell shows unread notifications.
+- **Badges in the menu**: count on *Silme onayları* (write-offs awaiting approval); the bell
+  shows unread notifications.
 - **Banners** under the header: dry-run mode (outside production) and mail-server outage
   (amber, with since when). Nothing else uses a full-width banner.
 
@@ -59,7 +59,6 @@ roles allow them. A user with several roles sees the union.
 | Panel | `/` | everyone | Dashboard |
 | Muhasebe | `/accounting?tab=payments\|refunds\|entries` | accountant | Entry page with tabs |
 | Talepler | `/requests`, `?tab=upcoming`, `?tab=failed` | operations (accountant reads) | Grouped work list |
-| Yanıtlar | `/replies`, `?tab=matches`, `?tab=processed` | operations | List page with tabs |
 | İade dağıtımı | `/allocations`, review at `/allocations/[id]` | operations | List page → review page |
 | B/L'ler | `/bls`, detail at `/bls/[id]` | everyone with B/L access | List page → detail page |
 | B/L oluştur | `/bls/new` | operations (accountant reads) | Editable grid |
@@ -100,7 +99,7 @@ A `DataTable` (section 4) over the full width. A row opens its record: in the **
 filtered), or on its own page when the record is a workspace (B/L detail, allocation review).
 Toolbar left: table search, *Filtre*, *Sütunlar*, *CSV indir*; right: screen toggles
 (e.g. *Sadece benimkiler*, *İptal edilenleri göster*) and the primary *Yeni …* button.
-Examples: B/L'ler, Yanıtlar, İade dağıtımı, Acenteler, Müşteriler, Kullanıcılar, Silme onayları.
+Examples: B/L'ler, İade dağıtımı, Acenteler, Müşteriler, Kullanıcılar, Silme onayları.
 
 ### 3.2 Entry page
 
@@ -229,7 +228,7 @@ One scheme everywhere; add a new status to this table before using it.
 | --- | --- | --- |
 | outline | normal course | *Depozito yatırıldı*, *Talep edildi*, *Konteyner dönüşü bekleniyor*, *Aktif*, open refunds, *B/L bekliyor* (payment), send-mode badges |
 | warning (amber) | someone has to act | *Talep zamanı*, *Kesinti açık*, *Muhasebe kaydı bekliyor*, write-off *Onay bekliyor*, missing receipt on a due request, *Birim seçilmedi* (a B/L of an agency with units names none) |
-| destructive (red) | problem or voided | *İtirazlı*, *İptal*, locked user, agency *Bilgi eksik*, overdue reply (*Gecikmiş*), backup problems |
+| destructive (red) | problem or voided | *İtirazlı*, *İptal*, locked user, agency *Bilgi eksik*, backup problems |
 | secondary (grey) | closed, inactive or informational | *Tahsil edildi*, *Aktarıldı*, *Pasif*, *Dağıtıldı*, write-off approved/rejected, roles, dry-run marks, lock badge |
 
 Variants live in `components/ui/badge.tsx`; B/L statuses map in `bl-status-badge.tsx`.
@@ -285,6 +284,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | A refund request made by phone or from another mailbox, recorded afterwards | *Uygulama dışı talep*, *Uygulama dışı talebi kaydet* | *Manuel durum*, *Elle talep* |
 | Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
 | A user's bug report or feature request to the admins | *Hata bildir / öneri gönder*; kinds *Hata*, *Öneri*; the admin list *Geri bildirimler* | *Destek talebi*, *Ticket* |
+| An email dragged from Outlook onto a B/L, kept with it | *arşivlenen e-posta*; drop zone *Outlook'tan e-posta bırakın*; *Outlook'ta aç* | *Yanıt içe aktar*, *Eşleştir* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 
 ## 11. Checklist for a UI change

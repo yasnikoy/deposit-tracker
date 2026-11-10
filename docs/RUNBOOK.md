@@ -215,7 +215,8 @@ A red banner says the mail server (SMTP or IMAP) is unreachable. Nothing is lost
 
 - requests stay queued and are retried (3 attempts with growing pauses); a request that still
   fails shows on Talepler → **Gönderilemeyen** and on the dashboard, to send again;
-- replies are read again from the mailbox once it is back (the app never moves or marks mail).
+- the copy of each sent email to the mailbox's sent folder is made once IMAP is back (the app
+  never moves or marks mail).
 
 Check: internet on the PC, the mail password (changed? enter the new app password in
 Ayarlar → E-posta sunucusu), the provider's status. Sistem durumu shows when it started failing.

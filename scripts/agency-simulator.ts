@@ -4,15 +4,15 @@
  * In development the app never sends (dry-run): request emails are only stored. This script
  * reads those stored requests of one test agency from the database and answers each one with
  * a real email in the same thread (In-Reply-To / References), sent over the SMTP server from
- * the email settings to our own mailbox. The app's poller then imports the answer as an agency
- * reply. The script never writes to the database and never touches the mailbox otherwise.
+ * the email settings to our own mailbox, where it can be archived on its B/L from Outlook.
+ * The script never writes to the database and never touches the mailbox otherwise.
  *
  * Safety: refuses to run in production or live mode, answers only requests whose every
  * recipient is our own mailbox address, and sends only to that address.
  *
  * Usage: DATA_DIR=./data pnpm agency-sim "<agency name>" [--from <address>] [--interval <seconds>]
- * The default sender is our address with "+acente" (e.g. depozito+acente@firma.com); the app skips
- * messages from our own address, so the agency needs a different one. It is only the visible
+ * The default sender is our address with "+acente" (e.g. depozito+acente@firma.com), so the
+ * answer looks like it came from someone else. It is only the visible
  * From: the SMTP envelope uses our own login, which mail servers require.
  *
  * Scenario per request attempt (one email may cover several B/Ls of a batched agency):

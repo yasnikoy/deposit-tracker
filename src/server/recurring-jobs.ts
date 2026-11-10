@@ -8,8 +8,6 @@ import type { Db, DbOrTx } from "./db/client";
 import { jobs } from "./db/schema";
 import { runBackup } from "./backups";
 import { appBaseUrl } from "./network";
-import { imapPollHandler } from "./email/inbound";
-import type { Mailbox } from "./email/mailbox";
 import { getEmailTemplate } from "./email/templates";
 import type { MailTransport } from "./email/transport";
 import { t } from "@/i18n";
@@ -17,8 +15,6 @@ import { formatBusinessDate } from "@/lib/format";
 import { formatAmount } from "@/lib/money";
 import { enqueueJob, type JobHandler, type JobHandlers } from "./jobs";
 import { logger } from "./logger";
-import { notifyOverdueReplies } from "./notifications";
-import { unprocessedSummary } from "./replies";
 import { positionsForJob, totalsByCurrency } from "./reports";
 import { markServiceFailing, markServiceOk } from "./service-status";
 import { getSetting } from "./settings";
@@ -32,10 +28,9 @@ const pending = (db: DbOrTx, kind: JobKind) =>
 
 /**
  * A job that runs once a day at a configured Istanbul time. A missed run (PC off at that time)
- * is skipped for the daily email, but caught up at the next start for the backup.
+ * is caught up at the next start when `catchUp` is set.
  */
-type DailyJob = { kind: JobKind; timeKey: "notifications.dailyUnprocessedTime" | "backups.dailyTime"; catchUp: boolean };
-const DAILY_EMAIL: DailyJob = { kind: "DAILY_UNPROCESSED_EMAIL", timeKey: "notifications.dailyUnprocessedTime", catchUp: false };
+type DailyJob = { kind: JobKind; timeKey: "backups.dailyTime"; catchUp: boolean };
 const DAILY_BACKUP: DailyJob = { kind: "BACKUP", timeKey: "backups.dailyTime", catchUp: true };
 
 /** A daily job of one date runs at the configured Istanbul time of that date. */
@@ -67,7 +62,6 @@ function scheduleDaily(db: DbOrTx, daily: DailyJob, now: Date): void {
   enqueueJob(db, daily.kind, { date }, dailyRunAt(db, daily, date), now);
 }
 
-export const scheduleDailyEmail = (db: DbOrTx, now: Date = new Date()) => scheduleDaily(db, DAILY_EMAIL, now);
 export const scheduleDailyBackup = (db: DbOrTx, now: Date = new Date()) => scheduleDaily(db, DAILY_BACKUP, now);
 
 const weeklyRunAt = (db: DbOrTx, date: IsoDate) => istanbulInstant(date, getSetting("notifications.weeklySummaryTime", {}, db));
@@ -117,11 +111,9 @@ function nextWeeklyDate(db: DbOrTx, date: IsoDate, now: Date): IsoDate {
   return weeklyRunAt(db, next) > now ? next : onOrAfterWeekday(addCalendarDays(next, 1), weekday);
 }
 
-/** At start: one pending mailbox poll (overdue ones simply run now), one daily-email, one weekly-summary and one backup job. */
+/** At start: one pending weekly-summary and one backup job. */
 export function ensureRecurringJobs(db: Db, now: Date = new Date()): void {
   db.transaction((tx) => {
-    if (pending(tx, "IMAP_POLL").length === 0) enqueueJob(tx, "IMAP_POLL", {}, now, now);
-    scheduleDailyEmail(tx, now);
     scheduleWeeklySummary(tx, now);
     scheduleDailyBackup(tx, now);
   });
@@ -164,65 +156,19 @@ function backupHandler(db: Db, dataDir: string): JobHandler {
   };
 }
 
-/**
- * The optional internal reminder: unprocessed replies past the warning, per agency. Sent only
- * when switched on, with recipients, and when there is at least one; honours dry-run.
- */
-function dailyEmailHandler(db: Db, transport: () => MailTransport): JobHandler {
-  return async (_job, now) => {
-    if (!getSetting("notifications.dailyUnprocessedEmail", {}, db)) return { status: "done" };
-    const recipients = getSetting("notifications.dailyUnprocessedRecipients", {}, db);
-    const fromAddress = getSetting("email.fromAddress", {}, db);
-    const summary = unprocessedSummary(db, now);
-    if (recipients.length === 0 || !fromAddress || summary.overdue === 0) return { status: "done" };
-
-    const template = getEmailTemplate(db, "DAILY_UNPROCESSED");
-    const values = {
-      count: String(summary.overdue),
-      warning_days: String(getSetting("durations.unprocessedReplyWarningDays", {}, db)),
-      agency_lines: summary.overdueByAgency.map((a) => `• ${a.agencyName}: ${a.count}`).join("\n"),
-      link: appLink("/replies"),
-    };
-    const fromName = getSetting("email.fromName", {}, db);
-    const raw = await new MailComposer({
-      from: fromName ? { name: fromName, address: fromAddress } : fromAddress,
-      to: recipients,
-      subject: renderTemplate(template.subject, values),
-      text: renderTemplate(template.body, values),
-      date: now,
-    })
-      .compile()
-      .build();
-    const mail = transport();
-    try {
-      await mail.send(raw, { from: fromAddress, to: recipients });
-    } catch (error) {
-      const message = (error instanceof Error ? error.message : String(error)).slice(0, 500);
-      markServiceFailing(db, "SMTP", message, now);
-      return { status: "failed", error: message };
-    }
-    if (!mail.dryRun) markServiceOk(db, "SMTP", now);
-    logger.info({ overdue: summary.overdue, dryRun: mail.dryRun }, "daily unprocessed-reply email sent");
-    return { status: "done" };
-  };
-}
-
-/** The weekly summary values: open balance per currency, B/Ls waiting longest, unprocessed replies. */
+/** The weekly summary values: open balance per currency and the B/Ls waiting longest. */
 export function weeklySummaryValues(db: DbOrTx, now: Date): Record<string, string> {
   const open = positionsForJob(db, now).filter((p) => p.open && p.outstandingMinor > 0);
   const edges = getSetting("durations.agingBucketEdges", {}, db);
   const longest = edges[edges.length - 1];
   const waiting = open.filter((p) => (p.daysWaiting ?? 0) > longest).sort((a, b) => (b.daysWaiting ?? 0) - (a.daysWaiting ?? 0));
   const balances = totalsByCurrency(open.map((p) => ({ currency: p.currency, amountMinor: p.outstandingMinor })));
-  const unprocessed = unprocessedSummary(db, now);
   return {
     date: formatBusinessDate(istanbulToday(now)),
     balance_lines: balances.length > 0 ? balances.map((b) => `• ${formatAmount(b.amountMinor)} ${b.currency} (${open.filter((p) => p.currency === b.currency).length} B/L)`).join("\n") : "• —",
     waiting_days: String(longest),
     waiting_count: String(waiting.length),
     waiting_lines: waiting.map((p) => `• ${p.blNo} · ${p.agencyName} · ${t("reports.email.waitingDays", { days: p.daysWaiting ?? 0 })} · ${formatAmount(p.outstandingMinor)} ${p.currency}`).join("\n"),
-    unprocessed_count: String(unprocessed.count),
-    overdue_count: String(unprocessed.overdue),
     link: appLink("/"),
   };
 }
@@ -262,21 +208,17 @@ function weeklySummaryHandler(db: Db, transport: () => MailTransport): JobHandle
 
 export function recurringJobHandlers(
   db: Db,
-  deps: { mailbox: () => Mailbox | null; transport: () => MailTransport; dataDir: string },
+  deps: { transport: () => MailTransport; dataDir: string },
 ): Pick<JobHandlers, "IMAP_POLL" | "DAILY_UNPROCESSED_EMAIL" | "WEEKLY_SUMMARY_EMAIL" | "BACKUP"> {
+  // Agency replies are no longer read from the mailbox: a poll or daily reply email still queued
+  // from before finishes without doing anything and is not scheduled again.
+  const retired: JobHandler = async () => ({ status: "done" });
   return {
-    IMAP_POLL: recurring(db, imapPollHandler(db, deps.mailbox), (tx, _job, now) => {
-      notifyOverdueReplies(tx, now);
-      const minutes = getSetting("email.pollIntervalMinutes", {}, tx);
-      enqueueJob(tx, "IMAP_POLL", {}, new Date(now.getTime() + minutes * 60_000), now);
-    }),
+    IMAP_POLL: retired,
+    DAILY_UNPROCESSED_EMAIL: retired,
     WEEKLY_SUMMARY_EMAIL: recurring(db, weeklySummaryHandler(db, deps.transport), (tx, job, now) => {
       const date = nextWeeklyDate(tx, String(job.payload.date), now);
       enqueueJob(tx, "WEEKLY_SUMMARY_EMAIL", { date }, weeklyRunAt(tx, date), now);
-    }),
-    DAILY_UNPROCESSED_EMAIL: recurring(db, dailyEmailHandler(db, deps.transport), (tx, job, now) => {
-      const date = nextDailyDate(tx, DAILY_EMAIL, String(job.payload.date), now);
-      enqueueJob(tx, "DAILY_UNPROCESSED_EMAIL", { date }, dailyRunAt(tx, DAILY_EMAIL, date), now);
     }),
     BACKUP: recurring(db, backupHandler(db, deps.dataDir), (tx, job, now) => {
       const date = nextDailyDate(tx, DAILY_BACKUP, String(job.payload.date), now);

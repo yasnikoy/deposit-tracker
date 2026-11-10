@@ -6,13 +6,13 @@ import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail } from "@/server/bl-overview";
 import { updateBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
-import { auditLog, billsOfLading, deductionTypes, emailMatchSuggestions, emails, replyTypes } from "@/server/db/schema";
+import { auditLog, billsOfLading, deductionTypes, replyTypes } from "@/server/db/schema";
 import { recordStatementDeductions } from "@/server/deductions";
 import { ForbiddenError } from "@/server/errors";
 import { storeUpload } from "@/server/files";
 import { currentBlForm, uploadBlForm } from "@/server/forms";
 import { createRefund } from "@/server/refunds";
-import { acceptSuggestion, getReplyDetail, recordEmailReplies, recordReplyWithoutEmail } from "@/server/replies";
+import { recordReplyWithoutEmail } from "@/server/replies";
 
 import { undoActions } from "@/server/undo";
 import { createTestDb, makeUser } from "../support/db";
@@ -33,13 +33,6 @@ const status = (blId: number) => db.select().from(billsOfLading).where(eq(billsO
 const replyType = (code: string) => db.select().from(replyTypes).where(eq(replyTypes.code, code as never)).get()!.id;
 const upload = (kind: "FORM" | "DEDUCTION_STATEMENT", name = "f.pdf") => storeUpload(db, ops, { originalName: name, content: PDF, kind }, NOW).id;
 
-function incomingEmail(messageId: string): number {
-  return db
-    .insert(emails)
-    .values({ direction: "IN", agencyId: line, messageId, fromAddress: "iade@hat.example", to: [], subject: "B/L HATU1000001", bodyText: "...", receivedAt: NOW.toISOString(), createdAt: NOW.toISOString() })
-    .returning()
-    .get().id;
-}
 
 beforeEach(async () => {
   db = createTestDb();
@@ -94,21 +87,6 @@ describe("undo", () => {
     undoActions(db, ops, { auditIds: ids }, later(5));
     expect(status(bl)).toBe("REQUESTED");
     expect(getBlDetail(db, ops, bl, later(5)).bl).toMatchObject({ deductionsMinor: 0, expectedMinor: 150000 });
-  });
-
-  it("of an email link unlinks it while no reply was recorded; an accepted match is offered again", () => {
-    const first = incomingEmail("<m1@hat.example>");
-    db.insert(emailMatchSuggestions).values({ emailId: first, blId: bl, createdAt: NOW.toISOString() }).run();
-    const ids = acceptSuggestion(db, ops, { emailId: first, blId: bl }, NOW);
-    undoActions(db, ops, { auditIds: ids }, later(1));
-    expect(getReplyDetail(db, ops, first)).toMatchObject({ links: [], suggestions: [expect.objectContaining({ blId: bl })] });
-    expect(getBlDetail(db, ops, bl, later(1)).emails).toEqual([]);
-
-    // Linked again and answered: the link stays.
-    const again = acceptSuggestion(db, ops, { emailId: first, blId: bl }, later(2));
-    expect(getReplyDetail(db, ops, first).links).toHaveLength(1);
-    recordEmailReplies(db, ops, { items: [{ emailId: first, blId: bl }], replyTypeId: replyType("APPROVED") }, later(2));
-    expect(() => undoActions(db, ops, { auditIds: again }, later(3))).toThrow(expect.objectContaining({ messageKey: "undo.errors.replyRecorded" }));
   });
 
   it("of a form upload makes the previous form current again; of a B/L edit restores number and containers", () => {

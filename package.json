@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^6.0.0",
+    "@kenjiuno/msgreader": "1.29.0",
     "@node-rs/argon2": "^2.2.2",
     "@tanstack/react-table": "^9.3.1",
     "better-sqlite3": "^13.0.3",

@@ -21,11 +21,11 @@ import { EditBlDialog, VoidBlDialog } from "../bl-dialogs";
 import { updateBlOverridesAction } from "../../requests/actions";
 import { undoAction } from "../../undo-actions";
 import { FormSection } from "../form-section";
-import type { ReplyTypeOption } from "../../replies/replies-screen";
+
 import type { DeductionTypeOption } from "../deduction-dialog";
 import { AllocationsSection } from "./allocations-section";
 import { DeductionsSection } from "./deductions-section";
-import { ReplySection } from "./reply-section";
+import { ReplySection, type ReplyTypeOption } from "./reply-section";
 import { DescriptionEditor } from "../description-editor";
 import type { CustomerOption } from "@/components/customer-combobox";
 import { ContainersField } from "./containers-field";
@@ -331,14 +331,12 @@ export function BlDetailScreen({
             blId={bl.id}
             detail={detail}
             replyTypes={replyTypes}
-            deductionTypes={deductionTypes}
             today={today}
             canView={can.viewEmails}
             canRecord={can.recordReply && !bl.voidedAt}
             // The statuses a refund request can still be made from.
             canRecordRequest={can.recordOutsideRequest && !bl.voidedAt && ["PAID", "DUE", "REQUESTED", "AWAITING_RETURN"].includes(bl.status)}
-            canLink={can.linkEmail && !bl.voidedAt}
-            canRecordDeduction={can.recordDeduction && !bl.voidedAt}
+            canArchive={can.linkEmail && !bl.voidedAt}
             // Only while the B/L is still open: a settled B/L takes no more requests.
             canResend={can.resend && !bl.voidedAt && bl.status !== "COLLECTED" && bl.status !== "ACCOUNTING_PENDING"}
           />

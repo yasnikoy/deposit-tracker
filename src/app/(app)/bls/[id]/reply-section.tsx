@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowDownLeft, ArrowUpRight, Search, Send } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, type FormEvent } from "react";
+import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -12,43 +13,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { formatBusinessDate, formatTimestamp } from "@/lib/format";
+import type { ReplyTypeCode } from "@/domain/replies";
 import type { BlDetail } from "@/server/bl-overview";
-import type { MailboxSearchResult } from "@/server/replies";
-import { linkMailboxMessageAction, recordReplyWithoutEmailAction, searchMailboxAction } from "../../replies/actions";
-import { EmailDialog } from "../../replies/email-dialog";
-import type { ReplyTypeOption } from "../../replies/replies-screen";
-import type { DeductionTypeOption } from "../deduction-dialog";
+import { recordReplyWithoutEmailAction } from "../actions";
+import { EmailDialog } from "./email-dialog";
 import { prepareResendAction, recordOutsideRequestAction, type ResendDraft } from "../../requests/actions";
 import { ResendDialog } from "../../requests/email-preview-dialog";
 
-/** The B/L's email thread and recorded replies, with the two ways to add one by hand. */
+export type ReplyTypeOption = { id: number; name: string; code: ReplyTypeCode | null };
+
+/**
+ * The B/L's emails (our requests and the ones archived from Outlook) and its recorded replies,
+ * with the ways to add them by hand: a reply, a request made outside the app, an archived email.
+ */
 export function ReplySection({
   blId,
   detail,
   replyTypes,
-  deductionTypes,
   today,
   canView,
   canRecord,
   canRecordRequest,
-  canLink,
-  canRecordDeduction,
+  canArchive,
   canResend,
 }: {
   blId: number;
   detail: Pick<BlDetail, "emails" | "replies">;
   replyTypes: ReplyTypeOption[];
-  deductionTypes: DeductionTypeOption[];
   today: string;
   canView: boolean;
   canRecord: boolean;
   canRecordRequest: boolean;
-  canLink: boolean;
-  canRecordDeduction: boolean;
+  canArchive: boolean;
   canResend: boolean;
 }) {
   const router = useRouter();
-  const [dialog, setDialog] = useState<"record" | "request" | "link" | null>(null);
+  const [dialog, setDialog] = useState<"record" | "request" | null>(null);
   // An email opened in place, so the user stays on the B/L.
   const [openEmail, setOpenEmail] = useState<number | null>(null);
   const closeEmail = useCallback(() => setOpenEmail(null), []);
@@ -65,7 +65,7 @@ export function ReplySection({
 
   return (
     <div className="flex flex-col gap-3">
-      {(canRecord || canRecordRequest || canLink) && (
+      {(canRecord || canRecordRequest) && (
         <div className="flex flex-wrap gap-2">
           {canRecord && (
             <Button id="record-reply" size="sm" variant="outline" onClick={() => setDialog("record")}>
@@ -77,16 +77,30 @@ export function ReplySection({
               {t("blReplies.recordRequest")}
             </Button>
           )}
-          {canLink && (
-            <Button size="sm" variant="outline" onClick={() => setDialog("link")}>
-              <Search /> {t("blReplies.linkFromMailbox")}
-            </Button>
-          )}
         </div>
       )}
 
       <div>
         <h3 className="text-muted-foreground mb-1 text-xs font-medium uppercase">{t("blReplies.emails")}</h3>
+        {canArchive && (
+          <div className="mb-2 flex flex-col gap-1">
+            <FileDrop
+              kind="EMAIL"
+              blId={blId}
+              multiple
+              compact
+              accept=".eml,.msg"
+              label={t("archive.drop")}
+              onUploaded={(results) => {
+                const auditIds = results.flatMap((r) => (r.response.ok ? (r.response.auditIds ?? []) : []));
+                for (const r of results) if (!r.response.ok) toast.error(`${r.file.name}: ${uploadErrorText(r.response)}`);
+                if (auditIds.length > 0) toastWithUndo(t("archive.saved"), auditIds, () => router.refresh());
+                router.refresh();
+              }}
+            />
+            <span className="text-muted-foreground text-xs">{t("archive.hint")}</span>
+          </div>
+        )}
         {detail.emails.length === 0 ? (
           <p className="text-muted-foreground">{t("blReplies.noEmails")}</p>
         ) : (
@@ -126,6 +140,14 @@ export function ReplySection({
                 </span>
                 <span className="text-muted-foreground ml-6 text-xs">
                   {formatTimestamp(email.at)} · {email.from}
+                  {email.rawDocumentId !== null && (
+                    <>
+                      {" · "}
+                      <a href={`/api/files/${email.rawDocumentId}`} className="underline">
+                        {t("archive.openInOutlook")}
+                      </a>
+                    </>
+                  )}
                 </span>
                 {email.attachments.length > 0 && (
                   <span className="ml-6 flex flex-wrap gap-x-3 text-xs">
@@ -164,7 +186,6 @@ export function ReplySection({
 
       {dialog === "record" && <RecordReplyDialog blId={blId} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
       {dialog === "request" && <RecordRequestDialog blId={blId} today={today} onCancel={() => setDialog(null)} onDone={done} />}
-      {dialog === "link" && <MailboxLinkDialog blId={blId} onCancel={() => setDialog(null)} onDone={done} />}
       {resend && (
         <ResendDialog
           draft={resend}
@@ -175,15 +196,7 @@ export function ReplySection({
         />
       )}
       {openEmail !== null && (
-        <EmailDialog
-          emailId={openEmail}
-          replyTypes={replyTypes}
-          deductionTypes={deductionTypes}
-          canRecord={canRecord}
-          canLink={canLink}
-          canRecordDeduction={canRecordDeduction}
-          onClose={closeEmail}
-        />
+        <EmailDialog emailId={openEmail} onClose={closeEmail} />
       )}
     </div>
   );
@@ -327,93 +340,6 @@ function RecordRequestDialog({ blId, today, onCancel, onDone }: { blId: number; 
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Searches the shared mailbox by sender and subject and links the chosen message to the B/L. */
-function MailboxLinkDialog({ blId, onCancel, onDone }: { blId: number; onCancel: () => void; onDone: () => void }) {
-  const [from, setFrom] = useState("");
-  const [subject, setSubject] = useState("");
-  const [found, setFound] = useState<{ uidValidity: string; results: MailboxSearchResult[] } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const search = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    const result = await searchMailboxAction({ blId, from, subject });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    setFound(result.data);
-  };
-
-  const link = async (uid: number) => {
-    if (!found) return;
-    setBusy(true);
-    const result = await linkMailboxMessageAction({ blId, uid, uidValidity: found.uidValidity });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    toastWithUndo(t("replies.linked"), result.data, onDone);
-    onDone();
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t("blReplies.linkFromMailbox")}</DialogTitle>
-          <DialogDescription>{t("blReplies.linkHint")}</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={search} className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mailbox-from">{t("replies.from")}</Label>
-            <Input id="mailbox-from" value={from} onChange={(event) => setFrom(event.target.value)} autoFocus className="w-56" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="mailbox-subject">{t("replies.subject")}</Label>
-            <Input id="mailbox-subject" value={subject} onChange={(event) => setSubject(event.target.value)} className="w-56" />
-          </div>
-          <Button type="submit" disabled={busy}>
-            <Search /> {t("blReplies.search")}
-          </Button>
-        </form>
-        {error && (
-          <p role="alert" className="text-destructive text-sm">
-            {error}
-          </p>
-        )}
-        {found &&
-          (found.results.length === 0 ? (
-            <p className="text-muted-foreground">{t("blReplies.noResults")}</p>
-          ) : (
-            <ul className="flex max-h-80 flex-col gap-1 overflow-auto">
-              {found.results.map((r) => (
-                <li key={r.uid} className="flex items-center gap-2 rounded-md border px-2 py-1.5 text-sm">
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{r.subject || t("replies.noSubject")}</span>
-                    <span className="text-muted-foreground block truncate text-xs">
-                      {formatTimestamp(r.receivedAt)} · {r.from}
-                    </span>
-                  </span>
-                  {r.linked ? (
-                    <Badge variant="secondary">{t("blReplies.alreadyLinked")}</Badge>
-                  ) : (
-                    <Button size="sm" variant="outline" disabled={busy} onClick={() => link(r.uid)}>
-                      {t("replies.accept")}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ))}
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel} disabled={busy}>
-            {t("common.close")}
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

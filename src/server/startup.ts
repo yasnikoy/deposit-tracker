@@ -9,7 +9,6 @@ import { recoverInterruptedJobs, startScheduler } from "./jobs";
 import { enableFileLogging, logger } from "./logger";
 import { emailJobHandlers } from "./email/send";
 import { seedEmailTemplates } from "./email/templates";
-import { mailboxFromSettings } from "./email/mailbox";
 import { mailTransport } from "./email/transport";
 import { ensureRecurringJobs, recurringJobHandlers } from "./recurring-jobs";
 import { seedDeductionTypes, seedLists, seedReplyTypes } from "./lists";
@@ -52,7 +51,7 @@ export async function startServer(): Promise<void> {
   const transport = () => mailTransport(db);
   startScheduler(db, {
     ...emailJobHandlers(db, transport),
-    ...recurringJobHandlers(db, { mailbox: () => mailboxFromSettings(db), transport, dataDir: env.dataDir }),
+    ...recurringJobHandlers(db, { transport, dataDir: env.dataDir }),
   });
   scheduleUpdateChecks();
   logger.info({ version: APP_VERSION, dataDir: env.dataDir, emailMode: env.EMAIL_MODE }, "server started");

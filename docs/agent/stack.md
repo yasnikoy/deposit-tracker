@@ -17,11 +17,13 @@ Technical decisions. Ask before adding dependencies or changing the stack.
 - Auth: username + password (argon2id via `@node-rs/argon2`; no email login), DB-backed sessions in an httpOnly cookie,
   no idle timeout, failed-login lockout from settings. Roles: ACCOUNTANT,
   OPERATIONS, ADMIN; a user may hold several. Users are deactivated, never deleted.
-- Background jobs: in-process scheduler with a `jobs` table (IMAP polling,
-  sending, backups, daily unprocessed-reply email, weekly summary).
+- Background jobs: in-process scheduler with a `jobs` table (sending and the
+  copy to the sent folder, backups, weekly summary).
   Overdue jobs run once on start. Send jobs retry 3 times with backoff,
   then mark the request failed.
-- Email: nodemailer (SMTP), ImapFlow (IMAP), mailparser. Raw messages stored as `.eml`.
+- Email: nodemailer (SMTP), ImapFlow (IMAP, only to copy sent emails to the sent
+  folder), mailparser and @kenjiuno/msgreader (emails archived from Outlook as
+  `.eml`/`.msg`). Raw messages stored as files.
 - Receipt parsing: pdfjs-dist + one parser module for our bank's layout;
   extracts name, amount, currency, date and B/L number candidates.
 - Form generation: `.docx` agency templates with placeholders, filled with
@@ -30,7 +32,7 @@ Technical decisions. Ask before adding dependencies or changing the stack.
   Turkish number/date formats); clipboard copy as tab-separated text.
 - Logging: pino, daily rotating files in the data folder, kept 30 days.
 - Tests: Vitest (unit/domain), Playwright (create B/L, send request,
-  allocate refund, bulk reply).
+  allocate refund, archive an email and record the reply).
 - Deployment: portable zip for Windows x64 (portable Node.js, standalone build,
   prebuilt native modules, start/stop/backup/create-admin `.cmd` scripts).
   No Docker, no installer, no database server. Runs on one office PC,

@@ -5,14 +5,14 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**
  * The on/off setting of each kind; a write-off proposal and its decision share one. MENTION
- * (from the team notes, replaced by the B/L description) is no longer sent; older ones stay.
+ * (from the team notes, replaced by the B/L description) and UNPROCESSED_REPLY (agency replies
+ * are no longer read from the mailbox) are no longer sent; older ones stay.
  */
 export const NOTIFICATION_SETTINGS = {
   CORRECTION: "notifications.inAppCorrection",
-  UNPROCESSED_REPLY: "notifications.inAppUnprocessedReply",
   WRITE_OFF_PROPOSED: "notifications.inAppWriteOff",
   WRITE_OFF_DECIDED: "notifications.inAppWriteOff",
   NEW_AGENCY: "notifications.inAppNewAgency",
   NEW_CUSTOMER: "notifications.inAppNewCustomer",
   NEW_FEEDBACK: "notifications.inAppNewFeedback",
-} as const satisfies Record<Exclude<NotificationKind, "MENTION">, string>;
+} as const satisfies Record<Exclude<NotificationKind, "MENTION" | "UNPROCESSED_REPLY">, string>;

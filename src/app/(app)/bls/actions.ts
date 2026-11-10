@@ -4,6 +4,8 @@ import { blSearchSchema, createBlsSchema, generateFormSchema, previewTransferSch
 import { classifyDeductionSchema, disputeDeductionSchema, proposeWriteOffSchema, recordStatementDeductionsSchema } from "@/lib/schemas/deductions";
 import { appendBlDescriptionSchema, updateBlDescriptionSchema } from "@/lib/schemas/descriptions";
 import { voidSchema } from "@/lib/schemas/payments";
+import { recordReplyWithoutEmailSchema } from "@/lib/schemas/replies";
+import { z } from "zod";
 import { runAction } from "@/server/actions";
 import { requireSession } from "@/server/auth/current-user";
 import { searchBls, type BlSearchResult } from "@/server/bl-overview";
@@ -13,6 +15,7 @@ import { classifyDeduction, disputeDeduction, recordStatementDeductions } from "
 import type { ActionResult } from "@/server/errors";
 import { generateBlForm, uploadBlForm, type GeneratedForm } from "@/server/forms";
 import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
+import { getEmailDetail, recordReplyWithoutEmail, type EmailDetail } from "@/server/replies";
 import { proposeWriteOff } from "@/server/write-offs";
 import { previewTransfer, reverseTransfer, transferDeposit, type TransferPreview } from "@/server/transfers";
 
@@ -100,4 +103,15 @@ export async function updateBlDescriptionAction(input: unknown): Promise<ActionR
 export async function appendBlDescriptionAction(input: unknown): Promise<ActionResult<number>> {
   const { user } = await requireSession();
   return runAction(appendBlDescriptionSchema, input, (data) => appendBlDescription(getDb(), user, data));
+}
+
+export async function emailDetailAction(input: unknown): Promise<ActionResult<EmailDetail>> {
+  const { user } = await requireSession();
+  return runAction(z.object({ emailId: z.number().int().positive() }), input, (data) => getEmailDetail(getDb(), user, data.emailId));
+}
+
+/** A reply read by email, phone or on the agency portal, recorded on the B/L; it counts the same. */
+export async function recordReplyWithoutEmailAction(input: unknown): Promise<ActionResult<number[]>> {
+  const { user } = await requireSession();
+  return runAction(recordReplyWithoutEmailSchema, input, (data) => recordReplyWithoutEmail(getDb(), user, data));
 }

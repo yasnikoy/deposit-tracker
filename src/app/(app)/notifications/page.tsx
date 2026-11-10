@@ -42,7 +42,8 @@ function text(n: NotificationItem): string {
 
 /** Where a notification leads. */
 function href(n: NotificationItem): string {
-  if (n.entityType === "email") return `/replies?email=${n.entityId}`;
+  // Older overdue-reply notifications: the Replies screen is gone, so they stay where they are.
+  if (n.entityType === "email") return "/notifications";
   if (n.entityType === "write_off") return "/admin/write-offs";
   if (n.entityType === "agency") return `/agencies?agency=${n.entityId}`;
   if (n.entityType === "feedback") return "/admin/feedback";

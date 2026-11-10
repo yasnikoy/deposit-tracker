@@ -6,7 +6,6 @@ import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import type { Db, DbOrTx } from "./db/client";
 import { auditLog, billsOfLading, notifications, replies, requests, userRoles, users } from "./db/schema";
-import { unprocessedReplies } from "./replies";
 import { getSetting } from "./settings";
 import { customerScope } from "./preferences";
 
@@ -18,7 +17,7 @@ export type NotificationDetail = Record<string, string | number | null>;
  */
 export function notify(
   tx: DbOrTx,
-  input: { userIds: number[]; actorId: number | null; kind: Exclude<NotificationKind, "MENTION">; entityType: string; entityId: number; detail: NotificationDetail },
+  input: { userIds: number[]; actorId: number | null; kind: Exclude<NotificationKind, "MENTION" | "UNPROCESSED_REPLY">; entityType: string; entityId: number; detail: NotificationDetail },
   now: Date = new Date(),
 ): void {
   if (!getSetting(NOTIFICATION_SETTINGS[input.kind], {}, tx)) return;
@@ -117,28 +116,4 @@ export function markNotificationsRead(db: Db, actor: AuthUser, input: { ids?: nu
     .set({ readAt: now.toISOString() })
     .where(input.ids ? and(own, inArray(notifications.id, input.ids)) : own)
     .run();
-}
-
-/**
- * Runs with every mailbox poll: each reply that passed the unprocessed warning notifies every
- * operations user once (the unique index keeps repeats out).
- */
-export function notifyOverdueReplies(tx: DbOrTx, now: Date = new Date()): void {
-  const overdue = unprocessedReplies(tx, now).filter((r) => r.overdue);
-  if (overdue.length === 0) return;
-  const operations = usersWithRole(tx, "OPERATIONS");
-  for (const reply of overdue) {
-    notify(
-      tx,
-      {
-        userIds: operations,
-        actorId: null,
-        kind: "UNPROCESSED_REPLY",
-        entityType: "email",
-        entityId: reply.emailId,
-        detail: { agency: reply.agencyName, subject: reply.subject, receivedAt: reply.receivedAt },
-      },
-      now,
-    );
-  }
 }

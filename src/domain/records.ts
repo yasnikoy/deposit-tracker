@@ -66,9 +66,8 @@ export type JobStatus = (typeof JOB_STATUSES)[number];
 export const MAIL_SERVICES = ["SMTP", "IMAP"] as const;
 export type MailService = (typeof MAIL_SERVICES)[number];
 
-/** How an incoming email came to belong to a B/L: its thread, an accepted suggestion, or by hand. */
+/** How an email came to belong to a B/L: archived by hand (MANUAL), or, on older links, its thread or an accepted suggestion. */
 export const EMAIL_LINK_SOURCES = ["THREAD", "SUGGESTION", "MANUAL"] as const;
-export type EmailLinkSource = (typeof EMAIL_LINK_SOURCES)[number];
 
 /** A possible match waits for a user; it is never linked on its own (rule 6). */
 export const SUGGESTION_STATES = ["OPEN", "ACCEPTED", "DISMISSED"] as const;

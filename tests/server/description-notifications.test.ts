@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { AuthUser } from "@/server/auth/types";
 import { getBlDetail } from "@/server/bl-overview";
 import type { Db } from "@/server/db/client";
-import { auditLog, emailBlLinks, emails, jobs } from "@/server/db/schema";
+import { auditLog, jobs } from "@/server/db/schema";
 import type { MailTransport } from "@/server/email/transport";
 import { ForbiddenError } from "@/server/errors";
 import { runDueJobs, type JobHandlers } from "@/server/jobs";
 import { appendBlDescription, updateBlDescription } from "@/server/bl-description";
-import { listNotifications, markNotificationsRead, notify, notifyOverdueReplies, unreadNotificationCount } from "@/server/notifications";
+import { listNotifications, markNotificationsRead, notify, unreadNotificationCount } from "@/server/notifications";
 import { correctPayment } from "@/server/payments";
 import { ensureRecurringJobs, recurringJobHandlers, scheduleWeeklySummary, weeklySummaryValues } from "@/server/recurring-jobs";
 import { updateSettings } from "@/server/settings";
@@ -109,23 +109,6 @@ describe("notifications", () => {
     expect(kinds(ops)).toEqual([]);
   });
 
-  it("an overdue reply notifies every operations user once", () => {
-    const email = db
-      .insert(emails)
-      .values({ direction: "IN", agencyId: agency, messageId: "<r1@hapag.example>", fromAddress: "iade@hapag.example", to: ["depozito@firma.example"], subject: "RE: İade", bodyText: "?", receivedAt: NOW.toISOString(), createdAt: NOW.toISOString() })
-      .returning()
-      .get();
-    db.insert(emailBlLinks).values({ emailId: email.id, blId: a.blId, linkedBy: "THREAD", createdAt: NOW.toISOString() }).run();
-    notifyOverdueReplies(db, NOW);
-    expect(kinds(ops)).toEqual([]);
-    // One business day later it is past the warning.
-    notifyOverdueReplies(db, at("2026-10-23T09:00:00Z"));
-    notifyOverdueReplies(db, at("2026-10-23T10:00:00Z"));
-    for (const user of [ops, ops2, ops3]) expect(kinds(user)).toEqual(["UNPROCESSED_REPLY"]);
-    expect(listNotifications(db, ops)[0]).toMatchObject({ entityType: "email", entityId: email.id, detail: { agency: "Hapag", subject: "RE: İade" } });
-    expect(kinds(admin)).toEqual([]);
-  });
-
   it("each user reads and marks only their own", () => {
     for (const entityId of [1, 2]) {
       notify(db, { userIds: [ops2.id, ops3.id], actorId: null, kind: "NEW_AGENCY", entityType: "agency", entityId, detail: { actor: "A", agency: `Yeni ${entityId}` } }, NOW);
@@ -151,7 +134,7 @@ describe("weekly summary email", () => {
     async appendToSent() {},
   };
 
-  it("is scheduled for its weekday and time, sends open balances, long waits and replies, then the next week", async () => {
+  it("is scheduled for its weekday and time, sends open balances and long waits, then the next week", async () => {
     sent.length = 0;
     ensureRecurringJobs(db, NOW);
     const weekly = () => db.select().from(jobs).all().filter((j) => j.kind === "WEEKLY_SUMMARY_EMAIL" && j.status === "PENDING");
@@ -175,14 +158,14 @@ describe("weekly summary email", () => {
       },
       NOW,
     );
-    const handlers = recurringJobHandlers(db, { mailbox: () => null, transport: () => mail, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "deposit-test-")) }) as JobHandlers;
+    const handlers = recurringJobHandlers(db, { transport: () => mail, dataDir: fs.mkdtempSync(path.join(os.tmpdir(), "deposit-test-")) }) as JobHandlers;
     await runDueJobs(db, handlers, () => at("2026-10-23T13:30:00Z"));
     expect(sent).toHaveLength(1);
     expect(sent[0].to).toEqual(["ekip@firma.example"]);
     expect(weekly()).toMatchObject([{ payload: { date: "2026-10-30" } }]);
 
     const values = weeklySummaryValues(db, at("2026-10-23T13:30:00Z"));
-    expect(values).toMatchObject({ date: "23.10.2026", balance_lines: "• 1.500,00 EUR (1 B/L)\n• 3.000,00 USD (1 B/L)", waiting_days: "60", waiting_count: "1", unprocessed_count: "0" });
+    expect(values).toMatchObject({ date: "23.10.2026", balance_lines: "• 1.500,00 EUR (1 B/L)\n• 3.000,00 USD (1 B/L)", waiting_days: "60", waiting_count: "1" });
     // Paid 1 July: past the last aging edge.
     expect(values.waiting_lines).toMatch(/^• HLCU1000001 · Hapag · \d+ iş günü · 3\.000,00 USD$/);
   });

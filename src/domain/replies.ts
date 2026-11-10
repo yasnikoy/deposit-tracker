@@ -13,18 +13,3 @@ export type ReplyTypeCode = (typeof REPLY_TYPE_CODES)[number];
 export function countsAsAnswer(code: ReplyTypeCode | null): boolean {
   return code !== "INFO";
 }
-
-const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/**
- * The B/L numbers that occur in a text as whole tokens, case-insensitively, in the order of
- * the given list. "MEDU123" does not match inside "MEDU1234" or "XMEDU123".
- */
-export function findBlNumbers(text: string, blNos: readonly string[]): string[] {
-  const upper = text.toUpperCase();
-  return blNos.filter((blNo) => {
-    const needle = blNo.toUpperCase();
-    if (!upper.includes(needle)) return false;
-    return new RegExp(`(^|[^A-Z0-9])${escape(needle)}($|[^A-Z0-9])`).test(upper);
-  });
-}

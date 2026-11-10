@@ -12,7 +12,6 @@ import {
   documents,
   emailAttachments,
   emailBlLinks,
-  emailMatchSuggestions,
   replies,
   replyTypes,
   requests,
@@ -161,9 +160,9 @@ function undoAccountingEntry(tx: DbOrTx, _actor: AuthUser, audit: AuditRow, now:
   return { before: { status: bl.status }, after: { status } };
 }
 
-/** A link made by hand or by accepting a match is taken back, while no reply was recorded on it. */
+/** An email archived on a B/L (or, before, linked by hand or from a match) is taken off it, while no reply was recorded on it. */
 function undoEmailLink(tx: DbOrTx, actor: AuthUser, audit: AuditRow, now: Date): Snapshot {
-  const { emailId, source } = audit.after as { emailId: number; source: "SUGGESTION" | "MANUAL" };
+  const { emailId, source } = audit.after as { emailId: number; source: "SUGGESTION" | "MANUAL" | "ARCHIVE" };
   const blId = Number(audit.entityId);
   const link = tx.select().from(emailBlLinks).where(and(eq(emailBlLinks.emailId, emailId), eq(emailBlLinks.blId, blId))).get();
   if (!link || link.unlinkedAt) throw new DomainError("undo.errors.alreadyUndone");
@@ -171,13 +170,6 @@ function undoEmailLink(tx: DbOrTx, actor: AuthUser, audit: AuditRow, now: Date):
   if (replied) throw new DomainError("undo.errors.replyRecorded");
   const at = now.toISOString();
   tx.update(emailBlLinks).set({ unlinkedAt: at, unlinkedBy: actor.id }).where(and(eq(emailBlLinks.emailId, emailId), eq(emailBlLinks.blId, blId))).run();
-  // An accepted match is offered again.
-  if (source === "SUGGESTION") {
-    tx.update(emailMatchSuggestions)
-      .set({ state: "OPEN", resolvedBy: null, resolvedAt: null })
-      .where(and(eq(emailMatchSuggestions.emailId, emailId), eq(emailMatchSuggestions.blId, blId), eq(emailMatchSuggestions.state, "ACCEPTED")))
-      .run();
-  }
   return { before: { emailId, source }, after: { unlinked: true } };
 }
 
