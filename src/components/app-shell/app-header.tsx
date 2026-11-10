@@ -1,8 +1,9 @@
 "use client";
 
-import { Bell, CircleUser, KeyRound, LogOut, Settings } from "lucide-react";
+import { Bell, CircleUser, KeyRound, LogOut, MessageSquareWarning, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { logoutAction } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,7 @@ import {
 import type { Role } from "@/domain/roles";
 import { t, type TranslationKey } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { FeedbackDialog } from "./feedback-dialog";
 import { GlobalSearch } from "./global-search";
 
 /** A badge count on the item; `alert` marks it as needing attention (e.g. overdue replies); `label` is read out. */
@@ -57,6 +59,7 @@ export function AppHeader({
   unreadNotifications: number;
 }) {
   const pathname = usePathname();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The most specific matching item is active, so "/bls/new" does not also light up "/bls".
   const matches = (href: string) => (href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`));
   const activeHref = nav.filter((item) => matches(item.href)).sort((a, b) => b.href.length - a.href.length)[0]?.href;
@@ -125,12 +128,16 @@ export function AppHeader({
                 <KeyRound /> {t("nav.changePassword")}
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setFeedbackOpen(true)}>
+              <MessageSquareWarning /> {t("feedback.title")}
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => logoutAction()}>
               <LogOut /> {t("nav.logout")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
     </header>
   );
 }

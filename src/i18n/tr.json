@@ -55,6 +55,7 @@
     "reports": "Raporlar",
     "notifications": "Bildirimler",
     "system": "Sistem durumu",
+    "feedback": "Geri bildirimler",
     "appSettings": "Uygulama ayarları",
     "personalSettings": "Kişisel ayarlar"
   },
@@ -468,6 +469,10 @@
         "inAppNewCustomer": {
           "label": "Bildirim: yeni müşteri",
           "help": "Muhasebe ödeme girerken sistemde olmayan bir müşteriyi adıyla eklediğinde, kartını tamamlamaları için yöneticiler bildirim alır."
+        },
+        "inAppNewFeedback": {
+          "label": "Bildirim: yeni geri bildirim",
+          "help": "Bir kullanıcı hata bildirdiğinde veya öneri gönderdiğinde yöneticiler bildirim alır."
         }
       },
       "reports": {
@@ -1691,7 +1696,8 @@
       "WRITE_OFF_APPROVED": "{actor}, B/L {blNo} için {amount} silme önerinizi onayladı.",
       "WRITE_OFF_REJECTED": "{actor}, B/L {blNo} için silme önerinizi reddetti: {note}",
       "NEW_AGENCY": "{actor}, ödeme girerken yeni acente ekledi: {agency}. Acente bilgileri eksik; kartı tamamlayın.",
-      "NEW_CUSTOMER": "{actor}, ödeme girerken yeni müşteri ekledi: {customer}. Müşteri kodu, diğer adları ve sabit belgeleri eksik; kartı tamamlayın."
+      "NEW_CUSTOMER": "{actor}, ödeme girerken yeni müşteri ekledi: {customer}. Müşteri kodu, diğer adları ve sabit belgeleri eksik; kartı tamamlayın.",
+      "NEW_FEEDBACK": "{actor} {kind} gönderdi: “{excerpt}”"
     },
     "unknownAgency": "Acentesi bilinmeyen"
   },
@@ -1850,6 +1856,36 @@
       "duplicateTarget": "Aynı hedef B/L iki kez yazılmış.",
       "split": "Her hedef için sıfırdan büyük bir tutar girin.",
       "splitTotal": "Hedeflerin toplamı aktarılacak depozitoya ({total}) eşit olmalı."
+    }
+  },
+  "feedback": {
+    "title": "Hata bildir / öneri gönder",
+    "hint": "Yöneticilere gider. Bulunduğunuz sayfa otomatik eklenir.",
+    "kind": "Tür",
+    "kinds": {
+      "BUG": "Hata",
+      "IDEA": "Öneri"
+    },
+    "notifyKinds": {
+      "BUG": "hata bildirimi",
+      "IDEA": "öneri"
+    },
+    "body": "Açıklama",
+    "bugPlaceholder": "Ne yaptınız, ne oldu, ne bekliyordunuz?",
+    "ideaPlaceholder": "Neyi, neden istiyorsunuz?",
+    "send": "Gönder",
+    "sent": "Gönderildi. Teşekkürler.",
+    "listHint": "Kullanıcıların gönderdiği hata bildirimleri ve öneriler. Açık olanlar üstte.",
+    "none": "Henüz geri bildirim yok.",
+    "sentAt": "Gönderim",
+    "page": "Sayfa",
+    "state": "Durum",
+    "open": "Açık",
+    "closed": "Kapatıldı",
+    "close": "Kapat",
+    "reopen": "Yeniden aç",
+    "errors": {
+      "body": "Bir açıklama yazın."
     }
   }
 }

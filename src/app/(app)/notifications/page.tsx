@@ -35,6 +35,8 @@ function text(n: NotificationItem): string {
       return t("notifications.texts.NEW_AGENCY", { actor: String(d.actor), agency: String(d.agency) });
     case "NEW_CUSTOMER":
       return t("notifications.texts.NEW_CUSTOMER", { actor: String(d.actor), customer: String(d.customer) });
+    case "NEW_FEEDBACK":
+      return t("notifications.texts.NEW_FEEDBACK", { actor: String(d.actor), kind: t(`feedback.notifyKinds.${d.kind === "IDEA" ? "IDEA" : "BUG"}`), excerpt: String(d.excerpt) });
   }
 }
 
@@ -43,6 +45,7 @@ function href(n: NotificationItem): string {
   if (n.entityType === "email") return `/replies?email=${n.entityId}`;
   if (n.entityType === "write_off") return "/admin/write-offs";
   if (n.entityType === "agency") return `/agencies?agency=${n.entityId}`;
+  if (n.entityType === "feedback") return "/admin/feedback";
   if (n.entityType === "customer") return `/customers?customer=${n.entityId}`;
   return `/bls/${n.entityId}`;
 }

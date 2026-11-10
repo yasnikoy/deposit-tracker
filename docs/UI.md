@@ -41,7 +41,7 @@ If the code and this document disagree, stop and ask which one is right.
 
 - **Header** (`src/components/app-shell/app-header.tsx`): app name and version, the work
   menu, *Ayarlar*, global search (`/` or Ctrl+K), notifications bell with unread count, user
-  menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *Çıkış yap*). The header wraps to a
+  menu (roles, *Şifre değiştir*, *Klavye kısayolları*, *Hata bildir / öneri gönder*, *Çıkış yap*). The header wraps to a
   second line instead of overflowing; the search box shrinks first.
 - **Badges in the menu**: red count on *Yanıtlar* (unprocessed replies) and on *Silme
   onayları* (write-offs awaiting approval); the bell shows unread notifications.
@@ -70,7 +70,7 @@ roles allow them. A user with several roles sees the union.
 
 **Settings area** (`settings-frame.tsx`): a side menu grouped *Kişisel* (Kişisel ayarlar),
 *Genel* (Acenteler, Müşteriler) and *Yönetim* (Uygulama ayarları, E-posta şablonları,
-Tatiller, Listeler, Kullanıcılar, Sistem durumu). Each user sees only the items their roles
+Tatiller, Listeler, Kullanıcılar, Sistem durumu, Geri bildirimler). Each user sees only the items their roles
 allow. Work screens never go into the settings area, and settings never go into the top menu.
 
 ## 3. Page patterns
@@ -274,6 +274,7 @@ Amber text (`text-amber-700`) is for inline hints (missing receipt, warnings und
 | Sending a sent request email again (not a new request) | *Yeniden gönder*; the copy is a *Yeniden gönderim* (grey badge) | *Tekrar talep*, *Takip* |
 | A refund request made by phone or from another mailbox, recorded afterwards | *Uygulama dışı talep*, *Uygulama dışı talebi kaydet* | *Manuel durum*, *Elle talep* |
 | Moving a B/L's deposit to another B/L (agency applied it there) | *Depozitoyu aktar*, *Depozito aktarımı*; closed: *Aktarıldı* | *Virman*, *Mahsup* |
+| A user's bug report or feature request to the admins | *Hata bildir / öneri gönder*; kinds *Hata*, *Öneri*; the admin list *Geri bildirimler* | *Destek talebi*, *Ticket* |
 | Optional | *(isteğe bağlı)* grey hint | in the label text |
 
 ## 11. Checklist for a UI change

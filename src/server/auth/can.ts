@@ -122,6 +122,9 @@ const rules = {
   "standingDocument.view": ALL_ROLES,
   // A customer's signature circular and power of attorney, on its card.
   "standingDocument.manage": only("OPERATIONS", "ADMIN"),
+  // Bug reports and feature requests: anyone sends, admins read and close them.
+  "feedback.submit": "ANY_AUTHENTICATED",
+  "feedback.manage": only("ADMIN"),
   "auth.changeOwnPassword": "ANY_AUTHENTICATED",
   "preferences.saveOwn": "ANY_AUTHENTICATED",
 } satisfies Record<string, Rule>;

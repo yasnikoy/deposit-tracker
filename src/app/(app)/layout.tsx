@@ -39,6 +39,7 @@ export default async function AppLayout({ children }: LayoutProps<"/">) {
     { href: "/admin/lists", label: "nav.lists", section: "admin", visible: can(user, "lists.manage").allowed },
     { href: "/admin/users", label: "nav.users", section: "admin", visible: can(user, "user.list").allowed },
     { href: "/admin/system", label: "nav.system", section: "admin", visible: can(user, "system.view").allowed },
+    { href: "/admin/feedback", label: "nav.feedback", section: "admin", visible: can(user, "feedback.manage").allowed },
   ];
   const db = getDb();
   const unprocessed = can(user, "reply.view").allowed ? unprocessedSummary(db) : null;

@@ -1008,3 +1008,29 @@ export const customers = sqliteTable(
     uniqueIndex("customers_code_unique").on(t.code).where(sql`${t.code} IS NOT NULL`),
   ],
 );
+
+export const FEEDBACK_KINDS = ["BUG", "IDEA"] as const;
+
+/** A bug report or feature request a user sends from the app; admins read and close them. */
+export const feedback = sqliteTable(
+  "feedback",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    kind: text("kind", { enum: FEEDBACK_KINDS }).notNull(),
+    body: text("body").notNull(),
+    // The page the user was on when sending it.
+    page: text("page"),
+    createdBy: integer("created_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at").notNull(),
+    // Closed by an admin (handled, or not to be done); reopened by clearing both.
+    closedBy: integer("closed_by").references(() => users.id),
+    closedAt: timestamp("closed_at"),
+  },
+  (t) => [
+    check("feedback_kind", sql`${t.kind} IN (${sqlList(FEEDBACK_KINDS)})`),
+    check("feedback_body", sql`length(trim(${t.body})) > 0`),
+    check("feedback_closed", sql`(${t.closedBy} IS NULL) = (${t.closedAt} IS NULL)`),
+  ],
+);
