@@ -516,6 +516,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
+- Nothing yet.
+
+**Nov 10, 2026 — emails archived from Outlook instead of reply import, B/Ls on hold, deposit transfers split and merged, requests made outside the app, feedback, getting-started guide, template reset, editable report summary, v0.15.0**
+
 - B/Ls on hold (*Beklemeye al* / *Takibe geri al*, operations), as decided with the user on Nov 10 instead of a manual status change: a reason from the new *Bekletme nedenleri* list (seeded with seven, kept under Listeler), an optional review date and note; the B/L leaves the due list and daily work while its money stays outstanding; grey *Beklemede* chip, hidden *Bekletme* column on All B/Ls, dashboard count. Migration 0030 adds `hold_reasons` and the hold columns on `bills_of_lading` (its generated copy step was corrected by hand: drizzle-kit selected the new columns from the old table). See B/L lifecycle → On hold. `docs/UI.md` adds the chip and the terms.
 - Payment and refund lists show *Düzelt* and *İptal et* as buttons in the row instead of a "…" menu, because users did not find them (Nov 10). Rules unchanged: own records only, refunds only before allocation.
 - Email templates: *Varsayılana dön* restores an edited template to the wording the installed release ships, as asked by the user on Nov 10; it then counts as unedited, so later releases update it. `docs/UI.md` unchanged (a button in the existing card).
