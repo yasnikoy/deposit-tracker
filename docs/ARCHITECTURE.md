@@ -516,6 +516,10 @@ The app runs from a portable folder on an office desktop PC; other users open it
 
 **Unreleased**
 
+- Nothing yet.
+
+**Nov 13, 2026 — units chosen only for sending, B/L detail actions as bulk actions, v0.16.0**
+
 - Units are chosen only for sending, as decided with the user on Nov 13: B/L creation (dual-role flow on Muhasebe, B/L oluştur, opening balance) no longer shows or takes a unit, and a new B/L from a deposit transfer takes its source's. Operations sets it with *Birim seç* on the selected B/Ls or on the detail; until then Talepler marks the B/L *Birim seçilmedi* and leaves it out of the email. The error key `bls.errors.unitRequired` is gone. No schema change. See Payments → Agency units.
 - Bulk actions from the B/L detail on Talepler and All B/Ls, as decided with the user on Nov 13: *Yanıt kaydet*, *Uygulama dışı talebi kaydet*, *Beklemeye al* / *Takibe geri al*, *Birim seç* and *E-posta arşivle* (one email archived on several B/Ls of one agency, then optionally its reply recorded on them). Each dialog lists the B/Ls; the server saves all or none, and errors name the B/L. On Talepler every row can be selected; the actions appear once rows are selected, and *E-posta hazırla* takes only the sendable ones and says how many it leaves out. `bl.setUnit`, `bl.hold`, `bl.releaseHold`, `reply.record`, `request.recordOutside` and `email.link` stay audited per B/L. See Screens → Everywhere → Bulk actions. `docs/UI.md` adds the shared bulk-action bar and updates the grouped work list.
 
