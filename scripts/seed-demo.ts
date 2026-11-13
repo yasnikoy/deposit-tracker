@@ -396,7 +396,7 @@ async function archiveDemoEmail(
   })
     .compile()
     .build();
-  await archiveEmail(db, user, { blId, fileName: `${input.subject}.eml`, content: raw }, input.receivedAt);
+  await archiveEmail(db, user, { blIds: [blId], fileName: `${input.subject}.eml`, content: raw }, input.receivedAt);
 }
 
 if (getEnv().EMAIL_MODE === "live") throw new Error("Run the demo seed in dry-run mode.");

@@ -151,18 +151,23 @@ function recordReply(
   );
 }
 
-/** A reply that did not come by email, e.g. read on the agency portal; it counts like one. */
+/**
+ * A reply that did not come by email (e.g. read on the agency portal); it counts like one.
+ * One reply often covers several B/Ls: they are recorded together, or none is.
+ */
 export function recordReplyWithoutEmail(
   db: Db,
   actor: AuthUser,
-  input: { blId: number; replyTypeId: number; repliedOn: IsoDate; note: string | null },
+  input: { blIds: number[]; replyTypeId: number; repliedOn: IsoDate; note: string | null },
   now: Date = new Date(),
 ): number[] {
   const roleUsed = authorize(actor, "reply.record")!;
-  return db.transaction((tx) => {
-    const bl = activeBl(tx, input.blId);
-    if (input.repliedOn > istanbulToday(now)) throw new DomainError("replies.errors.futureDate");
-    if (input.repliedOn < bl.paidAt) throw new DomainError("replies.errors.beforePayment");
-    return [recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: input.repliedOn, emailId: null, note: input.note }, now)];
-  });
+  if (input.repliedOn > istanbulToday(now)) throw new DomainError("replies.errors.futureDate");
+  return db.transaction((tx) =>
+    input.blIds.map((blId) => {
+      const bl = activeBl(tx, blId);
+      if (input.repliedOn < bl.paidAt) throw new DomainError("replies.errors.beforePayment", { bl: bl.blNo });
+      return recordReply(tx, actor, roleUsed, { bl, replyTypeId: input.replyTypeId, repliedOn: input.repliedOn, emailId: null, note: input.note }, now);
+    }),
+  );
 }

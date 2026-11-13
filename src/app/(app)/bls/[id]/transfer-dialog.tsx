@@ -14,21 +14,21 @@ import type { TransferPreview } from "@/server/transfers";
 import { previewTransferAction, transferDepositAction } from "../actions";
 
 type Source = { id: number; blNo: string; amountMinor: number };
-type Defaults = { customerId: number | null; fileNo: string | null; unitId: number | null };
-type Row = { key: number; blNo: string; amountText: string; customerId: number | null; fileNo: string; unitId: number | null; preview: TransferPreview | null; error: string | null };
+type Defaults = { customerId: number | null; fileNo: string | null };
+type Row = { key: number; blNo: string; amountText: string; customerId: number | null; fileNo: string; preview: TransferPreview | null; error: string | null };
 
 /**
  * Moves whole deposits to other B/Ls, when the agency applied them there instead of refunding
  * them: one B/L to one target or split over several (*Hedef ekle*), or several B/Ls (bulk, from
- * All B/Ls) to one target. A target is a new B/L (prefilled with the first source's customer,
- * file number and unit) or an open one of the same agency and currency, which keeps its own details.
+ * All B/Ls) to one target. A target is a new B/L (prefilled with the first source's customer and
+ * file number; it takes the source's unit) or an open one of the same agency and currency, which
+ * keeps its own details.
  */
 export function TransferDialog({
   sources,
   currency,
   defaults,
   customers,
-  units,
   today,
   onCancel,
   onDone,
@@ -37,7 +37,6 @@ export function TransferDialog({
   currency: string;
   defaults: Defaults;
   customers: CustomerOption[];
-  units: { id: number; name: string }[];
   today: string;
   onCancel: () => void;
   onDone: (targets: { blId: number; blNo: string }[]) => void;
@@ -50,7 +49,6 @@ export function TransferDialog({
     amountText: "",
     customerId: defaults.customerId,
     fileNo: defaults.fileNo ?? "",
-    unitId: units.some((u) => u.id === defaults.unitId) ? defaults.unitId : null,
     preview: null,
     error: null,
   });
@@ -65,7 +63,7 @@ export function TransferDialog({
   const amounts = rows.map((r) => (split ? parseAmountInput(r.amountText) : totalMinor));
   const remaining = totalMinor - amounts.reduce<number>((sum, a) => sum + (a ?? 0), 0);
   const ready =
-    rows.every((r) => r.blNo.trim().length >= 3 && r.preview !== null && (r.preview.existing || units.length === 0 || r.unitId !== null)) &&
+    rows.every((r) => r.blNo.trim().length >= 3 && r.preview !== null) &&
     (!split || (amounts.every((a) => a !== null && a > 0) && remaining === 0));
 
   const save = async () => {
@@ -75,7 +73,7 @@ export function TransferDialog({
       targets: rows.map((r, i) => ({
         blNo: r.blNo,
         amountMinor: split ? amounts[i] : null,
-        ...(r.preview?.existing ? { customerId: null, fileNo: null, unitId: null } : { customerId: r.customerId, fileNo: r.fileNo || null, unitId: r.unitId }),
+        ...(r.preview?.existing ? { customerId: null, fileNo: null } : { customerId: r.customerId, fileNo: r.fileNo || null }),
       })),
       transferredOn,
       note,
@@ -127,7 +125,6 @@ export function TransferDialog({
               sourceBlIds={sourceBlIds}
               currency={currency}
               customers={customers}
-              units={units}
               onChange={(patch) => update(row.key, patch)}
               onRemove={split ? () => setRows((all) => all.filter((r) => r.key !== row.key)) : undefined}
             />
@@ -173,7 +170,6 @@ function TargetRow({
   sourceBlIds,
   currency,
   customers,
-  units,
   onChange,
   onRemove,
 }: {
@@ -184,7 +180,6 @@ function TargetRow({
   sourceBlIds: number[];
   currency: string;
   customers: CustomerOption[];
-  units: { id: number; name: string }[];
   onChange: (patch: Partial<Row>) => void;
   onRemove?: () => void;
 }) {
@@ -261,24 +256,6 @@ function TargetRow({
             <Label htmlFor={id("file-no")}>{t("bls.fileNo")}</Label>
             <Input id={id("file-no")} className="font-mono uppercase" value={row.fileNo} onChange={(e) => onChange({ fileNo: e.target.value })} />
           </div>
-        </div>
-      )}
-      {ready && !existing && units.length > 0 && (
-        <div className="flex w-56 flex-col gap-1.5">
-          <Label htmlFor={id("unit")}>{t("bls.unit")}</Label>
-          <select
-            id={id("unit")}
-            className="border-input bg-background h-9 rounded-md border px-2"
-            value={row.unitId ?? ""}
-            onChange={(e) => onChange({ unitId: e.target.value ? Number(e.target.value) : null })}
-          >
-            <option value="">{t("bls.unitPick")}</option>
-            {units.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
         </div>
       )}
     </div>

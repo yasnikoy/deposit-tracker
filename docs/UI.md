@@ -1,6 +1,6 @@
 # Container Deposit Refund Tracker — UI structure and conventions
 
-Nov 2, 2026 (after the third UI review) · updated Nov 10, 2026 (Replies screen removed, archived emails, feedback, guide page)
+Nov 2, 2026 (after the third UI review) · updated Nov 10, 2026 (Replies screen removed, archived emails, feedback, guide page) · Nov 13, 2026 (B/L bulk actions)
 
 This document fixes how the interface is put together: where things live, which page
 patterns exist, which shared components build them, and the visual and wording rules.
@@ -114,7 +114,9 @@ payment continues to B/L creation). Examples: Muhasebe (Ödemeler, İadeler), A�
 One section per agency (bordered block: header with select-all, agency name, send-mode badge,
 B/L count, totals per currency), each holding a plain table. **All groups share fixed column
 widths** (`table-fixed` with a `colgroup`) so their columns line up. Selection across groups
-feeds one primary action at the top right (*E-posta hazırla*). Example: Talepler.
+feeds one primary action at the top right (*E-posta hazırla*), which takes only the selected rows
+that can be sent and says in amber how many it leaves out. Once rows are selected, the B/L bulk
+actions (`BlBulkActions`, section 4) appear left of it, as in a table's bulk bar. Example: Talepler.
 
 ### 3.4 Detail page
 
@@ -161,6 +163,7 @@ workflow, never every function. Text lives in `tr.json` like any other. Example:
 | Confirm an action | `ConfirmDialog` | `items` lists the affected records; `requireReason` for voids and other irreversible steps; `destructive` for red confirm |
 | Success with undo | `toastWithUndo` | 10 s "Geri al"; the B/L timeline offers undo for the rest of the window |
 | Upload | `FileDrop` | Click or drop; `multiple`, `compact`, `queue`; its label says what to drop |
+| Act on selected B/Ls | `BlBulkActions` (`app/(app)/bls/bl-bulk-actions.tsx`) | The B/L detail's everyday actions on the selected rows (*Yanıt kaydet*, *Uygulama dışı talebi kaydet*, *Beklemeye al* / *Takibe geri al*, *Birim seç*, *E-posta arşivle*); the same buttons and dialogs on Talepler and B/L'ler, and the detail uses the same dialogs for one B/L. Each dialog lists the selected B/Ls (`AffectedBlList`) |
 | Pick agency / customer | `AgencyCombobox`, `CustomerCombobox` (on `SearchCombobox`) | Search by name, aliases, code; can name a new one |
 | B/L status | `BlStatusBadge` | The only way to show a B/L status |
 | Copy a value | `CopyButton` | |

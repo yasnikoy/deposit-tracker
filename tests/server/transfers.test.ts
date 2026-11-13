@@ -26,7 +26,7 @@ let ops: AuthUser;
 let msc: number;
 let source: { paymentId: number; blId: number };
 
-type Single = { sourceBlId: number; targetBlNo: string; transferredOn: string; customerId: number | null; fileNo: string | null; unitId: number | null; note: string | null };
+type Single = { sourceBlId: number; targetBlNo: string; transferredOn: string; customerId: number | null; fileNo: string | null; note: string | null };
 /** One source to one target, the common case. */
 const input = (overrides: Partial<Single> = {}): TransferInput => {
   const v: Single = {
@@ -35,19 +35,18 @@ const input = (overrides: Partial<Single> = {}): TransferInput => {
     transferredOn: "2026-10-20",
     customerId: testCustomer(db),
     fileNo: "26-20001",
-    unitId: null,
     note: "Acente depozitoyu yeni sevkiyata saydı",
     ...overrides,
   };
   return {
     sourceBlIds: [v.sourceBlId],
-    targets: [{ blNo: v.targetBlNo, amountMinor: null, customerId: v.customerId, fileNo: v.fileNo, unitId: v.unitId }],
+    targets: [{ blNo: v.targetBlNo, amountMinor: null, customerId: v.customerId, fileNo: v.fileNo }],
     transferredOn: v.transferredOn,
     note: v.note,
   };
 };
 const one = (result: ReturnType<typeof transferDeposit>) => ({ targetBlId: result.targets[0].blId, created: result.targets[0].created });
-const newTarget = (blNo: string, amountMinor: number | null = null) => ({ blNo, amountMinor, customerId: testCustomer(db), fileNo: null, unitId: null });
+const newTarget = (blNo: string, amountMinor: number | null = null) => ({ blNo, amountMinor, customerId: testCustomer(db), fileNo: null });
 const status = (blId: number) => db.select({ s: billsOfLading.status }).from(billsOfLading).where(eq(billsOfLading.id, blId)).get()!.s;
 
 beforeEach(async () => {
@@ -161,7 +160,7 @@ describe("several B/Ls to one, and one B/L split over several", () => {
     const other = makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU3000001", amountMinor: 100000, paidAt: "2026-10-01" }, NOW);
     const split = (a: number, b: number) => ({
       sourceBlIds: [source.blId],
-      targets: [newTarget("MEDU2000001", a), { blNo: "MEDU3000001", amountMinor: b, customerId: null, fileNo: null, unitId: null }],
+      targets: [newTarget("MEDU2000001", a), { blNo: "MEDU3000001", amountMinor: b, customerId: null, fileNo: null }],
       transferredOn: "2026-10-20",
       note: null,
     });

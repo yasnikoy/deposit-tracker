@@ -117,12 +117,15 @@ test("the due list groups B/Ls by agency; a portal B/L links its portal and is s
   const portalGroup = page.getByRole("region", { name: PORTAL_AGENCY });
   const row = portalGroup.getByTestId(`due-row-${PORTAL_BL_NO}`);
   await expect(row.getByRole("link", { name: tr.requests.openPortal })).toHaveAttribute("href", "https://portal.example.com");
-  // Without the signed form the request cannot be selected for sending.
-  const select = row.getByRole("checkbox", { name: `${tr.table.selectRow} – ${PORTAL_BL_NO}` });
-  await expect(select).toBeDisabled();
+  // Without the signed form the B/L can be selected for the other actions but does not go into the email.
+  const notSendable = page.getByText(tr.requests.notSendable.replace("{count}", "1"));
+  await row.getByRole("checkbox", { name: `${tr.table.selectRow} – ${PORTAL_BL_NO}` }).check();
+  await expect(notSendable).toBeVisible();
+  await expect(page.getByRole("button", { name: tr.requests.prepare })).toBeDisabled();
   await row.getByLabel(`${tr.forms.uploadForm} – ${PORTAL_BL_NO}`).setInputFiles(pdf("portal-form.pdf"));
   await expect(page.getByText(tr.forms.formUploaded)).toBeVisible();
-  await expect(select).toBeEnabled();
+  await expect(notSendable).toHaveCount(0);
+  await expect(page.getByRole("button", { name: tr.requests.prepare })).toBeEnabled();
 });
 
 test("an admin sees the impact of a timing change before saving it", async ({ page }) => {
@@ -242,27 +245,34 @@ function agencyEml(subject: string, text: string) {
   return { name: "cevap.eml", mimeType: "message/rfc822", buffer: Buffer.from(raw) };
 }
 
-test("an agency's email is archived on the B/L from Outlook; the answer is recorded there and moves the B/L", async ({ page }) => {
+test("an agency's email is archived from Outlook on the selected B/L; one answer is recorded on several B/Ls at once", async ({ page }) => {
   await login(page, OPS.username, OPS.final);
+  await page.goto("/bls");
+  const row = (blNo: string) => page.getByRole("row").filter({ hasText: blNo });
+
+  await row(BL_NO).getByRole("checkbox").check();
+  await page.getByRole("button", { name: tr.bulk.archive }).click();
+  const archive = page.getByRole("dialog", { name: tr.bulk.archive });
+  await archive.getByLabel(tr.archive.drop).setInputFiles(agencyEml(`RE: Depozito İade Talebi – ${BL_NO}`, "Konteynerler henüz boş dönmedi."));
+  await expect(page.getByText(tr.archive.saved, { exact: true })).toBeVisible();
+  await expect(archive.getByText(tr.bulk.archiveThenReply)).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // The answer covers both B/Ls: the dialog lists them, one click records it on each.
+  for (const blNo of [BL_NO, PORTAL_BL_NO]) await row(blNo).getByRole("checkbox").check();
+  await page.getByRole("button", { name: tr.blReplies.record }).click();
+  const replyDialog = page.getByRole("dialog", { name: tr.blReplies.record });
+  await expect(replyDialog).toContainText(BL_NO);
+  await expect(replyDialog).toContainText(PORTAL_BL_NO);
+  await replyDialog.getByRole("button", { name: "Konteyner henüz dönmedi" }).click();
+  await expect(page.getByText(tr.blReplies.recorded)).toBeVisible();
   for (const blNo of [BL_NO, PORTAL_BL_NO]) {
-    await page.getByRole("combobox", { name: tr.search.label }).fill(blNo);
-    await page.getByRole("combobox", { name: tr.search.label }).press("Enter");
-    await expect(page.getByRole("heading", { name: blNo })).toBeVisible();
-    if (blNo === BL_NO) {
-      await page.getByLabel(tr.archive.drop).setInputFiles(agencyEml(`RE: Depozito İade Talebi – ${BL_NO}`, "Konteynerler henüz boş dönmedi."));
-      await expect(page.getByText(tr.archive.saved)).toBeVisible();
-      await expect(page.getByRole("button", { name: `RE: Depozito İade Talebi – ${BL_NO}` })).toBeVisible();
-    }
-    await page.getByRole("button", { name: tr.blReplies.record }).click();
-    const replyDialog = page.getByRole("dialog", { name: tr.blReplies.record });
-    await replyDialog.getByRole("button", { name: "Konteyner henüz dönmedi" }).click();
-    await expect(page.getByText(tr.blReplies.recorded)).toBeVisible();
+    await expect(row(blNo)).toContainText(tr.bls.statuses.AWAITING_RETURN);
   }
 
-  await page.goto("/bls");
-  for (const blNo of [BL_NO, PORTAL_BL_NO]) {
-    await expect(page.getByRole("row").filter({ hasText: blNo })).toContainText(tr.bls.statuses.AWAITING_RETURN);
-  }
+  await row(BL_NO).getByText(BL_NO, { exact: true }).click();
+  await page.getByRole("link", { name: tr.bls.openDetail }).click();
+  await expect(page.getByRole("button", { name: `RE: Depozito İade Talebi – ${BL_NO}` })).toBeVisible();
 });
 
 test("allocate refund: the accountant enters a short refund; operations confirms FIFO with the difference as demurrage", async ({ page }) => {

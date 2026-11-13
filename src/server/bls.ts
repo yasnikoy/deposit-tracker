@@ -2,7 +2,7 @@ import "server-only";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { isTranslationKey, type TranslationKey } from "@/i18n";
 import { blRowSchema, type BlRowInput } from "@/lib/schemas/bls";
-import { unitChoiceError } from "./agencies";
+import { isActiveUnitOf } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -18,7 +18,7 @@ import { InvalidTransitionError, nextStatus, type StoredBlStatus } from "@/domai
 
 export type BlRowError = {
   index: number;
-  field: "blNo" | "unit" | "payment";
+  field: "blNo" | "payment";
   message: TranslationKey;
 };
 
@@ -68,7 +68,6 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
       blNo: row.blNo,
       customerId,
       fileNo,
-      unitId: row.unitId,
       // The accountant's description of the payment starts the B/L's description.
       description: payment.description,
       depositPaymentId: payment.id,
@@ -109,7 +108,6 @@ function insertBl(tx: Tx, actor: AuthUser, roleUsed: AuthUser["roles"][number] |
         depositPaymentId: payment.id,
         customerId,
         fileNo,
-        unitId: row.unitId,
         status: bl.status,
         renamed: nameBlDocuments(tx, bl),
       },
@@ -169,11 +167,6 @@ export function createBls(db: Db, actor: AuthUser, rows: unknown[], now: Date = 
       }
       if (blNoTaken(tx, row.blNo)) {
         errors.push({ index, field: "blNo", message: "bls.errors.blNoTaken" });
-        continue;
-      }
-      const unitError = unitChoiceError(tx, payment.agencyId, row.unitId);
-      if (unitError) {
-        errors.push({ index, field: "unit", message: unitError });
         continue;
       }
       done.push({ index, paymentId: row.paymentId, blId: insertBl(tx, actor, roleUsed, row, now), blNo: row.blNo });
@@ -302,21 +295,26 @@ export function setBlCustomer(db: Db, actor: AuthUser, input: { blId: number; cu
   });
 }
 
-/** Changes the B/L's unit (operations); later requests go to the new unit's recipients. */
-export function setBlUnit(db: Db, actor: AuthUser, input: { blId: number; unitId: number }, now: Date = new Date()): void {
+/**
+ * Sets the unit of one or more B/Ls (operations, from the detail or as a bulk action); later
+ * requests go to the new unit's recipients. B/Ls that already name it are left as they are.
+ */
+export function setBlUnit(db: Db, actor: AuthUser, input: { blIds: number[]; unitId: number }, now: Date = new Date()): void {
   const roleUsed = authorize(actor, "bl.update");
   db.transaction((tx) => {
-    const bl = requireBl(tx, input.blId);
-    if (bl.voidedAt) throw new DomainError("bls.errors.voided");
-    if (input.unitId === bl.unitId) throw new DomainError("settings.noChanges");
-    const error = unitChoiceError(tx, bl.agencyId, input.unitId);
-    if (error) throw new DomainError(error);
-    tx.update(billsOfLading).set({ unitId: input.unitId, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
-    writeAudit(
-      tx,
-      { actorUserId: actor.id, roleUsed, action: "bl.setUnit", entityType: "bill_of_lading", entityId: bl.id, before: { unitId: bl.unitId }, after: { unitId: input.unitId } },
-      now,
-    );
+    const bls = input.blIds.map((id) => requireBl(tx, id));
+    if (bls.some((bl) => bl.voidedAt)) throw new DomainError("bls.errors.voided");
+    const changing = bls.filter((bl) => bl.unitId !== input.unitId);
+    if (changing.length === 0) throw new DomainError("settings.noChanges");
+    for (const bl of changing) {
+      if (!isActiveUnitOf(tx, bl.agencyId, input.unitId)) throw new DomainError("bls.errors.unitUnknown", { bl: bl.blNo });
+      tx.update(billsOfLading).set({ unitId: input.unitId, updatedAt: now.toISOString() }).where(eq(billsOfLading.id, bl.id)).run();
+      writeAudit(
+        tx,
+        { actorUserId: actor.id, roleUsed, action: "bl.setUnit", entityType: "bill_of_lading", entityId: bl.id, before: { unitId: bl.unitId }, after: { unitId: input.unitId } },
+        now,
+      );
+    }
   });
 }
 

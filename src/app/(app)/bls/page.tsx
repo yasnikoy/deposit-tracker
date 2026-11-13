@@ -7,9 +7,9 @@ import { listAllBls } from "@/server/bl-overview";
 import { getDb } from "@/server/db/client";
 import { getTableLayout } from "@/server/preferences";
 import { istanbulToday } from "@/domain/business-days";
-import { activeUnitOptions } from "@/server/agencies";
 import { listCustomers } from "@/server/customers";
 import { AllBlsScreen } from "./all-bls-screen";
+import { bulkActionOptions } from "./bulk-options";
 
 export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
   const { user } = await requireSession();
@@ -37,11 +37,11 @@ export default async function AllBlsPage({ searchParams }: PageProps<"/bls">) {
           can(user, "bl.transferDeposit").allowed
             ? {
                 customers: listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active })),
-                units: activeUnitOptions(db),
                 today: istanbulToday(),
               }
             : null
         }
+        bulk={bulkActionOptions(db, user)}
       />
     </>
   );

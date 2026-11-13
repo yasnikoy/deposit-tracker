@@ -47,7 +47,7 @@ beforeEach(async () => {
 
 describe("undo", () => {
   it("takes back the user's own reply within the window; a 'not yet returned' reply returns the B/L to REQUESTED", () => {
-    const ids = recordReplyWithoutEmail(db, ops, { blId: bl, replyTypeId: replyType("NOT_RETURNED"), repliedOn: "2026-10-21", note: null }, NOW);
+    const ids = recordReplyWithoutEmail(db, ops, { blIds: [bl], replyTypeId: replyType("NOT_RETURNED"), repliedOn: "2026-10-21", note: null }, NOW);
     expect(status(bl)).toBe("AWAITING_RETURN");
     expect(() => undoActions(db, ops2, { auditIds: ids }, later(1))).toThrow(expect.objectContaining({ messageKey: "undo.errors.notOwn" }));
     expect(() => undoActions(db, acc, { auditIds: ids }, later(1))).toThrow(expect.objectContaining({ messageKey: "undo.errors.notOwn" }));
@@ -62,7 +62,7 @@ describe("undo", () => {
   });
 
   it("is refused after the undo window, and for actions rule 17 excludes", () => {
-    const ids = recordReplyWithoutEmail(db, ops, { blId: bl, replyTypeId: replyType("APPROVED"), repliedOn: "2026-10-21", note: null }, NOW);
+    const ids = recordReplyWithoutEmail(db, ops, { blIds: [bl], replyTypeId: replyType("APPROVED"), repliedOn: "2026-10-21", note: null }, NOW);
     expect(() => undoActions(db, ops, { auditIds: ids }, later(11))).toThrow(expect.objectContaining({ messageKey: "undo.errors.expired", params: { minutes: 10 } }));
 
     const evidence = storeUpload(db, acc, { originalName: "iade.pdf", content: PDF, kind: "RECEIPT" }, NOW);
@@ -76,7 +76,7 @@ describe("undo", () => {
 
   it("is checked against the permission of the original action (here: the operations role was taken away)", async () => {
     const both = await makeUser(db, "both", ["OPERATIONS", "ACCOUNTANT"]);
-    const ids = recordReplyWithoutEmail(db, both, { blId: bl, replyTypeId: replyType("INFO"), repliedOn: "2026-10-21", note: null }, NOW);
+    const ids = recordReplyWithoutEmail(db, both, { blIds: [bl], replyTypeId: replyType("INFO"), repliedOn: "2026-10-21", note: null }, NOW);
     expect(() => undoActions(db, { ...both, roles: ["ACCOUNTANT"] }, { auditIds: ids }, later(1))).toThrow(ForbiddenError);
   });
 
@@ -115,7 +115,7 @@ describe("undo", () => {
   });
 
   it("is offered on the viewer's own recent timeline events only", () => {
-    recordReplyWithoutEmail(db, ops, { blId: bl, replyTypeId: replyType("APPROVED"), repliedOn: "2026-10-21", note: null }, NOW);
+    recordReplyWithoutEmail(db, ops, { blIds: [bl], replyTypeId: replyType("APPROVED"), repliedOn: "2026-10-21", note: null }, NOW);
     const own = getBlDetail(db, ops, bl, later(1)).timeline.find((e) => e.action === "reply.record")!;
     expect(own.undoable).toBe(true);
     expect(getBlDetail(db, ops2, bl, later(1)).timeline.find((e) => e.action === "reply.record")!.undoable).toBe(false);

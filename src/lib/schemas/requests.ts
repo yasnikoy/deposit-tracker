@@ -3,13 +3,14 @@ import { isValidIsoDate } from "@/domain/business-days";
 import { SETTING_KEYS } from "@/domain/settings/definitions";
 import type { TranslationKey } from "@/i18n";
 import { agencyOverridesSchema } from "./agencies";
+import { blIdsSchema } from "./bls";
 import { reasonSchema } from "./holidays";
 
 const msg = (key: TranslationKey) => key;
 const id = z.number().int().positive();
 
 export const recordOutsideRequestSchema = z.object({
-  blId: id,
+  blIds: blIdsSchema,
   requestedOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
   note: z
     .string()

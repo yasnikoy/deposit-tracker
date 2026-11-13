@@ -7,7 +7,6 @@ import { normalizeBlNumber } from "@/domain/bl-number";
 import { t } from "@/i18n";
 import { formatBusinessDate } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
-import { unitChoiceError } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -28,7 +27,6 @@ export type TransferTarget = {
   /** For a new B/L only: prefilled from the source in the dialog. */
   customerId: number | null;
   fileNo: string | null;
-  unitId: number | null;
 };
 
 /**
@@ -208,8 +206,8 @@ export function transferDeposit(db: Db, actor: AuthUser, input: TransferInput, n
 
 /**
  * The B/L a target number names: an open one of the source's agency and currency, which keeps
- * its own details, or a new one with the given customer, file number and unit (audited as
- * created by the transfer, with the deposit its legs bring).
+ * its own details, or a new one with the given customer and file number and the source's unit
+ * (audited as created by the transfer, with the deposit its legs bring).
  */
 function resolveTarget(
   tx: DbOrTx,
@@ -223,14 +221,12 @@ function resolveTarget(
 ): { bl: Bl; created: boolean } {
   const existing = target(tx, source, input.blNo);
   if (existing) {
-    if (input.customerId !== null || input.fileNo || input.unitId !== null) throw new DomainError("transfers.errors.joinFields", { bl: existing.blNo });
+    if (input.customerId !== null || input.fileNo) throw new DomainError("transfers.errors.joinFields", { bl: existing.blNo });
     return { bl: requireBl(tx, existing.blId), created: false };
   }
   if (input.customerId !== null && !tx.select({ active: customers.active }).from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
     throw new DomainError("customers.errors.unknown");
   }
-  const unitError = unitChoiceError(tx, source.agencyId, input.unitId);
-  if (unitError) throw new DomainError(unitError);
   const at = now.toISOString();
   const bl = tx
     .insert(billsOfLading)
@@ -245,7 +241,8 @@ function resolveTarget(
       status: "PAID",
       customerId: input.customerId,
       fileNo: input.fileNo,
-      unitId: input.unitId,
+      // Same agency: the source's unit routes its requests too; it is changed on Talepler or the detail.
+      unitId: source.unitId,
       createdBy: actor.id,
       createdAt: at,
       updatedAt: at,

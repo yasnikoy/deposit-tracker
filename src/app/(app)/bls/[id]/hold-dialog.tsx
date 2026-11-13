@@ -8,16 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { holdBlAction } from "../actions";
+import { AffectedBlList, type AffectedBl } from "../bl-work-dialogs";
 
-/** Beklemeye al: a reason from the list, an optional review date and note. */
+/** Beklemeye al: a reason from the list, an optional review date and note, for one B/L or the selected ones. */
 export function HoldDialog({
-  blId,
+  bls,
   reasons,
   today,
   onCancel,
   onDone,
 }: {
-  blId: number;
+  bls: AffectedBl[];
   reasons: { id: number; name: string }[];
   today: string;
   onCancel: () => void;
@@ -33,7 +34,7 @@ export function HoldDialog({
     event.preventDefault();
     if (reasonId === null) return setError(t("holds.errors.reason"));
     setBusy(true);
-    const result = await holdBlAction({ blId, reasonId, until: until || null, note });
+    const result = await holdBlAction({ blIds: bls.map((b) => b.id), reasonId, until: until || null, note });
     setBusy(false);
     if (!result.ok) return setError(t(result.error, result.params));
     toast.success(t("holds.saved"));
@@ -48,6 +49,7 @@ export function HoldDialog({
             <DialogTitle>{t("holds.title")}</DialogTitle>
             <DialogDescription>{t("holds.hint")}</DialogDescription>
           </DialogHeader>
+          <AffectedBlList bls={bls} />
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="hold-reason">{t("holds.reason")}</Label>
             <select

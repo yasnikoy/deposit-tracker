@@ -504,7 +504,6 @@ async function main() {
             paidAt,
             kind: "BANK",
             blNo,
-            unitId: null,
             customerId,
             fileNo,
             documentId: evidenceId,

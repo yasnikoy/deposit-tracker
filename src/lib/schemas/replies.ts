@@ -1,12 +1,13 @@
 import { z } from "zod";
 import { isValidIsoDate } from "@/domain/business-days";
 import type { TranslationKey } from "@/i18n";
+import { blIdsSchema } from "./bls";
 
 const msg = (key: TranslationKey) => key;
 const id = z.number().int().positive();
 
 export const recordReplyWithoutEmailSchema = z.object({
-  blId: id,
+  blIds: blIdsSchema,
   replyTypeId: id,
   repliedOn: z.string().refine(isValidIsoDate, msg("payments.errors.date")),
   note: z

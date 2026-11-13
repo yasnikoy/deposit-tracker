@@ -1,6 +1,5 @@
 import "server-only";
 import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
-import { unitRequired } from "@/domain/agency";
 import type { Role } from "@/domain/roles";
 import { OVERRIDABLE_SETTING_KEYS } from "@/domain/settings/definitions";
 import { isTranslationKey } from "@/i18n";
@@ -37,15 +36,9 @@ export function unitsByAgency(tx: DbOrTx, agencyIds?: number[]): Map<number, Age
   return map;
 }
 
-/**
- * Checks the unit chosen for a B/L of the agency: one of its active units while it has any,
- * none otherwise. Returns the error to show, or null.
- */
-export function unitChoiceError(tx: DbOrTx, agencyId: number, unitId: number | null): "bls.errors.unitRequired" | "bls.errors.unitUnknown" | null {
-  const units = unitsByAgency(tx, [agencyId]).get(agencyId) ?? [];
-  if (unitId === null) return unitRequired(units) ? "bls.errors.unitRequired" : null;
-  return units.some((u) => u.id === unitId && u.active) ? null : "bls.errors.unitUnknown";
-}
+/** Whether the unit is one of the agency's active units (B/Ls take a unit only after creation). */
+export const isActiveUnitOf = (tx: DbOrTx, agencyId: number, unitId: number) =>
+  (unitsByAgency(tx, [agencyId]).get(agencyId) ?? []).some((u) => u.id === unitId && u.active);
 
 /** Active units per agency, for the pickers where B/Ls are created or changed. */
 export function activeUnitOptions(tx: DbOrTx): Record<number, { id: number; name: string }[]> {

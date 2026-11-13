@@ -1,7 +1,7 @@
 import { Forbidden } from "@/components/forbidden";
 import { istanbulToday } from "@/domain/business-days";
 import { t } from "@/i18n";
-import { activeUnitOptions, listAgencies } from "@/server/agencies";
+import { listAgencies } from "@/server/agencies";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
@@ -45,7 +45,6 @@ export default async function AccountingPage({ searchParams }: PageProps<"/accou
             active,
           })),
           customers: listCustomers(db, user).map(({ id, name, code, aliases, active }) => ({ id, name, code, aliases, active })),
-          units: activeUnitOptions(db),
           currencies: listCurrencies(db, user),
           today: istanbulToday(),
         }}

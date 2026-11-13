@@ -1,6 +1,6 @@
 import { Forbidden } from "@/components/forbidden";
 import { t } from "@/i18n";
-import { activeUnitOptions, listAgencies } from "@/server/agencies";
+import { listAgencies } from "@/server/agencies";
 import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
@@ -16,7 +16,7 @@ export default async function CreateBlsPage() {
   return (
     <>
       <h1 className="text-lg font-semibold">{t("bls.createTitle")}</h1>
-      <CreateBlsScreen payments={listPaymentsAwaitingBl(db, user)} patterns={patterns} units={activeUnitOptions(db)} readOnly={!can(user, "bl.create").allowed} />
+      <CreateBlsScreen payments={listPaymentsAwaitingBl(db, user)} patterns={patterns} readOnly={!can(user, "bl.create").allowed} />
     </>
   );
 }

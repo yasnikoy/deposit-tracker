@@ -14,8 +14,12 @@ import { parseReceipt } from "@/server/receipts/parser";
 const fieldsSchema = z.object({
   kind: z.enum(["RECEIPT", "INVOICE", "FORM", "FORM_TEMPLATE", "STANDING", "DEDUCTION_STATEMENT", "EMAIL"]),
   queue: z.enum(["0", "1"]).default("0"),
-  // EMAIL: the B/L an email from Outlook is archived on.
-  blId: z.coerce.number().int().positive().optional(),
+  // EMAIL: the B/Ls (comma-separated ids) an email from Outlook is archived on.
+  blIds: z
+    .string()
+    .transform((value) => value.split(",").map(Number))
+    .pipe(z.array(z.number().int().positive()).min(1).max(500))
+    .optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -24,7 +28,7 @@ export async function POST(request: NextRequest) {
 
   const form = await request.formData();
   const file = form.get("file");
-  const fields = fieldsSchema.safeParse({ kind: form.get("kind"), queue: form.get("queue") ?? undefined, blId: form.get("blId") ?? undefined });
+  const fields = fieldsSchema.safeParse({ kind: form.get("kind"), queue: form.get("queue") ?? undefined, blIds: form.get("blIds") ?? undefined });
   if (!(file instanceof File) || !fields.success) {
     return Response.json({ ok: false, error: "errors.validation" }, { status: 400 });
   }
@@ -33,8 +37,8 @@ export async function POST(request: NextRequest) {
     const db = getDb();
     const content = Buffer.from(await file.arrayBuffer());
     if (fields.data.kind === "EMAIL") {
-      if (!fields.data.blId) return Response.json({ ok: false, error: "errors.validation" }, { status: 400 });
-      return Response.json({ ok: true, auditIds: await archiveEmail(db, session.user, { blId: fields.data.blId, fileName: file.name, content }) });
+      if (!fields.data.blIds) return Response.json({ ok: false, error: "errors.validation" }, { status: 400 });
+      return Response.json({ ok: true, auditIds: await archiveEmail(db, session.user, { blIds: fields.data.blIds, fileName: file.name, content }) });
     }
     const document = storeUpload(db, session.user, { originalName: file.name, content, kind: fields.data.kind });
     const extraction = fields.data.kind === "RECEIPT" ? await parseReceipt(content, document.mimeType) : { parser: "none" };

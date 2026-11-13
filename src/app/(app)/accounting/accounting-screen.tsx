@@ -155,7 +155,6 @@ function Continuation({ saved, refs, onDone }: { saved: SavedPayment; refs: Refe
           paymentId={saved.id}
           candidates={blCandidatesOf({ blNoHint: saved.blNoHint, extractedBlNumbers: saved.blCandidates })}
           patterns={agency?.blNumberPatterns ?? []}
-          units={refs.units[saved.agencyId] ?? []}
           payment={{ customerName: saved.customerName, fileNo: saved.fileNo, description: saved.description }}
           onCreated={onDone}
         />

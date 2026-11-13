@@ -235,7 +235,7 @@ test("a payment for an agency not in the system adds it by name, marked as missi
   await expect(row.getByText(tr.agencies.incomplete)).toBeVisible();
 });
 
-test("an agency with units: each B/L picks one, changed later on its detail", async ({ page }) => {
+test("an agency with units: the B/L is created without one, which is picked from the list and changed on its detail", async ({ page }) => {
   const name = "CULines Test";
   await login(page, DUAL.username, DUAL.final);
   await page.goto("/agencies");
@@ -252,7 +252,7 @@ test("an agency with units: each B/L picks one, changed later on its detail", as
   await expect(page.getByText(tr.agencies.toast.created)).toBeVisible();
   await panel.getByRole("button", { name: tr.common.close, exact: true }).click();
 
-  // The payment continues to its B/L, which needs a unit.
+  // The payment continues to its B/L; the accountant does not pick a unit.
   await page.goto("/accounting");
   await page.getByRole("combobox", { name: tr.payments.agency }).fill("culines");
   await page.getByRole("option", { name: new RegExp(name) }).click();
@@ -260,10 +260,18 @@ test("an agency with units: each B/L picks one, changed later on its detail", as
   await page.getByRole("button", { name: tr.payments.save }).click();
   await expect(page.getByText(tr.payments.continueToBl)).toBeVisible();
   await page.getByLabel(tr.bls.blNo).fill("CULU1000001");
-  await expect(page.getByRole("button", { name: tr.bls.createOne })).toBeDisabled();
-  await page.getByLabel(tr.bls.unit).selectOption({ label: "Mersin" });
+  await expect(page.getByLabel(tr.bls.unit)).toHaveCount(0);
   await page.getByRole("button", { name: tr.bls.createOne }).click();
   await expect(page.getByText("B/L oluşturuldu: CULU1000001")).toBeVisible();
+
+  // Operations picks it for the selected B/Ls before sending.
+  await page.goto("/bls");
+  await page.getByRole("row").filter({ hasText: "CULU1000001" }).getByRole("checkbox").check();
+  await page.getByRole("button", { name: tr.bulk.unit }).click();
+  const unitDialog = page.getByRole("dialog", { name: tr.bulk.unit });
+  await unitDialog.getByLabel(tr.bls.unit).selectOption({ label: "Mersin" });
+  await unitDialog.getByRole("button", { name: tr.common.save }).click();
+  await expect(page.getByText(tr.bulk.unitSaved)).toBeVisible();
 
   // The detail shows the unit and changes it in place.
   await page.getByRole("combobox", { name: tr.search.label }).fill("CULU1000001");
@@ -275,7 +283,8 @@ test("an agency with units: each B/L picks one, changed later on its detail", as
   await page.getByLabel(tr.bls.unit).locator("..").getByRole("button", { name: tr.common.save }).click();
   await expect(page.getByText(tr.bls.unitSaved)).toBeVisible();
   await expect(page.getByText("İzmir", { exact: true })).toBeVisible();
-  await expect(page.getByText(tr.timeline.actions.bl.setUnit, { exact: true })).toBeVisible();
+  // Both changes are on the timeline: from the list, then on the detail.
+  await expect(page.getByText(tr.timeline.actions.bl.setUnit, { exact: true })).toHaveCount(2);
 });
 
 test("a payment names its customer (a new one by name), file number and description; the B/L takes them over", async ({ page }) => {

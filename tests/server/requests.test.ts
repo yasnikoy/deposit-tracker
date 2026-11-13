@@ -118,7 +118,7 @@ describe("request made outside the app", () => {
   it("counts as the next request: status, attempt and follow-up clock move as for a sent one", () => {
     const a = bl(msc, "MEDU0000001", "2026-10-01");
     attachForm(a);
-    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-21", note: "Telefonla istendi" }, NOW);
+    recordOutsideRequest(db, ops, { blIds: [a], requestedOn: "2026-10-21", note: "Telefonla istendi" }, NOW);
     expect(status(a)).toBe("REQUESTED");
     expect(blDueState(db, a, NOW)).toMatchObject({ kind: "FOLLOW_UP", attemptNo: 2, dueDate: "2026-10-28" });
     expect(db.select().from(requests).where(eq(requests.blId, a)).all()).toEqual([
@@ -127,27 +127,40 @@ describe("request made outside the app", () => {
     expect(db.select().from(auditLog).where(eq(auditLog.action, "request.recordOutside")).get()).toMatchObject({ entityId: String(a), reason: "Telefonla istendi" });
 
     // A follow-up made outside the app counts the same way.
-    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-22", note: null }, NOW);
+    recordOutsideRequest(db, ops, { blIds: [a], requestedOn: "2026-10-22", note: null }, NOW);
     expect(blDueState(db, a, NOW)).toMatchObject({ attemptNo: 3 });
   });
 
   it("refuses a future date, a date before the payment or the last request, a missing form and other roles", () => {
     const a = bl(msc, "MEDU0000001", "2026-10-01");
-    const err = (requestedOn: string) => () => recordOutsideRequest(db, ops, { blId: a, requestedOn, note: null }, NOW);
+    const err = (requestedOn: string) => () => recordOutsideRequest(db, ops, { blIds: [a], requestedOn, note: null }, NOW);
     expect(err("2026-10-21")).toThrow(expect.objectContaining({ messageKey: "requests.errors.formMissing" }));
     attachForm(a);
     expect(err("2026-10-23")).toThrow(expect.objectContaining({ messageKey: "requests.errors.futureDate" }));
     expect(err("2026-09-30")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforePayment" }));
-    recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-20", note: null }, NOW);
+    recordOutsideRequest(db, ops, { blIds: [a], requestedOn: "2026-10-20", note: null }, NOW);
     expect(err("2026-10-19")).toThrow(expect.objectContaining({ messageKey: "requests.errors.beforeLastRequest" }));
-    expect(() => recordOutsideRequest(db, acc, { blId: a, requestedOn: "2026-10-21", note: null }, NOW)).toThrow(ForbiddenError);
+    expect(() => recordOutsideRequest(db, acc, { blIds: [a], requestedOn: "2026-10-21", note: null }, NOW)).toThrow(ForbiddenError);
+  });
+
+  it("records one request for several B/Ls, or none when one is refused", () => {
+    const a = bl(msc, "MEDU0000001", "2026-10-01");
+    const b = bl(msc, "MEDU0000002", "2026-10-01");
+    attachForm(a);
+    expect(() => recordOutsideRequest(db, ops, { blIds: [a, b], requestedOn: "2026-10-21", note: null }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "requests.errors.formMissing", params: { bl: "MEDU0000002" } }),
+    );
+    expect(status(a)).toBe("PAID");
+    attachForm(b);
+    recordOutsideRequest(db, ops, { blIds: [a, b], requestedOn: "2026-10-21", note: "Tek e-postayla istendi" }, NOW);
+    expect([status(a), status(b)]).toEqual(["REQUESTED", "REQUESTED"]);
   });
 
   it("is not possible for a settled B/L", () => {
     const a = bl(msc, "MEDU0000001", "2026-10-01");
     attachForm(a);
     db.update(billsOfLading).set({ status: "COLLECTED" }).where(eq(billsOfLading.id, a)).run();
-    expect(() => recordOutsideRequest(db, ops, { blId: a, requestedOn: "2026-10-21", note: null }, NOW)).toThrow(
+    expect(() => recordOutsideRequest(db, ops, { blIds: [a], requestedOn: "2026-10-21", note: null }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "requests.errors.notDue" }),
     );
   });

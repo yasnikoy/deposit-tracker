@@ -184,7 +184,7 @@ export function BlDetailScreen({
               size="sm"
               variant="outline"
               onClick={async () => {
-                const result = await releaseHoldAction({ blId: bl.id });
+                const result = await releaseHoldAction({ blIds: [bl.id] });
                 if (!result.ok) return void toast.error(t(result.error, result.params));
                 toast.success(t("holds.released"));
                 router.refresh();
@@ -515,7 +515,6 @@ export function BlDetailScreen({
           currency={bl.currency}
           defaults={bl}
           customers={customers}
-          units={units}
           today={today}
           onCancel={() => setDialog(null)}
           onDone={(targets) => {
@@ -528,7 +527,7 @@ export function BlDetailScreen({
       )}
       {dialog === "hold" && (
         <HoldDialog
-          blId={bl.id}
+          bls={[{ id: bl.id }]}
           reasons={holdReasons}
           today={today}
           onCancel={() => setDialog(null)}

@@ -22,8 +22,6 @@ import { CustomerCombobox, type CustomerOption } from "@/components/customer-com
 export type ReferenceData = {
   agencies: AgencyOption[];
   customers: CustomerOption[];
-  /** Active units of the agencies that have them, for the B/L that follows. */
-  units: Record<number, { id: number; name: string }[]>;
   currencies: Currency[];
   today: string;
 };

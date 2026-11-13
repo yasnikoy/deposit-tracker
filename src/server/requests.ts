@@ -16,7 +16,7 @@ import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
 import { loadCalendar } from "./calendar";
-import type { Db, DbOrTx } from "./db/client";
+import type { Db, DbOrTx, Tx } from "./db/client";
 import { agencies, billsOfLading, ledgerEntries, requests } from "./db/schema";
 import { openUnexplained } from "./deductions";
 import { DomainError } from "./errors";
@@ -439,25 +439,37 @@ export function updateBlOverrides(
 export function recordOutsideRequest(
   db: Db,
   actor: AuthUser,
-  input: { blId: number; requestedOn: IsoDate; note: string | null },
+  input: { blIds: number[]; requestedOn: IsoDate; note: string | null },
   now: Date = new Date(),
 ): void {
   const roleUsed = authorize(actor, "request.recordOutside");
+  if (input.requestedOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
   db.transaction((tx) => {
-    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get();
+    for (const blId of input.blIds) recordOneOutsideRequest(tx, actor, roleUsed, blId, input, now);
+  });
+}
+
+function recordOneOutsideRequest(
+  tx: Tx,
+  actor: AuthUser,
+  roleUsed: ReturnType<typeof authorize>,
+  blId: number,
+  input: { requestedOn: IsoDate; note: string | null },
+  now: Date,
+): void {
+    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, blId)).get();
     if (!bl || bl.voidedAt) throw new DomainError("errors.notFound");
     let status: StoredBlStatus;
     try {
       status = nextStatus(bl.status as StoredBlStatus, "REFUND_REQUEST_SENT");
     } catch (error) {
-      if (error instanceof InvalidTransitionError) throw new DomainError("requests.errors.notDue");
+      if (error instanceof InvalidTransitionError) throw new DomainError("requests.errors.notDue", { bl: bl.blNo });
       throw error;
     }
-    if (input.requestedOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
-    if (input.requestedOn < bl.paidAt) throw new DomainError("requests.errors.beforePayment");
+    if (input.requestedOn < bl.paidAt) throw new DomainError("requests.errors.beforePayment", { bl: bl.blNo });
     const stats = requestStats(tx, [bl.id], "REFUND").get(bl.id) ?? { attempts: 0, lastRequestOn: null, sending: false };
-    if (stats.sending) throw new DomainError("requests.errors.notDue");
-    if (stats.lastRequestOn && input.requestedOn < stats.lastRequestOn) throw new DomainError("requests.errors.beforeLastRequest");
+    if (stats.sending) throw new DomainError("requests.errors.notDue", { bl: bl.blNo });
+    if (stats.lastRequestOn && input.requestedOn < stats.lastRequestOn) throw new DomainError("requests.errors.beforeLastRequest", { bl: bl.blNo });
     // Rule 14: no request is recorded without the B/L's uploaded form, nor while another user drafts it.
     if (getSetting("rules.blockSendingWithoutForm", {}, tx) && !currentBlForm(tx, bl.id)) {
       throw new DomainError("requests.errors.formMissing", { bl: bl.blNo });
@@ -485,5 +497,4 @@ export function recordOutsideRequest(
       },
       now,
     );
-  });
 }

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import type { EmailDraft } from "@/server/email/compose";
 import type { DueGroup, DueLists, DueRow, FailedRequest } from "@/server/requests";
 import { generateBlFormAction, uploadBlFormAction } from "../bls/actions";
+import { BlBulkActions, type BulkOptions } from "../bls/bl-bulk-actions";
 import { prepareEmailsAction } from "./actions";
 import { EmailPreviewDialog } from "./email-preview-dialog";
 
@@ -38,11 +39,14 @@ export function DueRequestsScreen({
   lists,
   canForms,
   canSend,
+  bulk,
 }: {
   tab: DueTab;
   lists: DueLists;
   canForms: boolean;
   canSend: boolean;
+  /** The B/L detail's everyday actions on the selected rows; null for users who can do none. */
+  bulk: BulkOptions | null;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -50,9 +54,12 @@ export function DueRequestsScreen({
   const [preparing, setPreparing] = useState(false);
   const count = (list: DueTab) => (list === "FAILED" ? lists.FAILED.length : lists[list].reduce((n, g) => n + g.rows.length, 0));
   const groups = tab === "FAILED" ? [] : lists[tab];
+  // Any row can take a bulk action; only those ready to send go into the email.
+  const canSelect = (row: DueRow) => !!bulk || (canSend && selectable(row));
   // Selection only keeps rows that are still listed and selectable after a refresh.
-  const selectableIds = new Set(groups.flatMap((g) => g.rows.filter((r) => selectable(r)).map((r) => r.blId)));
-  const chosen = [...selected].filter((id) => selectableIds.has(id));
+  const listed = groups.flatMap((g) => g.rows.filter(canSelect).map((row) => ({ row, agencyId: g.agencyId })));
+  const chosen = listed.filter(({ row }) => selected.has(row.blId));
+  const sendable = chosen.filter(({ row }) => selectable(row)).map(({ row }) => row.blId);
 
   const toggle = (ids: number[], on: boolean) =>
     setSelected((current) => {
@@ -91,12 +98,25 @@ export function DueRequestsScreen({
           <p className="text-muted-foreground text-xs">
             {canSend && t("requests.selectHint")} {canSend && lists.formRequired && t("requests.formRequiredHint")}
           </p>
-          {canSend && (
-            <div className="ml-auto flex items-center gap-2">
+          {(canSend || bulk) && (
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {chosen.length > 0 && <span className="text-sm">{t("requests.selectedTotal", { count: chosen.length })}</span>}
-              <Button size="sm" onClick={() => prepare(chosen)} disabled={chosen.length === 0 || preparing}>
-                <Mail /> {t("requests.prepare")}
-              </Button>
+              {canSend && sendable.length < chosen.length && (
+                <span className="text-xs text-amber-700 dark:text-amber-400">{t("requests.notSendable", { count: chosen.length - sendable.length })}</span>
+              )}
+              {/* Like a table's bulk bar: the actions appear once rows are selected. */}
+              {bulk && chosen.length > 0 && (
+                <BlBulkActions
+                  bls={chosen.map(({ row, agencyId }) => ({ id: row.blId, blNo: row.blNo, agencyId, held: false }))}
+                  options={bulk}
+                  onDone={() => setSelected(new Set())}
+                />
+              )}
+              {canSend && (
+                <Button size="sm" onClick={() => prepare(sendable)} disabled={sendable.length === 0 || preparing}>
+                  <Mail /> {t("requests.prepare")}
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -111,7 +131,7 @@ export function DueRequestsScreen({
               key={group.agencyId}
               group={group}
               canForms={canForms}
-              selection={canSend ? { selected, toggle } : null}
+              selection={canSend || bulk ? { selected, toggle, canSelect } : null}
             />
           ))}
         </>
@@ -179,9 +199,9 @@ function AgencyGroup({
 }: {
   group: DueGroup;
   canForms: boolean;
-  selection: { selected: Set<number>; toggle: (ids: number[], on: boolean) => void } | null;
+  selection: { selected: Set<number>; toggle: (ids: number[], on: boolean) => void; canSelect: (row: DueRow) => boolean } | null;
 }) {
-  const ids = group.rows.filter((row) => selectable(row)).map((row) => row.blId);
+  const ids = group.rows.filter((row) => selection?.canSelect(row)).map((row) => row.blId);
   const all = ids.length > 0 && ids.every((id) => selection?.selected.has(id));
   const some = ids.some((id) => selection?.selected.has(id));
   return (
@@ -236,7 +256,7 @@ function AgencyGroup({
                   <Checkbox
                     aria-label={`${t("table.selectRow")} – ${row.blNo}`}
                     checked={selection.selected.has(row.blId)}
-                    disabled={!selectable(row)}
+                    disabled={!selection.canSelect(row)}
                     onCheckedChange={(checked) => selection.toggle([row.blId], checked === true)}
                   />
                 </td>

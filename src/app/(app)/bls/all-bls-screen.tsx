@@ -20,6 +20,7 @@ import type { BlOverview } from "@/server/bl-overview";
 import { updateBlAction } from "./actions";
 import { EditBlDialog, VoidBlDialog } from "./bl-dialogs";
 import { BalanceStrip } from "./balance-strip";
+import { BlBulkActions, type BulkOptions } from "./bl-bulk-actions";
 import { BulkDescriptionDialog } from "./bulk-description-dialog";
 import { DescriptionEditor } from "./description-editor";
 import { TransferDialog } from "./[id]/transfer-dialog";
@@ -173,6 +174,7 @@ export function AllBlsScreen({
   canVoid,
   canEditDescription,
   transfer,
+  bulk,
 }: {
   bls: BlOverview[];
   layout: TableLayout | null;
@@ -184,7 +186,9 @@ export function AllBlsScreen({
   canVoid: boolean;
   canEditDescription: boolean;
   /** What the bulk deposit transfer needs; null for users who cannot transfer. */
-  transfer: { customers: CustomerOption[]; units: Record<number, { id: number; name: string }[]>; today: string } | null;
+  transfer: { customers: CustomerOption[]; today: string } | null;
+  /** The B/L detail's everyday actions on the selected rows; null for users who can do none. */
+  bulk: BulkOptions | null;
 }) {
   const router = useRouter();
   const [showVoided, setShowVoided] = useState(false);
@@ -229,11 +233,18 @@ export function AllBlsScreen({
             : undefined
         }
         bulkActions={
-          canEditDescription || transfer
+          canEditDescription || transfer || bulk
             ? (selected, clear) => {
                 const active = selected.filter((b) => !b.voidedAt);
                 return (
                   <>
+                    {bulk && (
+                      <BlBulkActions
+                        bls={active.map((b) => ({ id: b.id, blNo: b.blNo, agencyId: b.agencyId, held: b.hold !== null }))}
+                        options={bulk}
+                        onDone={clear}
+                      />
+                    )}
                     {canEditDescription && (
                       <Button size="sm" variant="outline" disabled={active.length === 0} onClick={() => setDescribeFor({ bls: active, clear })}>
                         {t("description.bulk")}
@@ -279,7 +290,6 @@ export function AllBlsScreen({
           currency={transferFor.bls[0].currency}
           defaults={transferFor.bls[0]}
           customers={transfer.customers}
-          units={transfer.units[transferFor.bls[0].agencyId] ?? []}
           today={transfer.today}
           onCancel={() => setTransferFor(null)}
           onDone={() => {

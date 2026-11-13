@@ -3,7 +3,7 @@ import { nextStatus, type StoredBlStatus } from "@/domain/bl-lifecycle";
 import { agencyInputSchema, type AgencyInput, type AgencyOverrides } from "@/lib/schemas/agencies";
 import { createAgency } from "@/server/agencies";
 import type { AuthUser } from "@/server/auth/types";
-import { createBls, updateBl } from "@/server/bls";
+import { createBls, setBlUnit, updateBl } from "@/server/bls";
 import type { Db } from "@/server/db/client";
 import { billsOfLading, customers, refundAllocations, refunds, requests } from "@/server/db/schema";
 import { storeUpload } from "@/server/files";
@@ -74,8 +74,10 @@ export function makeBl(
   );
   if (result.status !== "created") throw new Error("payment not created");
   const customerId = input.customerId === undefined ? testCustomer(db) : input.customerId;
-  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, customerId, unitId: input.unitId ?? null }], now).created[0];
+  const created = createBls(db, users.ops, [{ paymentId: result.id, blNo: input.blNo, customerId }], now).created[0];
   if (!created) throw new Error("B/L not created");
+  // The unit is chosen after creation, as on Talepler or the B/L detail.
+  if (input.unitId) setBlUnit(db, users.ops, { blIds: [created.blId], unitId: input.unitId }, now);
   // Containers are entered on the B/L detail, after creation.
   if (input.containers?.length) updateBl(db, users.ops, { id: created.blId, containers: input.containers }, now);
   return { paymentId: result.id, blId: created.blId };

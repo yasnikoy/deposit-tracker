@@ -4,6 +4,7 @@ import { can } from "@/server/auth/can";
 import { requireSession } from "@/server/auth/current-user";
 import { getDb } from "@/server/db/client";
 import { listDueRequests } from "@/server/requests";
+import { bulkActionOptions } from "../bls/bulk-options";
 import { DueRequestsScreen, type DueTab } from "./due-requests-screen";
 
 export default async function DueRequestsPage({ searchParams }: PageProps<"/requests">) {
@@ -20,6 +21,7 @@ export default async function DueRequestsPage({ searchParams }: PageProps<"/requ
         lists={listDueRequests(getDb(), user)}
         canForms={can(user, "bl.generateForm").allowed && can(user, "bl.uploadForm").allowed}
         canSend={can(user, "request.prepareEmail").allowed && can(user, "request.sendEmail").allowed}
+        bulk={bulkActionOptions(getDb(), user)}
       />
     </>
   );

@@ -2,22 +2,19 @@
 
 import { ArrowDownLeft, ArrowUpRight, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useState } from "react";
 import { FileDrop, uploadErrorText } from "@/components/file-drop";
 import { toastWithUndo } from "@/components/undo-toast";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { t } from "@/i18n";
 import { formatBusinessDate, formatTimestamp } from "@/lib/format";
 import type { ReplyTypeCode } from "@/domain/replies";
 import type { BlDetail } from "@/server/bl-overview";
-import { recordReplyWithoutEmailAction } from "../actions";
+import { RecordReplyDialog, RecordRequestDialog } from "../bl-work-dialogs";
 import { EmailDialog } from "./email-dialog";
-import { prepareResendAction, recordOutsideRequestAction, type ResendDraft } from "../../requests/actions";
+import { prepareResendAction, type ResendDraft } from "../../requests/actions";
 import { ResendDialog } from "../../requests/email-preview-dialog";
 
 export type ReplyTypeOption = { id: number; name: string; code: ReplyTypeCode | null };
@@ -86,7 +83,7 @@ export function ReplySection({
           <div className="mb-2 flex flex-col gap-1">
             <FileDrop
               kind="EMAIL"
-              blId={blId}
+              blIds={[blId]}
               multiple
               compact
               accept=".eml,.msg"
@@ -184,8 +181,8 @@ export function ReplySection({
         )}
       </div>
 
-      {dialog === "record" && <RecordReplyDialog blId={blId} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
-      {dialog === "request" && <RecordRequestDialog blId={blId} today={today} onCancel={() => setDialog(null)} onDone={done} />}
+      {dialog === "record" && <RecordReplyDialog bls={[{ id: blId }]} replyTypes={replyTypes} today={today} onCancel={() => setDialog(null)} onDone={done} />}
+      {dialog === "request" && <RecordRequestDialog bls={[{ id: blId }]} today={today} onCancel={() => setDialog(null)} onDone={done} />}
       {resend && (
         <ResendDialog
           draft={resend}
@@ -199,148 +196,5 @@ export function ReplySection({
         <EmailDialog emailId={openEmail} onClose={closeEmail} />
       )}
     </div>
-  );
-}
-
-/**
- * A reply that did not come by email (e.g. read on the agency portal); it counts like one.
- * Date and note first, then one click on the reply type saves it, as on the Replies screen.
- */
-function RecordReplyDialog({
-  blId,
-  replyTypes,
-  today,
-  onCancel,
-  onDone,
-}: {
-  blId: number;
-  replyTypes: ReplyTypeOption[];
-  today: string;
-  onCancel: () => void;
-  onDone: () => void;
-}) {
-  const [repliedOn, setRepliedOn] = useState(today);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const save = async (replyTypeId: number) => {
-    setBusy(true);
-    const result = await recordReplyWithoutEmailAction({ blId, replyTypeId, repliedOn, note });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    toastWithUndo(t("blReplies.recorded"), result.data, onDone);
-    onDone();
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent>
-        <div className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>{t("blReplies.record")}</DialogTitle>
-            <DialogDescription>{t("blReplies.recordHint")}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reply-date">{t("blReplies.date")}</Label>
-            <Input id="reply-date" type="date" value={repliedOn} max={today} onChange={(event) => setRepliedOn(event.target.value)} className="w-44" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="reply-note">{t("blReplies.note")}</Label>
-            <textarea
-              id="reply-note"
-              rows={2}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={t("blReplies.notePlaceholder")}
-              className="border-input bg-background rounded-md border px-2 py-1 text-sm"
-            />
-          </div>
-          <div role="group" aria-labelledby="reply-types" className="flex flex-col gap-1.5">
-            <span id="reply-types" className="text-sm font-medium">
-              {t("blReplies.type")} <span className="text-muted-foreground font-normal">{t("blReplies.typeSaves")}</span>
-            </span>
-            <div className="flex flex-wrap gap-2">
-              {replyTypes.map((type) => (
-                <Button key={type.id} type="button" variant="outline" size="sm" disabled={busy} onClick={() => save(type.id)}>
-                  {type.name}
-                </Button>
-              ))}
-            </div>
-          </div>
-          {error && (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
-              {t("common.cancel")}
-            </Button>
-          </DialogFooter>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** A refund request made outside the app (by phone, another mailbox); it counts like a sent one. */
-function RecordRequestDialog({ blId, today, onCancel, onDone }: { blId: number; today: string; onCancel: () => void; onDone: () => void }) {
-  const [requestedOn, setRequestedOn] = useState(today);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const save = async (event: FormEvent) => {
-    event.preventDefault();
-    setBusy(true);
-    const result = await recordOutsideRequestAction({ blId, requestedOn, note });
-    setBusy(false);
-    if (!result.ok) return setError(t(result.error, result.params));
-    toast.success(t("blReplies.requestRecorded"));
-    onDone();
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent>
-        <form onSubmit={save} className="flex flex-col gap-4">
-          <DialogHeader>
-            <DialogTitle>{t("blReplies.recordRequest")}</DialogTitle>
-            <DialogDescription>{t("blReplies.recordRequestHint")}</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="request-date">{t("blReplies.requestDate")}</Label>
-            <Input id="request-date" type="date" value={requestedOn} max={today} onChange={(event) => setRequestedOn(event.target.value)} className="w-44" />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="request-note">
-              {t("blReplies.note")} <span className="text-muted-foreground font-normal">{t("common.optional")}</span>
-            </Label>
-            <textarea
-              id="request-note"
-              rows={2}
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder={t("blReplies.requestNotePlaceholder")}
-              className="border-input bg-background rounded-md border px-2 py-1 text-sm"
-            />
-          </div>
-          {error && (
-            <p role="alert" className="text-destructive text-sm">
-              {error}
-            </p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="ghost" onClick={onCancel} disabled={busy}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="submit" disabled={busy}>
-              {t("blReplies.saveRequest")}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }

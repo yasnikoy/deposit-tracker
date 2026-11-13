@@ -44,7 +44,7 @@ beforeEach(async () => {
 
 describe("archiving an email from Outlook on a B/L", () => {
   it("stores the original file, its attachments and the message, and links it to the B/L", async () => {
-    const auditIds = await archiveEmail(db, ops, { blId, fileName: "RE MEDU1000001.eml", content: await eml() }, NOW);
+    const auditIds = await archiveEmail(db, ops, { blIds: [blId], fileName: "RE MEDU1000001.eml", content: await eml() }, NOW);
     expect(auditIds).toHaveLength(1);
     const email = db.select().from(emails).get()!;
     expect(email).toMatchObject({
@@ -62,21 +62,33 @@ describe("archiving an email from Outlook on a B/L", () => {
   });
 
   it("links an email archived before to another B/L without storing it twice; undo takes the link back", async () => {
-    await archiveEmail(db, ops, { blId, fileName: "a.eml", content: await eml() }, NOW);
-    const [auditId] = await archiveEmail(db, ops, { blId: other, fileName: "a.eml", content: await eml() }, NOW);
+    await archiveEmail(db, ops, { blIds: [blId], fileName: "a.eml", content: await eml() }, NOW);
+    const [auditId] = await archiveEmail(db, ops, { blIds: [other], fileName: "a.eml", content: await eml() }, NOW);
     expect(db.select().from(emails).all()).toHaveLength(1);
     expect(getBlDetail(db, ops, other, NOW).emails).toHaveLength(1);
-    await expect(archiveEmail(db, ops, { blId: other, fileName: "a.eml", content: await eml() }, NOW)).rejects.toMatchObject({ messageKey: "archive.errors.alreadyLinked" });
+    await expect(archiveEmail(db, ops, { blIds: [other], fileName: "a.eml", content: await eml() }, NOW)).rejects.toMatchObject({ messageKey: "archive.errors.alreadyLinked" });
     undoActions(db, ops, { auditIds: [auditId] }, NOW);
     expect(getBlDetail(db, ops, other, NOW).emails).toHaveLength(0);
   });
 
+  it("archives one email on several B/Ls of one agency at once, skipping those that hold it", async () => {
+    await archiveEmail(db, ops, { blIds: [blId], fileName: "a.eml", content: await eml() }, NOW);
+    const auditIds = await archiveEmail(db, ops, { blIds: [blId, other], fileName: "a.eml", content: await eml() }, NOW);
+    expect(auditIds).toHaveLength(1);
+    expect(db.select().from(emails).all()).toHaveLength(1);
+    expect([blId, other].map((id) => getBlDetail(db, ops, id, NOW).emails.length)).toEqual([1, 1]);
+
+    const hapag = makeAgency(db, ops, "Hapag");
+    const foreign = makeBl(db, { acc, ops }, { agencyId: hapag, blNo: "HLCU1000001", amountMinor: 100000, paidAt: "2026-10-01" }, NOW).blId;
+    await expect(archiveEmail(db, ops, { blIds: [blId, foreign], fileName: "a.eml", content: await eml() }, NOW)).rejects.toMatchObject({ messageKey: "archive.errors.agencies" });
+  });
+
   it("refuses other file types, unreadable files and other roles", async () => {
-    await expect(archiveEmail(db, ops, { blId, fileName: "not-mail.pdf", content: Buffer.from("%PDF") }, NOW)).rejects.toMatchObject({ messageKey: "archive.errors.type" });
-    await expect(archiveEmail(db, ops, { blId, fileName: "broken.msg", content: Buffer.from("not an outlook file") }, NOW)).rejects.toMatchObject({
+    await expect(archiveEmail(db, ops, { blIds: [blId], fileName: "not-mail.pdf", content: Buffer.from("%PDF") }, NOW)).rejects.toMatchObject({ messageKey: "archive.errors.type" });
+    await expect(archiveEmail(db, ops, { blIds: [blId], fileName: "broken.msg", content: Buffer.from("not an outlook file") }, NOW)).rejects.toMatchObject({
       messageKey: "archive.errors.unreadable",
     });
-    await expect(archiveEmail(db, acc, { blId, fileName: "a.eml", content: await eml() }, NOW)).rejects.toThrow(ForbiddenError);
+    await expect(archiveEmail(db, acc, { blIds: [blId], fileName: "a.eml", content: await eml() }, NOW)).rejects.toThrow(ForbiddenError);
   });
 });
 

@@ -106,26 +106,13 @@ describe("agency units on the card", () => {
 });
 
 describe("B/Ls of an agency with units", () => {
-  it("need one of its active units when created; other agencies take none", () => {
-    const [p1, p2, p3, p4] = [payment(culines), payment(culines), payment(culines), payment(msc)];
-    const { created, errors } = createBls(
-      db,
-      ops,
-      [
-        { paymentId: p1, blNo: "CULU1000001" },
-        { paymentId: p2, blNo: "CULU1000002", unitId: unitIds(culines).İzmir },
-        { paymentId: p3, blNo: "CULU1000003", unitId: 9999 },
-        { paymentId: p4, blNo: "MEDU1000001", unitId: unitIds(culines).Mersin },
-      ],
-      NOW,
-    );
-    expect(created.map((c) => c.blNo)).toEqual(["CULU1000002"]);
-    expect(errors).toEqual([
-      { index: 0, field: "unit", message: "bls.errors.unitRequired" },
-      { index: 2, field: "unit", message: "bls.errors.unitUnknown" },
-      { index: 3, field: "unit", message: "bls.errors.unitUnknown" },
-    ]);
-    expect(listAllBls(db, ops, NOW)[0]).toMatchObject({ blNo: "CULU1000002", unitName: "İzmir" });
+  it("are created without a unit; it is chosen before sending", () => {
+    const [p1, p2] = [payment(culines), payment(msc)];
+    // A unit sent from an older client is ignored: creation never takes one.
+    const { created, errors } = createBls(db, ops, [{ paymentId: p1, blNo: "CULU1000001", unitId: unitIds(culines).İzmir }, { paymentId: p2, blNo: "MEDU1000001" }], NOW);
+    expect(errors).toEqual([]);
+    expect(created.map((c) => c.blNo)).toEqual(["CULU1000001", "MEDU1000001"]);
+    expect(listAllBls(db, ops, NOW).map((b) => b.unitId)).toEqual([null, null]);
   });
 
   it("can only name a unit of their own agency, even written straight to the database", () => {
@@ -135,20 +122,31 @@ describe("B/Ls of an agency with units", () => {
 
   it("change unit on the B/L detail (operations, audited)", () => {
     const { blId } = makeBl(db, { acc, ops }, { agencyId: culines, blNo: "CULU1000001", amountMinor: 300000, paidAt: "2026-10-01", unitId: unitIds(culines).Mersin }, NOW);
-    expect(() => setBlUnit(db, acc, { blId, unitId: unitIds(culines).İzmir }, NOW)).toThrow(ForbiddenError);
-    expect(() => setBlUnit(db, ops, { blId, unitId: 9999 }, NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.unitUnknown" }));
-    setBlUnit(db, ops, { blId, unitId: unitIds(culines).İzmir }, NOW);
+    expect(() => setBlUnit(db, acc, { blIds: [blId], unitId: unitIds(culines).İzmir }, NOW)).toThrow(ForbiddenError);
+    expect(() => setBlUnit(db, ops, { blIds: [blId], unitId: 9999 }, NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.unitUnknown" }));
+    setBlUnit(db, ops, { blIds: [blId], unitId: unitIds(culines).İzmir }, NOW);
     const detail = getBlDetail(db, ops, blId, NOW);
     expect(detail.bl).toMatchObject({ unitName: "İzmir" });
     expect(detail.timeline[0]).toMatchObject({ action: "bl.setUnit" });
   });
 
-  it("need a unit in the opening-balance form too", () => {
-    const input = (unitId: number | null) =>
-      openingBalanceSchema.parse({ agencyId: culines, kind: "BANK", amountMinor: 250000, currency: "USD", paidAt: "2026-07-01", blNo: "CULU9000001", unitId, documentId: null, pastAttempts: 0, lastRequestOn: null, note: "", confirmDuplicate: true });
-    expect(() => createOpeningBalance(db, admin, input(null), NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.unitRequired" }));
-    const result = createOpeningBalance(db, admin, input(unitIds(culines).Mersin), NOW);
-    expect(result.status === "created" && getBlDetail(db, ops, result.blId, NOW).bl.unitName).toBe("Mersin");
+  it("get a unit in bulk: all the selected B/Ls, or none when one cannot take it", () => {
+    const bl = (blNo: string, agencyId = culines) => makeBl(db, { acc, ops }, { agencyId, blNo, amountMinor: 300000, paidAt: "2026-10-01" }, NOW).blId;
+    const [a, b, other] = [bl("CULU1000001"), bl("CULU1000002"), bl("MEDU1000001", msc)];
+    const unitOf = () => listAllBls(db, ops, NOW).map((x) => [x.blNo, x.unitName]);
+    expect(() => setBlUnit(db, ops, { blIds: [a, other], unitId: unitIds(culines).Mersin }, NOW)).toThrow(expect.objectContaining({ messageKey: "bls.errors.unitUnknown", params: { bl: "MEDU1000001" } }));
+    expect(unitOf().every(([, unit]) => unit === null)).toBe(true);
+    setBlUnit(db, ops, { blIds: [a, b], unitId: unitIds(culines).Mersin }, NOW);
+    expect(unitOf()).toEqual(expect.arrayContaining([["CULU1000001", "Mersin"], ["CULU1000002", "Mersin"]]));
+    // B/Ls already on the unit are left as they are; nothing to change is refused.
+    setBlUnit(db, ops, { blIds: [a, b], unitId: unitIds(culines).İzmir }, NOW);
+    expect(() => setBlUnit(db, ops, { blIds: [a, b], unitId: unitIds(culines).İzmir }, NOW)).toThrow(expect.objectContaining({ messageKey: "settings.noChanges" }));
+  });
+
+  it("take no unit in the opening-balance form either", () => {
+    const input = openingBalanceSchema.parse({ agencyId: culines, kind: "BANK", amountMinor: 250000, currency: "USD", paidAt: "2026-07-01", blNo: "CULU9000001", documentId: null, pastAttempts: 0, lastRequestOn: null, note: "", confirmDuplicate: true });
+    const result = createOpeningBalance(db, admin, input, NOW);
+    expect(result.status === "created" && getBlDetail(db, ops, result.blId, NOW).bl.unitId).toBeNull();
   });
 });
 
@@ -166,12 +164,11 @@ describe("requests of an agency with units", () => {
   });
 
   it("are refused for a B/L without a unit, which the due list marks", () => {
-    const { blId } = makeBl(db, { acc, ops }, { agencyId: culines, blNo: "CULU1000001", amountMinor: 300000, paidAt: "2026-10-01", unitId: unitIds(culines).Mersin }, NOW);
-    // As for a B/L created before the agency had units.
-    db.update(billsOfLading).set({ unitId: null }).where(eq(billsOfLading.id, blId)).run();
+    // B/Ls are created without a unit.
+    const { blId } = makeBl(db, { acc, ops }, { agencyId: culines, blNo: "CULU1000001", amountMinor: 300000, paidAt: "2026-10-01" }, NOW);
     expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ blNo: "CULU1000001", unitMissing: true });
     expect(() => prepareRequestEmails(db, ops, { blIds: [blId] }, NOW)).toThrow(expect.objectContaining({ messageKey: "requests.errors.unitMissing" }));
-    setBlUnit(db, ops, { blId, unitId: unitIds(culines).Mersin }, NOW);
+    setBlUnit(db, ops, { blIds: [blId], unitId: unitIds(culines).Mersin }, NOW);
     expect(listDueRequests(db, ops, NOW).DUE[0].rows[0]).toMatchObject({ unitMissing: false });
     expect(prepareRequestEmails(db, ops, { blIds: [blId] }, NOW)[0].to).toEqual(["mersin@culines.example"]);
   });

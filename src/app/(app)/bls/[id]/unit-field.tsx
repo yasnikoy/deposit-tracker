@@ -34,7 +34,7 @@ export function UnitField({
   const save = async () => {
     if (value === null) return;
     setBusy(true);
-    const result = await setBlUnitAction({ blId, unitId: value });
+    const result = await setBlUnitAction({ blIds: [blId], unitId: value });
     setBusy(false);
     if (!result.ok) return void toast.error(t(result.error, result.params));
     toast.success(t("bls.unitSaved"));

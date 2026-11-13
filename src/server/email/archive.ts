@@ -143,12 +143,13 @@ function linkEmail(tx: DbOrTx, actor: AuthUser, roleUsed: Role | null, emailId: 
 }
 
 /**
- * Archives an email a user dragged from Outlook (.eml or .msg) on a B/L: the original file is
- * kept as dropped, so it opens in Outlook again to continue the conversation, and the message
- * with its attachments shows on the B/L. The same message dropped on another B/L is stored once
- * and linked there too. The app never interprets it (rule 10). Returns the audit row for undo.
+ * Archives an email a user dragged from Outlook (.eml or .msg) on one or more B/Ls of one agency
+ * (one agency email often covers several): the original file is kept as dropped, so it opens in
+ * Outlook again to continue the conversation, and the message with its attachments shows on each
+ * B/L. The same message dropped again is stored once and linked there too; B/Ls that already
+ * hold it are skipped. The app never interprets it (rule 10). Returns the audit rows for undo.
  */
-export async function archiveEmail(db: Db, actor: AuthUser, input: { blId: number; fileName: string; content: Buffer }, now: Date = new Date()): Promise<number[]> {
+export async function archiveEmail(db: Db, actor: AuthUser, input: { blIds: number[]; fileName: string; content: Buffer }, now: Date = new Date()): Promise<number[]> {
   const roleUsed = authorize(actor, "email.link");
   const extension = input.fileName.toLowerCase().split(".").pop() ?? "";
   if (extension !== "eml" && extension !== "msg") throw new DomainError("archive.errors.type");
@@ -158,9 +159,14 @@ export async function archiveEmail(db: Db, actor: AuthUser, input: { blId: numbe
   const message = await parse(extension, input.content);
 
   return db.transaction((tx) => {
-    const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, input.blId)).get();
-    if (!bl) throw new DomainError("errors.notFound");
-    if (bl.voidedAt) throw new DomainError("bls.errors.voided");
+    const bls = input.blIds.map((blId) => {
+      const bl = tx.select().from(billsOfLading).where(eq(billsOfLading.id, blId)).get();
+      if (!bl) throw new DomainError("errors.notFound");
+      if (bl.voidedAt) throw new DomainError("bls.errors.voided");
+      return bl;
+    });
+    const bl = bls[0];
+    if (bls.some((b) => b.agencyId !== bl.agencyId)) throw new DomainError("archive.errors.agencies");
     let emailId = tx.select({ id: emails.id }).from(emails).where(eq(emails.messageId, message.messageId)).get()?.id;
     if (emailId === undefined) {
       const at = now.toISOString();
@@ -190,8 +196,8 @@ export async function archiveEmail(db: Db, actor: AuthUser, input: { blId: numbe
         tx.insert(emailAttachments).values({ emailId, documentId: doc.id }).run();
       }
     }
-    const auditId = linkEmail(tx, actor, roleUsed, emailId, bl, now);
-    if (auditId === null) throw new DomainError("archive.errors.alreadyLinked", { bl: bl.blNo });
-    return [auditId];
+    const auditIds = bls.flatMap((b) => linkEmail(tx, actor, roleUsed, emailId, b, now) ?? []);
+    if (auditIds.length === 0) throw new DomainError("archive.errors.alreadyLinked", { bl: bls.map((b) => b.blNo).join(", ") });
+    return auditIds;
   });
 }

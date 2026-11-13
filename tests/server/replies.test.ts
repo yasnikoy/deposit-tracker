@@ -107,7 +107,7 @@ describe("recording replies", () => {
     const raw = await new MailComposer({ from: "refund@maersk.example", to: "depozito@firma.com.tr", subject: "RE: talep", text, messageId, inReplyTo, references: [inReplyTo], date: at("2026-10-22T10:00:00Z") })
       .compile()
       .build();
-    await archiveEmail(db, ops, { blId, fileName: "RE talep.eml", content: raw }, NOW);
+    await archiveEmail(db, ops, { blIds: [blId], fileName: "RE talep.eml", content: raw }, NOW);
     return messageId;
   }
 
@@ -117,8 +117,9 @@ describe("recording replies", () => {
     const sent = await sendRequests([a, b]);
     const agencyMessageId = await archivedReply(a, sent[0].messageId);
 
-    expect(() => recordReplyWithoutEmail(db, acc, { blId: a, replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toThrow(ForbiddenError);
-    for (const blId of [a, b]) recordReplyWithoutEmail(db, ops, { blId, replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW);
+    expect(() => recordReplyWithoutEmail(db, acc, { blIds: [a], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toThrow(ForbiddenError);
+    // One reply often covers several B/Ls: recorded on all of them at once.
+    expect(recordReplyWithoutEmail(db, ops, { blIds: [a, b], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toHaveLength(2);
     expect([status(a), status(b)]).toEqual(["AWAITING_RETURN", "AWAITING_RETURN"]);
 
     // Follow-up due 5 business days after the reply (Thu 22 Oct → Thu 29 Oct), replying to the agency's email.
@@ -136,21 +137,31 @@ describe("recording replies", () => {
     const a = newBl(msc, "MEDU1000001");
     await sendRequests([a]);
     const due = blDueState(db, a, NOW)!;
-    recordReplyWithoutEmail(db, ops, { blId: a, replyTypeId: typeId("INFO"), repliedOn: "2026-10-22", note: "Out of office" }, NOW);
+    recordReplyWithoutEmail(db, ops, { blIds: [a], replyTypeId: typeId("INFO"), repliedOn: "2026-10-22", note: "Out of office" }, NOW);
     expect(status(a)).toBe("REQUESTED");
     expect(blDueState(db, a, NOW)!.dueDate).toBe(due.dueDate);
   });
 
+  it("on several B/Ls is all or nothing, and the error names the B/L", async () => {
+    const a = newBl(msc, "MEDU1000001");
+    const b = newBl(msc, "MEDU1000002");
+    await sendRequests([a]);
+    expect(() => recordReplyWithoutEmail(db, ops, { blIds: [a, b], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toThrow(
+      expect.objectContaining({ messageKey: "replies.errors.noRequest", params: { bl: "MEDU1000002" } }),
+    );
+    expect(status(a)).toBe("REQUESTED");
+  });
+
   it("a reply without an email counts like one; not before any request, not in the future", async () => {
     const a = newBl(msc, "MEDU1000001");
-    expect(() => recordReplyWithoutEmail(db, ops, { blId: a, replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toThrow(
+    expect(() => recordReplyWithoutEmail(db, ops, { blIds: [a], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: null }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "replies.errors.noRequest" }),
     );
     await sendRequests([a]);
-    expect(() => recordReplyWithoutEmail(db, ops, { blId: a, replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-23", note: null }, NOW)).toThrow(
+    expect(() => recordReplyWithoutEmail(db, ops, { blIds: [a], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-23", note: null }, NOW)).toThrow(
       expect.objectContaining({ messageKey: "replies.errors.futureDate" }),
     );
-    recordReplyWithoutEmail(db, ops, { blId: a, replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: "Portalda görüldü" }, NOW);
+    recordReplyWithoutEmail(db, ops, { blIds: [a], replyTypeId: typeId("NOT_RETURNED"), repliedOn: "2026-10-22", note: "Portalda görüldü" }, NOW);
     expect(status(a)).toBe("AWAITING_RETURN");
     expect(blDueState(db, a, NOW)!.dueDate).toBe("2026-10-29");
   });

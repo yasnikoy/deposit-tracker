@@ -32,20 +32,33 @@ beforeEach(async () => {
 describe("putting a B/L on hold", () => {
   it("takes it off the due list while the money stays outstanding; lifting brings it back", () => {
     expect(dueBls()).toEqual(["MEDU1000001"]);
-    expect(() => holdBl(db, acc, { blId, reasonId: reason(), note: null, until: null }, NOW)).toThrow(ForbiddenError);
-    holdBl(db, ops, { blId, reasonId: reason(), note: "Avukata devredildi", until: null }, NOW);
+    expect(() => holdBl(db, acc, { blIds: [blId], reasonId: reason(), note: null, until: null }, NOW)).toThrow(ForbiddenError);
+    holdBl(db, ops, { blIds: [blId], reasonId: reason(), note: "Avukata devredildi", until: null }, NOW);
     expect(dueBls()).toEqual([]);
     expect(positions(db, ops, NOW).find((p) => p.blNo === "MEDU1000001")).toMatchObject({ open: true, outstandingMinor: 300000 });
 
-    releaseHold(db, ops, { blId }, NOW);
+    releaseHold(db, ops, { blIds: [blId] }, NOW);
     expect(dueBls()).toEqual(["MEDU1000001"]);
-    expect(() => releaseHold(db, ops, { blId }, NOW)).toThrow(expect.objectContaining({ messageKey: "holds.errors.notHeld" }));
+    expect(() => releaseHold(db, ops, { blIds: [blId] }, NOW)).toThrow(expect.objectContaining({ messageKey: "holds.errors.notHeld" }));
   });
 
   it("comes back by itself on its review date, which must lie ahead", () => {
-    expect(() => holdBl(db, ops, { blId, reasonId: reason(), note: null, until: "2026-11-10" }, NOW)).toThrow(expect.objectContaining({ messageKey: "holds.errors.untilPast" }));
-    holdBl(db, ops, { blId, reasonId: reason(), note: null, until: "2026-12-01" }, NOW);
+    expect(() => holdBl(db, ops, { blIds: [blId], reasonId: reason(), note: null, until: "2026-11-10" }, NOW)).toThrow(expect.objectContaining({ messageKey: "holds.errors.untilPast" }));
+    holdBl(db, ops, { blIds: [blId], reasonId: reason(), note: null, until: "2026-12-01" }, NOW);
     expect(dueBls(new Date("2026-11-30T09:00:00Z"))).toEqual([]);
     expect(dueBls(new Date("2026-12-01T09:00:00Z"))).toEqual(["MEDU1000001"]);
+  });
+
+  it("holds and lifts several B/Ls together, or none when one cannot be held", () => {
+    const msc = listDueRequests(db, ops, NOW).DUE[0].agencyId;
+    const other = makeBl(db, { acc, ops }, { agencyId: msc, blNo: "MEDU1000002", amountMinor: 300000, paidAt: "2026-07-01" }, NOW).blId;
+    holdBl(db, ops, { blIds: [blId, other], reasonId: reason(), note: null, until: null }, NOW);
+    expect(dueBls()).toEqual([]);
+    releaseHold(db, ops, { blIds: [other] }, NOW);
+    // One of them is not on hold any more: nothing is lifted.
+    expect(() => releaseHold(db, ops, { blIds: [blId, other] }, NOW)).toThrow(expect.objectContaining({ messageKey: "holds.errors.notHeld", params: { bl: "MEDU1000002" } }));
+    expect(dueBls()).toEqual(["MEDU1000002"]);
+    releaseHold(db, ops, { blIds: [blId] }, NOW);
+    expect(dueBls()).toEqual(["MEDU1000001", "MEDU1000002"]);
   });
 });

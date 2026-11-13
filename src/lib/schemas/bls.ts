@@ -29,8 +29,11 @@ export const containerListSchema = z
 
 /** Our internal file number, e.g. "T26-90815". */
 /** Our file number, 26-12345 (a leading "T" from transfer descriptions is dropped); empty means none. */
-/** The unit of a B/L (one of its agency's active units). */
-export const setBlUnitSchema = z.object({ blId: z.number().int().positive(), unitId: z.number().int().positive() });
+/** The B/Ls one action covers: one from the detail, or the selected rows of a list. */
+export const blIdsSchema = z.array(z.number().int().positive()).min(1).max(500);
+
+/** The unit of one or more B/Ls (one of their agency's active units). */
+export const setBlUnitSchema = z.object({ blIds: blIdsSchema, unitId: z.number().int().positive() });
 
 /** The customer of a B/L, or null to clear it. */
 export const setBlCustomerSchema = z.object({ blId: z.number().int().positive(), customerId: z.number().int().positive().nullable() });
@@ -44,8 +47,6 @@ export const fileNoSchema = z
 export const blRowSchema = z.object({
   paymentId: z.number().int().positive(),
   blNo: blNumberSchema,
-  // Required while the payment's agency has active units (checked on the server).
-  unitId: z.number().int().positive().nullable().default(null),
   // Optional: without them, the payment's receipt suggests both (file number, customer alias).
   customerId: z.number().int().positive().nullable().optional(),
   fileNo: fileNoSchema.nullable().optional(),
@@ -81,7 +82,6 @@ const transferTargetSchema = z.object({
   // For a new B/L only; prefilled from the source.
   customerId: z.number().int().positive().nullable().default(null),
   fileNo: fileNoSchema.nullable().default(null),
-  unitId: z.number().int().positive().nullable().default(null),
 });
 
 /** Moving whole deposits: one B/L to one or several targets, or several B/Ls to one target. */
@@ -102,7 +102,7 @@ export const previewTransferSchema = z.object({ sourceBlIds: z.array(z.number().
 export const reverseTransferSchema = z.object({ sourceBlId: z.number().int().positive(), reason: z.string().trim().min(1, msg("payments.errors.reason")).max(500) });
 
 export const holdBlSchema = z.object({
-  blId: z.number().int().positive(),
+  blIds: blIdsSchema,
   reasonId: z.number().int().positive(),
   until: z.string().refine(isValidIsoDate, msg("payments.errors.date")).nullable(),
   note: z
@@ -113,4 +113,4 @@ export const holdBlSchema = z.object({
     .transform((value) => value || null),
 });
 
-export const releaseHoldSchema = z.object({ blId: z.number().int().positive() });
+export const releaseHoldSchema = z.object({ blIds: blIdsSchema });

@@ -550,7 +550,7 @@
     "readOnly": "Acente bilgilerini operasyon rolü düzenler.",
     "units": {
       "title": "Birimler",
-      "hint": "Liman veya ofis başına ayrı alıcılar (ör. Mersin). Aktif birimi olan acentenin her B/L'si bir birim seçer; talepler o birimin alıcılarına gider.",
+      "hint": "Liman veya ofis başına ayrı alıcılar (ör. Mersin). Aktif birimi olan acentenin B/L'lerine talep göndermeden önce Talepler'de veya B/L'ler'de Birim seç ile birim atanır; talepler o birimin alıcılarına gider.",
       "add": "Birim ekle",
       "name": "Birim adı",
       "remove": "Birimi kaldır",
@@ -832,8 +832,7 @@
     "errors": {
       "blNo": "B/L numarası 3–40 karakter olmalı; harf, rakam, - ve / kullanılabilir.",
       "blNoTaken": "Bu B/L numarası başka bir aktif B/L'de kayıtlı.",
-      "unitRequired": "Bu acente için birim seçin.",
-      "unitUnknown": "Seçilen birim bu acentenin aktif birimi değil.",
+      "unitUnknown": "B/L {bl}: seçilen birim bu acentenin aktif birimi değil.",
       "blNoDuplicateInBatch": "Bu B/L numarası tabloda birden fazla satırda var.",
       "blNoLocked": "Talep gönderildikten sonra B/L numarası değiştirilemez.",
       "paymentUnavailable": "Bu ödeme için artık B/L oluşturulamaz (iptal edilmiş ya da B/L'si var).",
@@ -1037,16 +1036,16 @@
     "amount": "Tutar",
     "form": "Form",
     "noForm": "Form yok",
-    "formRequiredHint": "Formu yüklenmemiş B/L seçilemez.",
+    "formRequiredHint": "Formu yüklenmemiş B/L e-postaya girmez.",
     "openPortal": "Portalda aç",
     "portalFiling": "Portal talebi: {bls}. Önce talebi acentenin portalında oluşturun; belgeler bu e-postayla gider. Talep, e-posta gönderilince yapılmış sayılır.",
     "portalFiledConfirm": "Portalda talep oluşturuldu",
     "selectedTotal": "{count} B/L seçili",
     "errors": {
-      "notDue": "Bu B/L için şu anda talep yapılamaz.",
+      "notDue": "B/L {bl} için şu anda talep yapılamaz.",
       "futureDate": "Tarih ileri bir gün olamaz.",
-      "beforePayment": "Tarih depozito ödemesinden önce olamaz.",
-      "beforeLastRequest": "Tarih son talepten önce olamaz.",
+      "beforePayment": "B/L {bl}: tarih depozito ödemesinden önce olamaz.",
+      "beforeLastRequest": "B/L {bl}: tarih son talepten önce olamaz.",
       "formMissing": "{bl} için imzalı form yüklenmemiş.",
       "notDueBl": "{bl} için şu anda talep gönderilemez.",
       "portalNotFiled": "Önce portalda talebi oluşturun ve bunu onaylayın: {bls}",
@@ -1055,7 +1054,7 @@
       "customerDocumentsMissing": "{bl}: {customer} müşterisinin {documents} belgesi yüklenmemiş. Müşteri kartından yükleyin.",
       "resendNotSent": "Yalnızca gönderilmiş bir talep e-postası yeniden gönderilebilir.",
       "resendClosed": "Bu e-postanın B/L'leri kapanmış veya iptal edilmiş; yeniden gönderilemez.",
-      "unitMissing": "{bl}: birim seçilmedi. Göndermeden önce B/L ayrıntısından birimi seçin.",
+      "unitMissing": "{bl}: birim seçilmedi. Göndermeden önce B/L'yi seçip Birim seç ile birimi atayın.",
       "locked": "{bl} şu anda {user} tarafından hazırlanıyor.",
       "draftChanged": "Seçili B/L'ler değişti; e-postayı yeniden hazırlayın.",
       "attachment": "Bu ek bu e-postaya eklenemez.",
@@ -1088,7 +1087,7 @@
     "formNotNeeded": "Gerekmez",
     "evidenceMissing": "Dekont yok",
     "evidenceMissingHint": "Ödemenin dekontu veya faturası yüklenmemiş; e-posta onayla ve bu ek olmadan gider.",
-    "unitMissingHint": "Bu acentenin birimleri var; B/L ayrıntısından birim seçilmeden talep gönderilemez.",
+    "unitMissingHint": "Bu acentenin birimleri var; birim seçilmeden talep gönderilemez. B/L'yi seçip Birim seç ile atayın.",
     "resend": "Yeniden gönder",
     "resendHint": "E-posta yeni bir ileti olarak, yanıt olarak değil, gider. Talep sayısı, talep tarihi ve takip zamanı değişmez.",
     "resendQueued": "E-posta yeniden gönderilmek üzere kuyruğa alındı.",
@@ -1098,7 +1097,8 @@
       "INVOICE": "Fatura"
     },
     "evidenceWarning": "Şu B/L'lerin ödemesinde dekont veya fatura yok, e-posta bu ek olmadan gider: {bls}. Belgeyi B/L detayından veya Muhasebe ekranından ekleyebilirsiniz.",
-    "evidenceConfirm": "Dekontsuz göndermeyi onaylıyorum"
+    "evidenceConfirm": "Dekontsuz göndermeyi onaylıyorum",
+    "notSendable": "{count} seçili B/L e-postaya girmez (form, birim eksik ya da başkası hazırlıyor)."
   },
   "overrides": {
     "blTitle": "B/L ayar istisnaları",
@@ -1195,7 +1195,7 @@
       "noRequest": "B/L {bl} için henüz talep gönderilmedi; yanıt kaydedilemez.",
       "notReturnedStatus": "B/L {bl} bu durumda \"konteyner henüz dönmedi\" yanıtı alamaz.",
       "futureDate": "Yanıt tarihi ileri bir tarih olamaz.",
-      "beforePayment": "Yanıt tarihi ödeme tarihinden önce olamaz."
+      "beforePayment": "B/L {bl}: yanıt tarihi ödeme tarihinden önce olamaz."
     },
     "sentAt": "Gönderildi",
     "agency": "Acente",
@@ -1476,7 +1476,7 @@
     "errors": {
       "pastAttempts": "0 ile 50 arasında bir sayı girin.",
       "lastRequest": "Talep yapıldıysa son talep tarihini girin; 0 talepte tarih boş kalır.",
-      "joinFields": "B/L {bl} zaten kayıtlı; kayıt ona ek depozito olarak eklenir. Talep sayısı, müşteri, dosya no ve birimi boş bırakın."
+      "joinFields": "B/L {bl} zaten kayıtlı; kayıt ona ek depozito olarak eklenir. Talep sayısı, müşteri ve dosya no'yu boş bırakın."
     }
   },
   "reports": {
@@ -1888,7 +1888,8 @@
     "errors": {
       "type": "Yalnızca Outlook e-posta dosyaları (.eml, .msg) arşivlenebilir.",
       "unreadable": "Dosya bir e-posta olarak okunamadı.",
-      "alreadyLinked": "Bu e-posta B/L {bl} kaydında zaten arşivli."
+      "alreadyLinked": "Bu e-posta B/L {bl} kaydında zaten arşivli.",
+      "agencies": "Bir e-posta yalnızca aynı acentenin B/L'lerine arşivlenebilir."
     }
   },
   "holds": {
@@ -1915,5 +1916,17 @@
       "untilPast": "Tekrar bakılacak tarih bugünden sonra olmalı.",
       "notHeld": "B/L {bl} beklemede değil."
     }
+  },
+  "bulk": {
+    "affected": "Seçili {count} B/L:",
+    "unit": "Birim seç",
+    "unitHint": "Seçili B/L'lerin talepleri bundan sonra bu birimin adreslerine gider.",
+    "unitOneAgency": "Birim seçmek için birimleri olan tek bir acentenin B/L'lerini seçin.",
+    "unitSaved": "Birim kaydedildi.",
+    "archive": "E-posta arşivle",
+    "archiveHint": "Bırakılan e-posta seçili B/L'lerin her birinde görünür; Outlook'tan yeniden açılabilir.",
+    "archiveOneAgency": "Bir e-posta yalnızca aynı acentenin B/L'lerine arşivlenebilir.",
+    "archiveThenReply": "E-posta arşivlendi. Bir yanıt bildiriyorsa yanıtı da kaydedin.",
+    "releaseConfirm": "Seçili B/L'ler talep listelerine geri döner."
   }
 }

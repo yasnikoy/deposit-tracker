@@ -2,7 +2,7 @@ import "server-only";
 import { istanbulToday } from "@/domain/business-days";
 import { EVIDENCE_KIND } from "@/domain/records";
 import type { OpeningBalanceInput } from "@/lib/schemas/opening-balances";
-import { agencyForNewName, unitChoiceError } from "./agencies";
+import { agencyForNewName } from "./agencies";
 import { writeAudit } from "./audit";
 import { authorize } from "./auth/can";
 import type { AuthUser } from "./auth/types";
@@ -48,7 +48,7 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
 
     const existing = existingBlFor(tx, input.blNo, { agencyId, currency: input.currency });
     if (existing) {
-      if (input.pastAttempts > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName || input.unitId !== null) {
+      if (input.pastAttempts > 0 || input.fileNo !== null || input.customerId !== null || input.newCustomerName) {
         throw new DomainError("openingBalances.errors.joinFields", { bl: existing.blNo });
       }
       if (input.documentId !== null) {
@@ -67,14 +67,12 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
     }
     if (input.lastRequestOn !== null) {
       if (input.lastRequestOn > istanbulToday(now)) throw new DomainError("requests.errors.futureDate");
-      if (input.lastRequestOn < input.paidAt) throw new DomainError("requests.errors.beforePayment");
+      if (input.lastRequestOn < input.paidAt) throw new DomainError("requests.errors.beforePayment", { bl: input.blNo });
     }
     if (input.customerId !== null && !tx.select().from(customers).where(eq(customers.id, input.customerId)).get()?.active) {
       throw new DomainError("customers.errors.unknown");
     }
     const customerId = input.customerId ?? (input.newCustomerName ? customerForNewName(tx, actor, roleUsed, input.newCustomerName, now) : null);
-    const unitError = unitChoiceError(tx, agencyId, input.unitId);
-    if (unitError) throw new DomainError(unitError);
 
     const at = now.toISOString();
     const status = input.pastAttempts > 0 ? "REQUESTED" : "PAID";
@@ -85,7 +83,6 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
         depositPaymentId: null,
         customerId,
         fileNo: input.fileNo,
-        unitId: input.unitId,
         // "Açıklama" on the form: the B/L's description (and the audit reason, as before).
         description: input.note,
         agencyId,
@@ -138,7 +135,6 @@ export function createOpeningBalance(db: Db, actor: AuthUser, input: OpeningBala
           paidAt: input.paidAt,
           kind: input.kind,
           customerId,
-          unitId: input.unitId,
           documentId: input.documentId,
           pastAttempts: input.pastAttempts,
           lastRequestOn: input.lastRequestOn,
